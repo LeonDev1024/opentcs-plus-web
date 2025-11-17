@@ -28,25 +28,6 @@ export function login(data: LoginData): AxiosPromise<LoginResult> {
   });
 }
 
-// 注册方法
-export function register(data: any) {
-  const params = {
-    ...data,
-    clientId: clientId,
-    grantType: 'password'
-  };
-  return request({
-    url: '/auth/register',
-    headers: {
-      isToken: false,
-      isEncrypt: true,
-      repeatSubmit: false
-    },
-    method: 'post',
-    data: params
-  });
-}
-
 /**
  * 注销
  */

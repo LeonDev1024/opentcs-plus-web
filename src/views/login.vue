@@ -49,9 +49,7 @@
           <span v-if="!loading">{{ proxy.$t('login.login') }}</span>
           <span v-else>{{ proxy.$t('login.logging') }}</span>
         </el-button>
-        <div v-if="register" style="float: right">
-          <router-link class="link-type" :to="'/register'">{{ proxy.$t('login.switchRegisterPage') }}</router-link>
-        </div>
+
       </el-form-item>
     </el-form>
     <!--  底部  -->
@@ -100,8 +98,7 @@ const captchaEnabled = ref(true);
 // 租户开关
 const tenantEnabled = ref(true);
 
-// 注册开关
-const register = ref(false);
+
 const redirect = ref('/');
 const loginRef = ref<ElFormInstance>();
 // 租户列表

@@ -3,7 +3,7 @@
     <el-row :gutter="20">
       <el-col :sm="24" :lg="12" style="padding-left: 20px">
         <h2>机器人调度管理平台</h2>
-      </el-col>ß
+      </el-col>
 
     </el-row>
     <el-divider />
