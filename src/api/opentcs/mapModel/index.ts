@@ -2,18 +2,14 @@ import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
 import { MapModelVO, MapModelForm, MapModelQuery } from '@/api/opentcs/mapModel/types';
 
-/**
- * 查询地图模型列表
- * @param query
- * @returns {*}
- */
-export const listMapModel = (query?: MapModelQuery): AxiosPromise<MapModelVO[]> => {
+// 查询地图模型列表
+export function listMapModel(query?: MapModelQuery): AxiosPromise<MapModelVO[]> {
   return request({
-    url: '/opentcs/mapModel/list',
+    url: '/map/model/list',
     method: 'get',
     params: query
   });
-};
+}
 
 /**
  * 查询地图模型详细
@@ -21,7 +17,7 @@ export const listMapModel = (query?: MapModelQuery): AxiosPromise<MapModelVO[]> 
  */
 export const getMapModel = (id: string | number): AxiosPromise<MapModelVO> => {
   return request({
-    url: '/opentcs/mapModel/' + id,
+    url: '/map/model/' + id,
     method: 'get'
   });
 };
@@ -32,7 +28,7 @@ export const getMapModel = (id: string | number): AxiosPromise<MapModelVO> => {
  */
 export const addMapModel = (data: MapModelForm) => {
   return request({
-    url: '/opentcs/mapModel',
+    url: '/map/model/create',
     method: 'post',
     data: data
   });
@@ -44,7 +40,7 @@ export const addMapModel = (data: MapModelForm) => {
  */
 export const updateMapModel = (data: MapModelForm) => {
   return request({
-    url: '/opentcs/mapModel',
+    url: '/map/model',
     method: 'put',
     data: data
   });
@@ -56,7 +52,7 @@ export const updateMapModel = (data: MapModelForm) => {
  */
 export const delMapModel = (id: string | number | Array<string | number>) => {
   return request({
-    url: '/opentcs/mapModel/' + id,
+    url: '/map/model/' + id,
     method: 'delete'
   });
 };
@@ -67,7 +63,7 @@ export const delMapModel = (id: string | number | Array<string | number>) => {
  */
 export const loadMapModel = (id: string | number) => {
   return request({
-    url: '/opentcs/mapModel/load/' + id,
+    url: '/map/model/load/' + id,
     method: 'post'
   });
 };
