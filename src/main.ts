@@ -38,6 +38,9 @@ VXETable.setConfig({
   zIndex: 999999
 });
 
+// vue-konva
+import VueKonva from 'vue-konva';
+
 // 修改 el-dialog 默认点击遮照为不关闭
 import { ElDialog } from 'element-plus';
 ElDialog.props.closeOnClickModal.default = false;
@@ -50,6 +53,7 @@ app.use(router);
 app.use(store);
 app.use(i18n);
 app.use(VXETable);
+app.use(VueKonva);
 app.use(plugins);
 // 自定义指令
 directive(app);

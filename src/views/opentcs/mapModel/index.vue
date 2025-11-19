@@ -57,8 +57,11 @@
           </template>
         </el-table-column>
         <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
-        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="200">
+        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="250">
           <template #default="scope">
+            <el-tooltip content="编辑地图" placement="top">
+              <el-button v-hasPermi="['opentcs:mapModel:edit']" link type="primary" icon="EditPen" @click="handleEdit(scope.row)"></el-button>
+            </el-tooltip>
             <el-tooltip content="修改" placement="top">
               <el-button v-hasPermi="['opentcs:mapModel:edit']" link type="primary" icon="Edit" @click="handleUpdate(scope.row)"></el-button>
             </el-tooltip>
@@ -108,8 +111,11 @@
 </template>
 
 <script setup name="MapModel" lang="ts">
+import { useRouter } from 'vue-router';
 import { listMapModel, getMapModel, delMapModel, addMapModel, updateMapModel, loadMapModel } from '@/api/opentcs/mapModel';
 import { MapModelVO, MapModelQuery, MapModelForm } from '@/api/opentcs/mapModel/types';
+
+const router = useRouter();
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 const { sys_normal_disable } = toRefs<any>(proxy?.useDict('sys_normal_disable'));
@@ -199,6 +205,14 @@ const handleAdd = () => {
   reset();
   dialog.visible = true;
   dialog.title = '添加地图模型';
+};
+
+/** 编辑地图按钮操作 */
+const handleEdit = (row: MapModelVO) => {
+  router.push({
+    path: '/opentcs/mapModel/editor',
+    query: { id: row.id }
+  });
 };
 
 /** 修改按钮操作 */
