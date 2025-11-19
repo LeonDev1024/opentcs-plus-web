@@ -154,7 +154,18 @@
           />
         </el-button-group>
       </div>
-      
+      <div class="toolbar-right">
+        <el-button
+          class="collapse-toggle"
+          size="small"
+          @click="toggleHeaderCollapse"
+          :title="isHeaderCollapsed ? '展开导航栏' : '折叠导航栏'"
+        >
+          <el-icon>
+            <component :is="isHeaderCollapsed ? 'CaretBottom' : 'CaretTop'" />
+          </el-icon>
+        </el-button>
+      </div>
     </div>
     
     <!-- 主内容区 -->
@@ -276,6 +287,8 @@ const showBlocks = ref(true);
 // 鼠标位置（从画布组件获取）
 const mousePosition = ref({ x: 0, y: 0 });
 
+// 顶部导航折叠状态
+const isHeaderCollapsed = ref(false);
 
 // 从 store 获取状态
 const currentTool = computed(() => mapEditorStore.currentTool);
@@ -364,6 +377,26 @@ const handlePathDropdownVisible = (visible: boolean) => {
     setTool(ToolMode.PATH);
   }
 };
+
+// 顶部导航折叠
+const applyHeaderCollapseState = () => {
+  const appWrapper = document.querySelector('.app-wrapper') || document.body;
+  if (!appWrapper) return;
+  if (isHeaderCollapsed.value) {
+    appWrapper.classList.add('map-editor-header-collapsed');
+  } else {
+    appWrapper.classList.remove('map-editor-header-collapsed');
+  }
+};
+
+const toggleHeaderCollapse = () => {
+  isHeaderCollapsed.value = !isHeaderCollapsed.value;
+  applyHeaderCollapseState();
+};
+
+watch(isHeaderCollapsed, () => {
+  nextTick(() => applyHeaderCollapseState());
+});
 
 // 撤销/重做
 const undo = () => {
@@ -506,6 +539,7 @@ onMounted(async () => {
   
   // 注册键盘事件
   window.addEventListener('keydown', handleKeyDown);
+  applyHeaderCollapseState();
   
   // 确保网格大小为20（MapCanvas组件默认就是20，这里确保一下）
   nextTick(() => {
@@ -571,6 +605,8 @@ const handleKeyDown = (e: KeyboardEvent) => {
 onUnmounted(() => {
   // 移除键盘事件
   window.removeEventListener('keydown', handleKeyDown);
+  const appWrapper = document.querySelector('.app-wrapper');
+  appWrapper?.classList.remove('map-editor-header-collapsed');
   
   // 重置编辑器
   mapEditorStore.reset();
@@ -617,7 +653,7 @@ onUnmounted(() => {
     border-bottom: 1px solid #e4e7ed;
     display: flex;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: space-between;
     padding: 0 24px;
     
     .toolbar-left {
@@ -698,6 +734,29 @@ onUnmounted(() => {
         
         .path-type-icon {
           margin-right: 8px;
+        }
+      }
+    }
+    
+    .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      
+      .collapse-toggle {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        border: 1px solid #e0e6ef;
+        background: #fff;
+        color: #4c4c4c;
+        padding: 0;
+        transition: all 0.2s ease;
+        
+        &:hover {
+          border-color: #409eff;
+          color: #409eff;
+          box-shadow: 0 1px 3px rgba(64, 158, 255, 0.2);
         }
       }
     }
@@ -877,6 +936,20 @@ onUnmounted(() => {
       }
     }
   }
+}
+
+:global(.map-editor-header-collapsed .fixed-header),
+:global(.map-editor-header-collapsed .navbar),
+:global(.map-editor-header-collapsed .tags-view-container) {
+  display: none;
+}
+
+:global(.map-editor-header-collapsed .fixed-header + .app-main) {
+  padding-top: 0 !important;
+}
+
+:global(.map-editor-header-collapsed .app-main) {
+  min-height: 100vh;
 }
 </style>
 
