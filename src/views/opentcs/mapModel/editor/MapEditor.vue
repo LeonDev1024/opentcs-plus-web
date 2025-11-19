@@ -30,6 +30,14 @@
             title="选择工具"
           />
           <el-button
+            :type="currentTool === 'pan' ? 'primary' : 'default'"
+            size="small"
+            icon="Rank"
+            @click="setTool(ToolMode.PAN)"
+            title="平移工具"
+          />
+
+          <el-button
             :type="currentTool === 'point' ? 'primary' : 'default'"
             size="small"
             icon="Location"
@@ -50,13 +58,7 @@
             @click="setTool(ToolMode.LOCATION)"
             title="绘制位置"
           />
-          <el-button
-            :type="currentTool === 'pan' ? 'primary' : 'default'"
-            size="small"
-            icon="Rank"
-            @click="setTool(ToolMode.PAN)"
-            title="平移工具"
-          />
+          
         </el-button-group>
         
         <el-divider direction="vertical" />
