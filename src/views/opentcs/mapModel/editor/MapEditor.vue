@@ -50,7 +50,7 @@
               @command="handlePointTypeChange"
               trigger="click"
               placement="bottom"
-              @visible-change="handleDropdownVisible"
+              @visible-change="handlePointDropdownVisible"
             >
               <el-button
                 :type="currentTool === 'point' ? 'primary' : 'default'"
@@ -80,17 +80,55 @@
               </template>
             </el-dropdown>
           </div>
-          <el-button
-            :type="currentTool === 'path' ? 'primary' : 'default'"
-            size="small"
-            icon="Connection"
-            @click="setTool(ToolMode.PATH)"
-            title="绘制路径"
-          />
+          <div class="path-tool-wrapper">
+            <el-button
+              :type="currentTool === 'path' ? 'primary' : 'default'"
+              size="small"
+              @click="setTool(ToolMode.PATH)"
+              title="创建连线"
+              class="path-tool-main"
+            >
+              <template #icon>
+                <PathTypeIcon :type="mapEditorStore.pathConnectionType" :active="currentTool === 'path'" />
+              </template>
+            </el-button>
+            <el-dropdown 
+              @command="handlePathTypeChange"
+              trigger="click"
+              placement="bottom"
+              @visible-change="handlePathDropdownVisible"
+            >
+              <el-button
+                :type="currentTool === 'path' ? 'primary' : 'default'"
+                size="small"
+                class="path-tool-dropdown"
+                @click.stop
+              >
+                <el-icon><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    v-for="option in pathTypeOptions"
+                    :key="option.value"
+                    :command="option.value"
+                    :class="{ 'is-selected': mapEditorStore.pathConnectionType === option.value }"
+                  >
+                    <PathTypeIcon
+                      class="path-type-icon"
+                      :type="option.value"
+                      :active="mapEditorStore.pathConnectionType === option.value"
+                    />
+                    <span>{{ option.label }}</span>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
           <el-button
             :type="currentTool === 'location' ? 'primary' : 'default'"
             size="small"
-            icon="Position"
+            icon="Grid"
             @click="setTool(ToolMode.LOCATION)"
             title="绘制位置"
           />
@@ -157,7 +195,7 @@
       <!-- 中间：画布区域 -->
       <div class="canvas-area">
         <div class="canvas-header">
-          <span class="canvas-title">建模视图</span>
+          <span class="canvas-title">地图模型视图</span>
           <div class="canvas-toolbar">
             <span class="zoom-level">{{ Math.round(canvasState.scale * 100) }}%</span>
             <el-button-group size="small">
@@ -219,6 +257,7 @@ import PropertyPanel from './components/PropertyPanel.vue';
 import ComponentsPanel from './components/ComponentsPanel.vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import { ToolMode } from '@/types/mapEditor';
+import PathTypeIcon from './components/icons/PathTypeIcon.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -246,12 +285,26 @@ const loading = computed(() => mapEditorStore.loading);
 const isDirty = computed(() => mapEditorStore.isDirty);
 const canvasState = computed(() => mapEditorStore.canvasState);
 
+type PathConnectionType = 'direct' | 'orthogonal' | 'curve';
+
+const pathTypeOptions: Array<{ value: PathConnectionType; label: string }> = [
+  { value: 'direct', label: '直接连线' },
+  { value: 'orthogonal', label: '直角连线' },
+  { value: 'curve', label: '圆角连线' }
+];
+
+const pathTypeLabels: Record<PathConnectionType, string> = {
+  direct: '直接连线',
+  orthogonal: '直角连线',
+  curve: '圆角连线'
+};
+
 // 工具切换
 const setTool = (tool: ToolMode) => {
   mapEditorStore.setTool(tool);
   
   // 显示中文提示
-  const toolNames: Record<ToolMode, string> = {
+  const toolNames: Partial<Record<ToolMode, string>> = {
     [ToolMode.SELECT]: '选择工具',
     [ToolMode.PAN]: '平移工具',
     [ToolMode.POINT]: '绘制点',
@@ -291,11 +344,24 @@ const handlePointTypeChange = (type: string) => {
   ElMessage.success(`点位类型已切换为：${typeNames[type]}`);
 };
 
-// 下拉菜单显示状态变化
-const handleDropdownVisible = (visible: boolean) => {
+// 连线类型切换
+const handlePathTypeChange = (type: PathConnectionType) => {
+  mapEditorStore.setPathConnectionType(type);
+  ElMessage.success(`连线类型已切换为：${pathTypeLabels[type]}`);
+};
+
+// 点位类型下拉菜单显示状态
+const handlePointDropdownVisible = (visible: boolean) => {
   // 如果下拉菜单打开，确保工具已切换到绘制点
   if (visible && currentTool.value !== ToolMode.POINT) {
     setTool(ToolMode.POINT);
+  }
+};
+
+// 连线下拉菜单显示状态
+const handlePathDropdownVisible = (visible: boolean) => {
+  if (visible && currentTool.value !== ToolMode.PATH) {
+    setTool(ToolMode.PATH);
   }
 };
 
@@ -547,17 +613,24 @@ onUnmounted(() => {
   // 工具栏
   .toolbar {
     height: 50px;
-    background: #fff;
+    background: linear-gradient(0deg, #fafbfc 0%, #fff 100%);
     border-bottom: 1px solid #e4e7ed;
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    padding: 0 16px;
+    padding: 0 24px;
     
     .toolbar-left {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 18px;
+      flex-wrap: nowrap;
+      
+      :deep(.el-divider--vertical) {
+        height: 24px;
+        margin: 0 6px;
+        border-left-color: #e0e3eb;
+      }
       
       .el-button-group {
         .el-button {
@@ -571,15 +644,36 @@ onUnmounted(() => {
         width: 24px;
         height: 24px;
         padding: 0;
+        border: none;
+        background: transparent;
+        color: #4c4c4c;
+        font-weight: 500;
+        transition: all 0.2s ease;
+        
+        &:hover {
+          background: rgba(64, 158, 255, 0.08);
+          color: #1f2d3d;
+        }
+        
+        &.el-button--primary {
+          background: rgba(64, 158, 255, 0.14);
+          color: #1f2d3d;
+          border: 1px solid rgba(64, 158, 255, 0.3);
+        }
       }
       
-      // 绘制点工具按钮样式
-      .point-tool-wrapper {
+      // 分段按钮样式
+      .point-tool-wrapper,
+      .path-tool-wrapper {
         display: inline-flex;
         align-items: center;
         height: 24px;
+        border: 1px solid #e4e7ed;
+        border-radius: 4px;
+        background: #fff;
         
-        .point-tool-main {
+        .point-tool-main,
+        .path-tool-main {
           border-top-right-radius: 0;
           border-bottom-right-radius: 0;
           border-right: none;
@@ -588,7 +682,8 @@ onUnmounted(() => {
           padding: 0;
         }
         
-        .point-tool-dropdown {
+        .point-tool-dropdown,
+        .path-tool-dropdown {
           border-top-left-radius: 0;
           border-bottom-left-radius: 0;
           padding: 0 2px;
@@ -599,6 +694,10 @@ onUnmounted(() => {
           .el-icon {
             font-size: 10px;
           }
+        }
+        
+        .path-type-icon {
+          margin-right: 8px;
         }
       }
     }
@@ -739,6 +838,10 @@ onUnmounted(() => {
                 font-size: 10px;
               }
             }
+          }
+          
+          .path-type-icon {
+            margin-right: 8px;
           }
         }
       }

@@ -87,10 +87,6 @@
       <!-- 临时绘制层（用于预览） -->
       <v-layer ref="tempLayerRef" :config="{ name: 'temp' }">
         <v-line
-          v-if="tempPath"
-          :config="tempPath"
-        />
-        <v-line
           v-if="tempLocation"
           :config="tempLocation"
         />
@@ -250,10 +246,12 @@ const visibleLocations = computed(() => {
 const mousePosition = ref({ x: 0, y: 0 });
 
 // 临时绘制数据
-const tempPath = ref<any>(null);
 const tempLocation = ref<any>(null);
 const isDrawing = ref(false);
 const drawingPoints = ref<Array<{ x: number; y: number }>>([]);
+
+// 连线状态
+const pendingConnectionStart = ref<MapPoint | null>(null);
 
 // 拖拽状态
 const isDragging = ref(false);
@@ -262,14 +260,15 @@ const dragStartPos = ref({ x: 0, y: 0 });
 // 获取点的 Konva 配置
 const getPointConfig = (point: MapPoint) => {
   const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
+  const isConnecting = currentTool.value === ToolMode.PATH && pendingConnectionStart.value?.id === point.id;
   return {
     id: point.id,
     x: point.x,
     y: point.y,
     radius: point.editorProps.radius || 5,
     fill: isSelected ? '#ff4d4f' : (point.editorProps.color || '#1890ff'),
-    stroke: isSelected ? '#ff7875' : '#ffffff',
-    strokeWidth: isSelected ? 2 : 1,
+    stroke: isSelected || isConnecting ? '#ff7875' : '#ffffff',
+    strokeWidth: isSelected || isConnecting ? 2.5 : 1,
     draggable: currentTool.value === ToolMode.SELECT && !isDragging.value,
     listening: true
   };
@@ -284,16 +283,94 @@ const getPathConfig = (path: MapPath) => {
     points.push(cp.x, cp.y);
   });
   
+  const connectionType = path.type as 'direct' | 'orthogonal' | 'curve' | undefined;
+  const isCurve = path.geometry.pathType === 'curve' || connectionType === 'curve';
+  const isOrthogonal = connectionType === 'orthogonal';
+  
   return {
     id: path.id,
     points,
     stroke: isSelected ? '#ff4d4f' : (path.editorProps.strokeColor || '#52c41a'),
     strokeWidth: path.editorProps.strokeWidth || 2,
     lineCap: 'round',
-    lineJoin: 'round',
+    lineJoin: isOrthogonal ? 'miter' : 'round',
+    tension: isCurve ? 0.5 : 0,
     dash: path.editorProps.lineStyle === 'dashed' ? [5, 5] : undefined,
     listening: true
   };
+};
+
+const buildConnectionControlPoints = (start: MapPoint, end: MapPoint, type: 'direct' | 'orthogonal' | 'curve') => {
+  const timestamp = Date.now();
+  let index = 0;
+  const createControlPoint = (x: number, y: number) => ({
+    id: `cp_${timestamp}_${index++}`,
+    x,
+    y
+  });
+  
+  const points = [createControlPoint(start.x, start.y)];
+  
+  if (type === 'orthogonal' && start.x !== end.x && start.y !== end.y) {
+    points.push(createControlPoint(start.x, end.y));
+  } else if (type === 'curve') {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const normalX = -dy / length;
+    const normalY = dx / length;
+    const offset = Math.min(80, length / 3);
+    const midX = (start.x + end.x) / 2 + normalX * offset;
+    const midY = (start.y + end.y) / 2 + normalY * offset;
+    points.push(createControlPoint(midX, midY));
+  }
+  
+  points.push(createControlPoint(end.x, end.y));
+  return points;
+};
+
+const createConnectionBetweenPoints = (start: MapPoint, end: MapPoint) => {
+  const connectionType = mapEditorStore.pathConnectionType;
+  const controlPoints = buildConnectionControlPoints(start, end, connectionType);
+  
+  mapEditorStore.addPath({
+    layerId: getDefaultLayerId('path'),
+    name: `${start.name || start.id} -> ${end.name || end.id}`,
+    startPointId: start.id,
+    endPointId: end.id,
+    status: '0',
+    type: connectionType,
+    geometry: {
+      controlPoints,
+      pathType: connectionType === 'curve' ? 'curve' : 'line'
+    },
+    editorProps: {
+      strokeColor: '#52c41a',
+      strokeWidth: 2,
+      lineStyle: 'solid',
+      arrowVisible: false,
+      labelVisible: true
+    }
+  });
+  
+  ElMessage.success('连线创建成功');
+};
+
+const handleConnectionPointClick = (point: MapPoint) => {
+  if (!pendingConnectionStart.value) {
+    pendingConnectionStart.value = point;
+    ElMessage.info(`已选择起点：${point.name || point.id}`);
+    return;
+  }
+  
+  if (pendingConnectionStart.value.id === point.id) {
+    pendingConnectionStart.value = null;
+    ElMessage.info('已取消连线起点');
+    return;
+  }
+  
+  createConnectionBetweenPoints(pendingConnectionStart.value, point);
+  pendingConnectionStart.value = null;
 };
 
 // 获取位置的 Konva 配置
@@ -364,16 +441,6 @@ const handleMouseDown = (e: any) => {
       (id) => mapEditorStore.deletePoint(id)
     );
     mapEditorStore.executeCommand(command);
-  } else if (currentTool.value === ToolMode.PATH) {
-    // 开始绘制路径或添加控制点
-    if (!isDrawing.value) {
-      // 开始新的路径
-      isDrawing.value = true;
-      drawingPoints.value = [{ x, y }];
-    } else {
-      // 添加控制点
-      drawingPoints.value.push({ x, y });
-    }
   } else if (currentTool.value === ToolMode.LOCATION) {
     // 开始绘制位置（多边形）或添加顶点
     if (!isDrawing.value) {
@@ -383,6 +450,12 @@ const handleMouseDown = (e: any) => {
     } else {
       // 添加顶点
       drawingPoints.value.push({ x, y });
+    }
+  } else if (currentTool.value === ToolMode.PATH) {
+    // 点击空白处时，如有连线起点则取消
+    if (pendingConnectionStart.value) {
+      pendingConnectionStart.value = null;
+      ElMessage.info('已取消连线起点');
     }
   }
 };
@@ -417,25 +490,6 @@ const handleMouseMove = (e: any) => {
     
     // 更新起始位置
     dragStartPos.value = { x: currentPos.x, y: currentPos.y };
-  }
-  
-  // 绘制路径预览
-  if (currentTool.value === ToolMode.PATH && isDrawing.value && drawingPoints.value.length > 0) {
-    const points: number[] = [];
-    drawingPoints.value.forEach(p => {
-      points.push(p.x, p.y);
-    });
-    // 添加当前鼠标位置作为预览
-    points.push(x, y);
-    
-    tempPath.value = {
-      points,
-      stroke: '#52c41a',
-      strokeWidth: 2,
-      dash: [5, 5],
-      lineCap: 'round',
-      lineJoin: 'round'
-    };
   }
   
   // 绘制位置预览
@@ -475,52 +529,14 @@ const handleMouseUp = (e: any) => {
   
   // 右键完成绘制
   if (e.evt.button === 2) {
-    if (currentTool.value === ToolMode.PATH && isDrawing.value && drawingPoints.value.length >= 2) {
-      // 完成路径绘制
-      completePathDrawing();
-    } else if (currentTool.value === ToolMode.LOCATION && isDrawing.value && drawingPoints.value.length >= 3) {
+    if (currentTool.value === ToolMode.LOCATION && isDrawing.value && drawingPoints.value.length >= 3) {
       // 完成位置绘制
       completeLocationDrawing();
     } else if (isDrawing.value) {
       // 取消绘制
-      cancelDrawing();
+      cancelLocationDrawing();
     }
   }
-};
-
-// 完成路径绘制
-const completePathDrawing = () => {
-  if (drawingPoints.value.length < 2) {
-    ElMessage.warning('路径至少需要2个控制点');
-    return;
-  }
-  
-  const path = mapEditorStore.addPath({
-    layerId: getDefaultLayerId('path'),
-    name: `路径_${Date.now()}`,
-    status: '0',
-    geometry: {
-      controlPoints: drawingPoints.value.map((p, index) => ({
-        id: `cp_${Date.now()}_${index}`,
-        x: p.x,
-        y: p.y
-      })),
-      pathType: 'line'
-    },
-    editorProps: {
-      strokeColor: '#52c41a',
-      strokeWidth: 2,
-      lineStyle: 'solid',
-      arrowVisible: false,
-      labelVisible: true
-    }
-  });
-  
-  isDrawing.value = false;
-  drawingPoints.value = [];
-  tempPath.value = null;
-  
-  ElMessage.success('路径绘制完成');
 };
 
 // 完成位置绘制
@@ -558,11 +574,10 @@ const completeLocationDrawing = () => {
   ElMessage.success('位置绘制完成');
 };
 
-// 取消绘制
-const cancelDrawing = () => {
+// 取消位置绘制
+const cancelLocationDrawing = () => {
   isDrawing.value = false;
   drawingPoints.value = [];
-  tempPath.value = null;
   tempLocation.value = null;
   ElMessage.info('已取消绘制');
 };
@@ -617,6 +632,12 @@ const handleWheel = (e: any) => {
 // 点点击
 const handlePointClick = (point: MapPoint, e: any) => {
   e.cancelBubble = true;
+  
+  if (currentTool.value === ToolMode.PATH) {
+    handleConnectionPointClick(point);
+    return;
+  }
+  
   const multiSelect = e.evt.ctrlKey || e.evt.metaKey;
   mapEditorStore.selectElement(point.id, 'point', multiSelect);
 };
@@ -929,6 +950,15 @@ watch(
   }
 );
 
+watch(currentTool, (tool) => {
+  if (tool !== ToolMode.PATH) {
+    pendingConnectionStart.value = null;
+  }
+  if (tool !== ToolMode.LOCATION && isDrawing.value) {
+    cancelLocationDrawing();
+  }
+});
+
 // 暴露方法供父组件调用
 defineExpose({
   setGridVisible,
@@ -944,9 +974,13 @@ defineExpose({
 
 // 键盘事件处理
 const handleKeyDown = (e: KeyboardEvent) => {
-  // ESC 取消绘制
-  if (e.key === 'Escape' && isDrawing.value) {
-    cancelDrawing();
+  if (e.key === 'Escape') {
+    if (currentTool.value === ToolMode.LOCATION && isDrawing.value) {
+      cancelLocationDrawing();
+    } else if (currentTool.value === ToolMode.PATH && pendingConnectionStart.value) {
+      pendingConnectionStart.value = null;
+      ElMessage.info('已取消连线起点');
+    }
   }
 };
 

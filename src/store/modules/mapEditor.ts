@@ -33,6 +33,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   // 点位类型（默认临时停靠点）
   const pointType = ref<string>('Halt point');
   
+  // 路径连线类型
+  const pathConnectionType = ref<'direct' | 'orthogonal' | 'curve'>('direct');
+  
   // 画布状态
   const canvasState = reactive<CanvasState>({
     scale: 1,
@@ -289,6 +292,13 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
    */
   const setPointType = (type: string) => {
     pointType.value = type;
+  };
+  
+  /**
+   * 设置路径连线类型
+   */
+  const setPathConnectionType = (type: 'direct' | 'orthogonal' | 'curve') => {
+    pathConnectionType.value = type;
   };
   
   /**
@@ -580,6 +590,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     currentMapModelId,
     currentTool,
     pointType,
+    pathConnectionType,
     canvasState,
     layers,
     points,
@@ -599,6 +610,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     saveMap,
     setTool,
     setPointType,
+    setPathConnectionType,
     updateCanvasState,
     addPoint,
     updatePoint,
