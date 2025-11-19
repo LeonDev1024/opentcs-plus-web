@@ -30,6 +30,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   // 当前工具模式
   const currentTool = ref<ToolMode>(ToolModeEnum.SELECT);
   
+  // 点位类型（默认临时停靠点）
+  const pointType = ref<string>('Halt point');
+  
   // 画布状态
   const canvasState = reactive<CanvasState>({
     scale: 1,
@@ -279,6 +282,13 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const setTool = (tool: ToolMode) => {
     currentTool.value = tool;
     clearSelection();
+  };
+  
+  /**
+   * 设置点位类型
+   */
+  const setPointType = (type: string) => {
+    pointType.value = type;
   };
   
   /**
@@ -569,6 +579,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     mapData,
     currentMapModelId,
     currentTool,
+    pointType,
     canvasState,
     layers,
     points,
@@ -587,6 +598,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     loadMap,
     saveMap,
     setTool,
+    setPointType,
     updateCanvasState,
     addPoint,
     updatePoint,

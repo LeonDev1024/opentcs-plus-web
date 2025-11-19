@@ -37,13 +37,49 @@
             title="平移工具"
           />
 
-          <el-button
-            :type="currentTool === 'point' ? 'primary' : 'default'"
-            size="small"
-            icon="Location"
-            @click="setTool(ToolMode.POINT)"
-            title="绘制点"
-          />
+          <div class="point-tool-wrapper">
+            <el-button
+              :type="currentTool === 'point' ? 'primary' : 'default'"
+              size="small"
+              :icon="getPointTypeIcon(mapEditorStore.pointType)"
+              @click="setTool(ToolMode.POINT)"
+              title="绘制点"
+              class="point-tool-main"
+            />
+            <el-dropdown 
+              @command="handlePointTypeChange"
+              trigger="click"
+              placement="bottom"
+              @visible-change="handleDropdownVisible"
+            >
+              <el-button
+                :type="currentTool === 'point' ? 'primary' : 'default'"
+                size="small"
+                class="point-tool-dropdown"
+                @click.stop
+              >
+                <el-icon><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item 
+                    command="Halt point"
+                    :class="{ 'is-selected': mapEditorStore.pointType === 'Halt point' }"
+                  >
+                  <el-icon style="margin-right: 8px;"><VideoPause /></el-icon>
+                  <span>临时停车 (Halt point)</span>
+                  </el-dropdown-item>
+                  <el-dropdown-item 
+                    command="Park point"
+                    :class="{ 'is-selected': mapEditorStore.pointType === 'Park point' }"
+                  >
+                    <el-icon style="margin-right: 8px;"><Location /></el-icon>
+                    <span>长时间停车 (Park point)</span>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
           <el-button
             :type="currentTool === 'path' ? 'primary' : 'default'"
             size="small"
@@ -201,6 +237,7 @@ const showBlocks = ref(true);
 // 鼠标位置（从画布组件获取）
 const mousePosition = ref({ x: 0, y: 0 });
 
+
 // 从 store 获取状态
 const currentTool = computed(() => mapEditorStore.currentTool);
 const canUndo = computed(() => mapEditorStore.canUndo);
@@ -212,6 +249,54 @@ const canvasState = computed(() => mapEditorStore.canvasState);
 // 工具切换
 const setTool = (tool: ToolMode) => {
   mapEditorStore.setTool(tool);
+  
+  // 显示中文提示
+  const toolNames: Record<ToolMode, string> = {
+    [ToolMode.SELECT]: '选择工具',
+    [ToolMode.PAN]: '平移工具',
+    [ToolMode.POINT]: '绘制点',
+    [ToolMode.PATH]: '绘制路径',
+    [ToolMode.LOCATION]: '绘制位置',
+    [ToolMode.ZOOM]: '缩放工具'
+  };
+  
+  ElMessage.success(`已切换到${toolNames[tool]}`);
+};
+
+// 获取点位类型图标
+const getPointTypeIcon = (type: string) => {
+  const iconMap: Record<string, string> = {
+    'Halt point': 'VideoPause',
+    'Park point': 'Location'
+  };
+  return iconMap[type] || 'VideoPause';
+};
+
+// 获取点位类型标签
+const getPointTypeLabel = (type: string) => {
+  const labelMap: Record<string, string> = {
+    'Halt point': '临时停车',
+    'Park point': '长时间停车'
+  };
+  return labelMap[type] || '临时停车';
+};
+
+// 点位类型切换
+const handlePointTypeChange = (type: string) => {
+  mapEditorStore.setPointType(type);
+  const typeNames: Record<string, string> = {
+    'Halt point': '临时停车',
+    'Park point': '长时间停车'
+  };
+  ElMessage.success(`点位类型已切换为：${typeNames[type]}`);
+};
+
+// 下拉菜单显示状态变化
+const handleDropdownVisible = (visible: boolean) => {
+  // 如果下拉菜单打开，确保工具已切换到绘制点
+  if (visible && currentTool.value !== ToolMode.POINT) {
+    setTool(ToolMode.POINT);
+  }
 };
 
 // 撤销/重做
@@ -473,6 +558,49 @@ onUnmounted(() => {
       display: flex;
       align-items: center;
       gap: 8px;
+      
+      .el-button-group {
+        .el-button {
+          width: 24px;
+          height: 24px;
+          padding: 0;
+        }
+      }
+      
+      .el-button {
+        width: 24px;
+        height: 24px;
+        padding: 0;
+      }
+      
+      // 绘制点工具按钮样式
+      .point-tool-wrapper {
+        display: inline-flex;
+        align-items: center;
+        height: 24px;
+        
+        .point-tool-main {
+          border-top-right-radius: 0;
+          border-bottom-right-radius: 0;
+          border-right: none;
+          width: 24px;
+          height: 24px;
+          padding: 0;
+        }
+        
+        .point-tool-dropdown {
+          border-top-left-radius: 0;
+          border-bottom-left-radius: 0;
+          padding: 0 2px;
+          min-width: auto;
+          width: auto;
+          height: 24px;
+          
+          .el-icon {
+            font-size: 10px;
+          }
+        }
+      }
     }
   }
   
@@ -582,6 +710,35 @@ onUnmounted(() => {
             width: 24px;
             height: 24px;
             padding: 0;
+          }
+          
+          // 绘制点工具按钮样式
+          .point-tool-wrapper {
+            display: inline-flex;
+            align-items: center;
+            height: 24px;
+            
+            .point-tool-main {
+              border-top-right-radius: 0;
+              border-bottom-right-radius: 0;
+              border-right: none;
+              width: 24px;
+              height: 24px;
+              padding: 0;
+            }
+            
+            .point-tool-dropdown {
+              border-top-left-radius: 0;
+              border-bottom-left-radius: 0;
+              padding: 0 2px;
+              min-width: auto;
+              width: auto;
+              height: 24px;
+              
+              .el-icon {
+                font-size: 10px;
+              }
+            }
           }
         }
       }
