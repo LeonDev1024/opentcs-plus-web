@@ -36,7 +36,11 @@
             @click="setTool(ToolMode.PAN)"
             title="平移工具"
           />
-
+        </el-button-group>
+        
+        <el-divider direction="vertical" />
+        
+        <el-button-group>
           <div class="point-tool-wrapper">
             <el-button
               :type="currentTool === 'point' ? 'primary' : 'default'"
@@ -134,7 +138,6 @@
           />
           
         </el-button-group>
-        
         <el-divider direction="vertical" />
         
         <el-button-group>

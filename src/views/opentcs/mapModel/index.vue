@@ -128,6 +128,7 @@ const ids = ref<Array<string | number>>([]);
 const single = ref(true);
 const multiple = ref(true);
 const total = ref(0);
+const statusChangeReady = ref(false);
 
 const queryFormRef = ref<ElFormInstance>();
 const mapModelFormRef = ref<ElFormInstance>();
@@ -163,10 +164,14 @@ const { queryParams, form, rules } = toRefs(data);
 /** 查询地图模型列表 */
 const getList = async () => {
   loading.value = true;
+  statusChangeReady.value = false;
   const res = await listMapModel(queryParams.value);
   mapModelList.value = res.rows;
   total.value = res.total;
   loading.value = false;
+  nextTick(() => {
+    statusChangeReady.value = true;
+  });
 };
 
 /** 取消按钮 */
@@ -267,6 +272,9 @@ const handleLoad = async (row?: MapModelVO) => {
 
 /** 状态修改  */
 const handleStatusChange = async (row: MapModelVO) => {
+  if (!statusChangeReady.value) {
+    return;
+  }
   const text = row.status === '0' ? '启用' : '停用';
   try {
     await proxy?.$modal.confirm('确认要"' + text + '"吗?');
