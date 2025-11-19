@@ -26,35 +26,35 @@
             :type="currentTool === 'select' ? 'primary' : 'default'"
             size="small"
             icon="Pointer"
-            @click="setTool('select')"
+            @click="setTool(ToolMode.SELECT)"
             title="选择工具"
           />
           <el-button
             :type="currentTool === 'point' ? 'primary' : 'default'"
             size="small"
             icon="Location"
-            @click="setTool('point')"
+            @click="setTool(ToolMode.POINT)"
             title="绘制点"
           />
           <el-button
             :type="currentTool === 'path' ? 'primary' : 'default'"
             size="small"
             icon="Connection"
-            @click="setTool('path')"
+            @click="setTool(ToolMode.PATH)"
             title="绘制路径"
           />
           <el-button
             :type="currentTool === 'location' ? 'primary' : 'default'"
             size="small"
             icon="Position"
-            @click="setTool('location')"
+            @click="setTool(ToolMode.LOCATION)"
             title="绘制位置"
           />
           <el-button
             :type="currentTool === 'pan' ? 'primary' : 'default'"
             size="small"
             icon="Rank"
-            @click="setTool('pan')"
+            @click="setTool(ToolMode.PAN)"
             title="平移工具"
           />
         </el-button-group>
@@ -88,7 +88,7 @@
         <!-- 组件面板 -->
         <div class="panel-container">
           <div class="panel-header">
-            <span class="panel-title">组件</span>
+            <span class="canval-title">组件</span>
           </div>
           <div class="panel-content">
             <ComponentsPanel />
@@ -98,7 +98,7 @@
         <!-- 属性面板 -->
         <div class="panel-container">
           <div class="panel-header">
-            <span class="panel-title">属性</span>
+            <span class="canvas-title">属性</span>
           </div>
           <div class="panel-content">
             <PropertyPanel />
@@ -108,7 +108,7 @@
         <!-- 图层面板 -->
         <div class="panel-container">
           <div class="panel-header">
-            <span class="panel-title">图层</span>
+            <span class="canvas-title">图层</span>
           </div>
           <div class="panel-content">
             <LayerPanel />
@@ -501,17 +501,19 @@ onUnmounted(() => {
         }
         
         .panel-header {
-          height: 32px;
+          height: 30px;
           padding: 0 12px;
           background: #fff;
           border-bottom: 1px solid #e4e7ed;
           display: flex;
           align-items: center;
+          box-sizing: border-box;
           
           .panel-title {
             font-size: 12px;
-            font-weight: 400;
-            color: #909399;
+            color: #606266;
+            line-height: 1;
+            font-weight: 500;
           }
         }
         
@@ -546,6 +548,7 @@ onUnmounted(() => {
         .canvas-title {
           font-size: 12px;
           color: #606266;
+          line-height: 1;
         }
         
         .canvas-toolbar {
