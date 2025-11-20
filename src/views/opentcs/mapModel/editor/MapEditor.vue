@@ -136,6 +136,26 @@
             @click="setTool(ToolMode.LOCATION)"
             title="绘制位置"
           />
+          <el-button
+            :type="currentTool === 'dashedLink' ? 'primary' : 'default'"
+            size="small"
+            @click="setTool(ToolMode.DASHED_LINK)"
+            title="虚线路径（点↔业务位置）"
+          >
+            <template #icon>
+              <svg-icon icon-class="dashed-link" style="font-size: 16px;" />
+            </template>
+          </el-button>
+          <el-button
+            :type="currentTool === 'ruleRegion' ? 'primary' : 'default'"
+            size="small"
+            @click="setTool(ToolMode.RULE_REGION)"
+            title="规则区域"
+          >
+            <template #icon>
+              <svg-icon icon-class="rule-region" style="font-size: 18px;" />
+            </template>
+          </el-button>
           
         </el-button-group>
         <el-divider direction="vertical" />
@@ -272,6 +292,7 @@ import ComponentsPanel from './components/ComponentsPanel.vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import { ToolMode } from '@/types/mapEditor';
 import PathTypeIcon from './components/icons/PathTypeIcon.vue';
+import SvgIcon from '@/components/SvgIcon/index.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -326,7 +347,9 @@ const setTool = (tool: ToolMode) => {
     [ToolMode.POINT]: '绘制点',
     [ToolMode.PATH]: '绘制路径',
     [ToolMode.LOCATION]: '绘制位置',
-    [ToolMode.ZOOM]: '缩放工具'
+    [ToolMode.ZOOM]: '缩放工具',
+    [ToolMode.DASHED_LINK]: '虚线链接',
+    [ToolMode.RULE_REGION]: '规则区域'
   };
   
   ElMessage.success(`已切换到${toolNames[tool]}`);

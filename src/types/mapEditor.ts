@@ -9,7 +9,9 @@ export enum ToolMode {
   PATH = 'path',            // 绘制路径
   LOCATION = 'location',    // 绘制位置（多边形）
   PAN = 'pan',              // 平移模式
-  ZOOM = 'zoom'             // 缩放模式
+  ZOOM = 'zoom',            // 缩放模式
+  DASHED_LINK = 'dashedLink', // 点与业务位置的虚线链接
+  RULE_REGION = 'ruleRegion'  // 规则区域绘制
 }
 
 // ==================== 图层类型 ====================

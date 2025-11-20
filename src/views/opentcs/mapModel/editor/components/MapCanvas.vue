@@ -249,9 +249,11 @@ const mousePosition = ref({ x: 0, y: 0 });
 const tempLocation = ref<any>(null);
 const isDrawing = ref(false);
 const drawingPoints = ref<Array<{ x: number; y: number }>>([]);
+const activeDrawingTool = ref<ToolMode | null>(null);
 
 // 连线状态
 const pendingConnectionStart = ref<MapPoint | null>(null);
+const pendingDashedLinkStartPoint = ref<MapPoint | null>(null);
 
 // 拖拽状态
 const isDragging = ref(false);
@@ -261,14 +263,19 @@ const dragStartPos = ref({ x: 0, y: 0 });
 const getPointConfig = (point: MapPoint) => {
   const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
   const isConnecting = currentTool.value === ToolMode.PATH && pendingConnectionStart.value?.id === point.id;
+  const isDashedLinkSource = currentTool.value === ToolMode.DASHED_LINK && pendingDashedLinkStartPoint.value?.id === point.id;
   return {
     id: point.id,
     x: point.x,
     y: point.y,
     radius: point.editorProps.radius || 5,
-    fill: isSelected ? '#ff4d4f' : (point.editorProps.color || '#1890ff'),
-    stroke: isSelected || isConnecting ? '#ff7875' : '#ffffff',
-    strokeWidth: isSelected || isConnecting ? 2.5 : 1,
+    fill: isSelected
+      ? '#ff4d4f'
+      : isDashedLinkSource
+        ? '#f7ba2a'
+        : (point.editorProps.color || '#1890ff'),
+    stroke: (isSelected || isConnecting || isDashedLinkSource) ? '#ff7875' : '#ffffff',
+    strokeWidth: (isSelected || isConnecting || isDashedLinkSource) ? 2.5 : 1,
     draggable: currentTool.value === ToolMode.SELECT && !isDragging.value,
     listening: true
   };
@@ -356,6 +363,60 @@ const createConnectionBetweenPoints = (start: MapPoint, end: MapPoint) => {
   ElMessage.success('连线创建成功');
 };
 
+const getLocationCentroid = (location: MapLocation) => {
+  const vertices = location.geometry.vertices || [];
+  if (!vertices.length) {
+    return {
+      x: location.x ?? 0,
+      y: location.y ?? 0
+    };
+  }
+  const sum = vertices.reduce(
+    (acc, vertex) => {
+      acc.x += vertex.x;
+      acc.y += vertex.y;
+      return acc;
+    },
+    { x: 0, y: 0 }
+  );
+  return {
+    x: sum.x / vertices.length,
+    y: sum.y / vertices.length
+  };
+};
+
+const createDashedLinkBetweenPointAndLocation = (point: MapPoint, location: MapLocation) => {
+  const centroid = getLocationCentroid(location);
+  const timestamp = Date.now();
+  const controlPoints = [
+    { id: `dl_${timestamp}_0`, x: point.x, y: point.y },
+    { id: `dl_${timestamp}_1`, x: centroid.x, y: centroid.y }
+  ];
+  
+  mapEditorStore.addPath({
+    layerId: getDefaultLayerId('path'),
+    name: `Link ${point.name || point.id} -> ${location.name || location.id}`,
+    startPointId: point.id,
+    endPointId: location.id,
+    status: '0',
+    type: 'direct',
+    geometry: {
+      controlPoints,
+      pathType: 'line'
+    },
+    editorProps: {
+      strokeColor: '#909399',
+      strokeWidth: 1.5,
+      lineStyle: 'dashed',
+      arrowVisible: false,
+      label: `${point.name || point.id}→${location.name || location.id}`,
+      labelVisible: true
+    }
+  });
+  
+  ElMessage.success('虚线链接已创建');
+};
+
 const handleConnectionPointClick = (point: MapPoint) => {
   if (!pendingConnectionStart.value) {
     pendingConnectionStart.value = point;
@@ -396,6 +457,36 @@ const getLocationConfig = (location: MapLocation) => {
     strokeWidth: location.editorProps.strokeWidth || 2,
     closed: location.geometry.closed,
     listening: true
+  };
+};
+
+const getPolygonPreviewStyles = (tool: ToolMode | null) => {
+  if (tool === ToolMode.RULE_REGION) {
+    return {
+      stroke: '#ff7d00',
+      fill: 'rgba(255, 125, 0, 0.15)'
+    };
+  }
+  return {
+    stroke: '#1890ff',
+    fill: 'rgba(24, 144, 255, 0.1)'
+  };
+};
+
+const getPolygonPersistStyles = (tool: ToolMode | null) => {
+  if (tool === ToolMode.RULE_REGION) {
+    return {
+      strokeColor: '#ff7d00',
+      strokeWidth: 2,
+      fillColor: '#ffedd9',
+      fillOpacity: 0.35
+    };
+  }
+  return {
+    strokeColor: '#1890ff',
+    strokeWidth: 2,
+    fillColor: '#1890ff',
+    fillOpacity: 0.3
   };
 };
 
@@ -441,15 +532,21 @@ const handleMouseDown = (e: any) => {
       (id) => mapEditorStore.deletePoint(id)
     );
     mapEditorStore.executeCommand(command);
-  } else if (currentTool.value === ToolMode.LOCATION) {
+  } else if (currentTool.value === ToolMode.LOCATION || currentTool.value === ToolMode.RULE_REGION) {
     // 开始绘制位置（多边形）或添加顶点
     if (!isDrawing.value) {
       // 开始新的多边形
       isDrawing.value = true;
+      activeDrawingTool.value = currentTool.value;
       drawingPoints.value = [{ x, y }];
     } else {
       // 添加顶点
       drawingPoints.value.push({ x, y });
+    }
+  } else if (currentTool.value === ToolMode.DASHED_LINK && e.target === stage) {
+    if (pendingDashedLinkStartPoint.value) {
+      pendingDashedLinkStartPoint.value = null;
+      ElMessage.info('已取消虚线起点');
     }
   } else if (currentTool.value === ToolMode.PATH) {
     // 点击空白处时，如有连线起点则取消
@@ -493,7 +590,8 @@ const handleMouseMove = (e: any) => {
   }
   
   // 绘制位置预览
-  if (currentTool.value === ToolMode.LOCATION && isDrawing.value && drawingPoints.value.length > 0) {
+  if (isDrawing.value && drawingPoints.value.length > 0 && 
+      (activeDrawingTool.value === ToolMode.LOCATION || activeDrawingTool.value === ToolMode.RULE_REGION)) {
     const points: number[] = [];
     drawingPoints.value.forEach(p => {
       points.push(p.x, p.y);
@@ -505,11 +603,12 @@ const handleMouseMove = (e: any) => {
       points.push(drawingPoints.value[0].x, drawingPoints.value[0].y);
     }
     
+    const previewStyle = getPolygonPreviewStyles(activeDrawingTool.value);
     tempLocation.value = {
       points,
-      stroke: '#1890ff',
+      stroke: previewStyle.stroke,
       strokeWidth: 2,
-      fill: 'rgba(24, 144, 255, 0.1)',
+      fill: previewStyle.fill,
       closed: drawingPoints.value.length >= 2,
       dash: [5, 5]
     };
@@ -529,7 +628,11 @@ const handleMouseUp = (e: any) => {
   
   // 右键完成绘制
   if (e.evt.button === 2) {
-    if (currentTool.value === ToolMode.LOCATION && isDrawing.value && drawingPoints.value.length >= 3) {
+  if (
+    isDrawing.value &&
+    (activeDrawingTool.value === ToolMode.LOCATION || activeDrawingTool.value === ToolMode.RULE_REGION) &&
+    drawingPoints.value.length >= 3
+  ) {
       // 完成位置绘制
       completeLocationDrawing();
     } else if (isDrawing.value) {
@@ -546,9 +649,12 @@ const completeLocationDrawing = () => {
     return;
   }
   
+  const drawingTool = activeDrawingTool.value || ToolMode.LOCATION;
+  const isRuleRegion = drawingTool === ToolMode.RULE_REGION;
+  const polygonStyle = getPolygonPersistStyles(drawingTool);
   const location = mapEditorStore.addLocation({
     layerId: getDefaultLayerId('location'),
-    name: `位置_${Date.now()}`,
+    name: `${isRuleRegion ? '规则区域' : '位置'}_${Date.now()}`,
     status: '0',
     geometry: {
       vertices: drawingPoints.value.map((p, index) => ({
@@ -559,10 +665,10 @@ const completeLocationDrawing = () => {
       closed: true
     },
     editorProps: {
-      fillColor: '#1890ff',
-      fillOpacity: 0.3,
-      strokeColor: '#1890ff',
-      strokeWidth: 2,
+      fillColor: polygonStyle.fillColor,
+      fillOpacity: polygonStyle.fillOpacity,
+      strokeColor: polygonStyle.strokeColor,
+      strokeWidth: polygonStyle.strokeWidth,
       labelVisible: true
     }
   });
@@ -570,8 +676,9 @@ const completeLocationDrawing = () => {
   isDrawing.value = false;
   drawingPoints.value = [];
   tempLocation.value = null;
+  activeDrawingTool.value = null;
   
-  ElMessage.success('位置绘制完成');
+  ElMessage.success(isRuleRegion ? '规则区域绘制完成' : '位置绘制完成');
 };
 
 // 取消位置绘制
@@ -579,6 +686,7 @@ const cancelLocationDrawing = () => {
   isDrawing.value = false;
   drawingPoints.value = [];
   tempLocation.value = null;
+  activeDrawingTool.value = null;
   ElMessage.info('已取消绘制');
 };
 
@@ -632,6 +740,12 @@ const handleWheel = (e: any) => {
 // 点点击
 const handlePointClick = (point: MapPoint, e: any) => {
   e.cancelBubble = true;
+  
+  if (currentTool.value === ToolMode.DASHED_LINK) {
+    pendingDashedLinkStartPoint.value = point;
+    ElMessage.info(`已选择点位：${point.name || point.id}，请点击业务位置完成虚线链接`);
+    return;
+  }
   
   if (currentTool.value === ToolMode.PATH) {
     handleConnectionPointClick(point);
@@ -694,6 +808,17 @@ const handlePathClick = (path: MapPath, e: any) => {
 // 位置点击
 const handleLocationClick = (location: MapLocation, e: any) => {
   e.cancelBubble = true;
+  
+  if (currentTool.value === ToolMode.DASHED_LINK) {
+    if (!pendingDashedLinkStartPoint.value) {
+      ElMessage.warning('请先选择需要连接的点位');
+      return;
+    }
+    createDashedLinkBetweenPointAndLocation(pendingDashedLinkStartPoint.value, location);
+    pendingDashedLinkStartPoint.value = null;
+    return;
+  }
+  
   const multiSelect = e.evt.ctrlKey || e.evt.metaKey;
   mapEditorStore.selectElement(location.id, 'location', multiSelect);
 };
@@ -954,7 +1079,13 @@ watch(currentTool, (tool) => {
   if (tool !== ToolMode.PATH) {
     pendingConnectionStart.value = null;
   }
-  if (tool !== ToolMode.LOCATION && isDrawing.value) {
+  if (tool !== ToolMode.DASHED_LINK) {
+    pendingDashedLinkStartPoint.value = null;
+  }
+  if (
+    ![ToolMode.LOCATION, ToolMode.RULE_REGION].includes(tool) &&
+    isDrawing.value
+  ) {
     cancelLocationDrawing();
   }
 });
@@ -975,11 +1106,17 @@ defineExpose({
 // 键盘事件处理
 const handleKeyDown = (e: KeyboardEvent) => {
   if (e.key === 'Escape') {
-    if (currentTool.value === ToolMode.LOCATION && isDrawing.value) {
+    if (
+      (currentTool.value === ToolMode.LOCATION || currentTool.value === ToolMode.RULE_REGION) &&
+      isDrawing.value
+    ) {
       cancelLocationDrawing();
     } else if (currentTool.value === ToolMode.PATH && pendingConnectionStart.value) {
       pendingConnectionStart.value = null;
       ElMessage.info('已取消连线起点');
+    } else if (currentTool.value === ToolMode.DASHED_LINK && pendingDashedLinkStartPoint.value) {
+      pendingDashedLinkStartPoint.value = null;
+      ElMessage.info('已取消虚线起点');
     }
   }
 };
