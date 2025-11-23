@@ -23,16 +23,26 @@ export enum LayerType {
   REGION = 'region'          // 区域层
 }
 
+// ==================== 图层组模型 ====================
+export interface LayerGroup {
+  id: string;
+  name: string;
+  visible: boolean;          // 是否可见
+  description?: string;      // 描述
+}
+
 // ==================== 图层模型 ====================
 export interface MapLayer {
   id: string;
   name: string;
   type: LayerType;
+  layerGroupId?: string;     // 关联的图层组ID
   visible: boolean;          // 是否可见
   locked: boolean;           // 是否锁定
   zIndex: number;            // 层级顺序
   opacity: number;           // 透明度 (0-1)
   elementIds: string[];      // 该图层包含的元素ID列表
+  active?: boolean;          // 是否激活（当前选中的图层）
 }
 
 // ==================== 点（Point）模型 ====================
@@ -169,6 +179,9 @@ export interface MapEditorData {
     offsetX: number;      // 偏移X
     offsetY: number;      // 偏移Y
   };
+  
+  // 图层组数据
+  layerGroups?: LayerGroup[];
   
   // 图层数据
   layers: MapLayer[];

@@ -6,6 +6,7 @@ import { ref, reactive, computed } from 'vue';
 import type {
   MapEditorData,
   MapLayer,
+  LayerGroup,
   MapPoint,
   MapPath,
   MapLocation,
@@ -45,8 +46,14 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     height: 1080
   });
   
+  // 图层组列表
+  const layerGroups = ref<LayerGroup[]>([]);
+  
   // 图层列表
   const layers = ref<MapLayer[]>([]);
+  
+  // 当前激活的图层ID
+  const activeLayerId = ref<string | null>(null);
   
   // 元素数据
   const points = ref<MapPoint[]>([]);
@@ -134,6 +141,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       
       mapData.value = data;
       
+      // 更新图层组
+      layerGroups.value = data.layerGroups || [];
+      
       // 更新图层
       layers.value = data.layers || [];
       
@@ -151,40 +161,46 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         canvasState.offsetY = data.mapInfo.offsetY || 0;
       }
       
+      // 如果没有图层组，创建默认图层组
+      if (layerGroups.value.length === 0) {
+        const defaultLayerGroup: LayerGroup = {
+          id: 'layer_group_default',
+          name: 'Default layer group',
+          visible: true
+        };
+        layerGroups.value.push(defaultLayerGroup);
+      }
+      
       // 如果没有图层，创建默认图层
       if (layers.value.length === 0) {
-        layers.value = [
-          {
-            id: 'layer_point',
-            name: '点位层',
-            type: 'point' as any,
-            visible: true,
-            locked: false,
-            zIndex: 1,
-            opacity: 1,
-            elementIds: []
-          },
-          {
-            id: 'layer_path',
-            name: '路径层',
-            type: 'path' as any,
-            visible: true,
-            locked: false,
-            zIndex: 2,
-            opacity: 1,
-            elementIds: []
-          },
-          {
-            id: 'layer_location',
-            name: '位置层',
-            type: 'location' as any,
-            visible: true,
-            locked: false,
-            zIndex: 3,
-            opacity: 1,
-            elementIds: []
+        const defaultLayerGroup = layerGroups.value.find(g => g.name === 'Default layer group') || layerGroups.value[0];
+        const defaultLayer: MapLayer = {
+          id: 'layer_default',
+          name: 'Default layer',
+          type: 'point' as any,
+          layerGroupId: defaultLayerGroup.id,
+          visible: true,
+          locked: false,
+          zIndex: 1,
+          opacity: 1,
+          elementIds: [],
+          active: true
+        };
+        layers.value.push(defaultLayer);
+        // 确保激活状态正确设置
+        setActiveLayer(defaultLayer.id);
+      } else {
+        // 确保至少有一个激活的图层
+        const hasActiveLayer = layers.value.some(l => l.active);
+        if (!hasActiveLayer && layers.value.length > 0) {
+          layers.value[0].active = true;
+          activeLayerId.value = layers.value[0].id;
+        } else {
+          const activeLayer = layers.value.find(l => l.active);
+          if (activeLayer) {
+            activeLayerId.value = activeLayer.id;
           }
-        ];
+        }
       }
       
       // 清空选择
@@ -208,6 +224,27 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
    * 创建空的地图数据
    */
   const createEmptyMapData = (mapModelId: string | number): MapEditorData => {
+    // 创建默认图层组
+    const defaultLayerGroup: LayerGroup = {
+      id: 'layer_group_default',
+      name: 'Default layer group',
+      visible: true
+    };
+    
+    // 创建默认图层
+    const defaultLayer: MapLayer = {
+      id: 'layer_default',
+      name: 'Default layer',
+      type: 'point' as any,
+      layerGroupId: defaultLayerGroup.id,
+      visible: true,
+      locked: false,
+      zIndex: 1,
+      opacity: 1,
+      elementIds: [],
+      active: true
+    };
+    
     return {
       mapInfo: {
         id: mapModelId,
@@ -219,7 +256,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         offsetX: 0,
         offsetY: 0
       },
-      layers: [],
+      layerGroups: [defaultLayerGroup],
+      layers: [defaultLayer],
       elements: {
         points: [],
         paths: [],
@@ -249,6 +287,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       }
       
       // 更新地图数据
+      mapData.value.layerGroups = layerGroups.value;
       mapData.value.layers = layers.value;
       mapData.value.elements.points = points.value;
       mapData.value.elements.paths = paths.value;
@@ -498,13 +537,42 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
    * 添加图层
    */
   const addLayer = (layer: Omit<MapLayer, 'id'>) => {
+    // 如果没有指定图层组，默认关联到"Default layer group"
+    let layerGroupId = layer.layerGroupId;
+    if (!layerGroupId) {
+      const defaultLayerGroup = layerGroups.value.find(g => g.name === 'Default layer group');
+      if (defaultLayerGroup) {
+        layerGroupId = defaultLayerGroup.id;
+      } else if (layerGroups.value.length > 0) {
+        // 如果没有"Default layer group"，使用第一个图层组
+        layerGroupId = layerGroups.value[0].id;
+      }
+    }
+    
+    // 如果新图层要激活，先取消其他图层的激活状态
+    if (layer.active) {
+      layers.value.forEach(l => {
+        if (l.active) {
+          l.active = false;
+        }
+      });
+      activeLayerId.value = null; // 临时设置为null，稍后会设置为新图层ID
+    }
+    
     const newLayer: MapLayer = {
       ...layer,
       id: `layer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      layerGroupId,
       elementIds: layer.elementIds || []
     };
     
     layers.value.push(newLayer);
+    
+    // 如果新图层是激活的，更新activeLayerId
+    if (newLayer.active) {
+      activeLayerId.value = newLayer.id;
+    }
+    
     isDirty.value = true;
     return newLayer;
   };
@@ -516,8 +584,45 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     const index = layers.value.findIndex(l => l.id === id);
     if (index !== -1) {
       layers.value[index] = { ...layers.value[index], ...updates };
+      // 如果更新了active状态，需要更新其他图层的active状态
+      if (updates.active !== undefined) {
+        if (updates.active) {
+          // 取消其他图层的激活状态
+          layers.value.forEach((layer, i) => {
+            if (i !== index && layer.active) {
+              layer.active = false;
+            }
+          });
+          activeLayerId.value = id;
+        } else {
+          activeLayerId.value = null;
+        }
+      }
       isDirty.value = true;
     }
+  };
+  
+  /**
+   * 设置激活图层
+   */
+  const setActiveLayer = (id: string | null) => {
+    // 取消所有图层的激活状态
+    layers.value.forEach(layer => {
+      layer.active = false;
+    });
+    
+    // 设置新的激活图层
+    if (id) {
+      const layer = layers.value.find(l => l.id === id);
+      if (layer) {
+        layer.active = true;
+        activeLayerId.value = id;
+      }
+    } else {
+      activeLayerId.value = null;
+    }
+    
+    isDirty.value = true;
   };
   
   /**
@@ -539,7 +644,54 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         }
       });
       
+      // 如果删除的是激活图层，清除激活状态
+      if (activeLayerId.value === id) {
+        activeLayerId.value = null;
+      }
+      
       layers.value.splice(index, 1);
+      isDirty.value = true;
+    }
+  };
+  
+  /**
+   * 添加图层组
+   */
+  const addLayerGroup = (group: Omit<LayerGroup, 'id'>) => {
+    const newGroup: LayerGroup = {
+      ...group,
+      id: `layer_group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    };
+    
+    layerGroups.value.push(newGroup);
+    isDirty.value = true;
+    return newGroup;
+  };
+  
+  /**
+   * 更新图层组
+   */
+  const updateLayerGroup = (id: string, updates: Partial<LayerGroup>) => {
+    const index = layerGroups.value.findIndex(g => g.id === id);
+    if (index !== -1) {
+      layerGroups.value[index] = { ...layerGroups.value[index], ...updates };
+      isDirty.value = true;
+    }
+  };
+  
+  /**
+   * 删除图层组
+   */
+  const deleteLayerGroup = (id: string) => {
+    const index = layerGroups.value.findIndex(g => g.id === id);
+    if (index !== -1) {
+      // 检查是否有图层使用该图层组
+      const layersUsingGroup = layers.value.filter(l => l.layerGroupId === id);
+      if (layersUsingGroup.length > 0) {
+        throw new Error('无法删除图层组，仍有图层在使用该图层组');
+      }
+      
+      layerGroups.value.splice(index, 1);
       isDirty.value = true;
     }
   };
@@ -572,10 +724,12 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const reset = () => {
     mapData.value = null;
     currentMapModelId.value = null;
+    layerGroups.value = [];
     layers.value = [];
     points.value = [];
     paths.value = [];
     locations.value = [];
+    activeLayerId.value = null;
     clearSelection();
     commandManager.clear();
     canvasState.scale = 1;
@@ -592,7 +746,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     pointType,
     pathConnectionType,
     canvasState,
+    layerGroups,
     layers,
+    activeLayerId,
     points,
     paths,
     locations,
@@ -626,6 +782,10 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     addLayer,
     updateLayer,
     deleteLayer,
+    setActiveLayer,
+    addLayerGroup,
+    updateLayerGroup,
+    deleteLayerGroup,
     undo,
     redo,
     executeCommand,

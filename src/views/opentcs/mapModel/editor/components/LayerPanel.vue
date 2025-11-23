@@ -24,9 +24,9 @@
               <el-table-column width="60" align="center" label="激活">
                 <template #default="{ row }">
                   <el-radio
-                    :model-value="selectedLayerId === row.id"
+                    :model-value="mapEditorStore.activeLayerId === row.id"
                     @click.stop
-                    @change="selectLayer(row.id)"
+                    @change="setActiveLayer(row.id)"
                   />
                 </template>
               </el-table-column>
@@ -43,13 +43,14 @@
               
               <el-table-column prop="name" label="名称" min-width="120" />
               
-              <el-table-column prop="type" label="组" width="100">
+              <el-table-column prop="layerGroupId" label="图层组" width="120">
                 <template #default="{ row }">
-                  <el-tag size="small">{{ getTypeLabel(row.type) }}</el-tag>
+                  <el-tag size="small" v-if="getLayerGroupName(row.layerGroupId)">
+                    {{ getLayerGroupName(row.layerGroupId) }}
+                  </el-tag>
+                  <span v-else style="color: #909399; font-size: 12px;">未分组</span>
                 </template>
               </el-table-column>
-              
-              <el-table-column prop="elementIds.length" label="元素" width="80" align="center" />
             </el-table>
           </div>
         </div>
@@ -57,7 +58,35 @@
       
       <el-tab-pane label="图层组" name="layersgroup">
         <div class="layers-group-content">
-          <el-empty description="图层组功能待实现" :image-size="100" />
+          <div class="layer-group-toolbar">
+            <el-button-group size="small">
+              <el-button icon="Plus" @click="handleAddLayerGroup" title="添加图层组" />
+              <el-button icon="Minus" @click="handleDeleteSelectedLayerGroup" :disabled="!selectedLayerGroupId" title="删除图层组" />
+            </el-button-group>
+          </div>
+          
+          <div class="layer-group-table-wrapper">
+            <el-table
+              :data="layerGroups"
+              border
+              size="small"
+              style="width: 100%"
+              @row-click="handleLayerGroupRowClick"
+              highlight-current-row
+            >
+              <el-table-column width="60" align="center" label="可见">
+                <template #default="{ row }">
+                  <el-checkbox
+                    v-model="row.visible"
+                    @click.stop
+                    @change="handleLayerGroupVisibilityChange(row)"
+                  />
+                </template>
+              </el-table-column>
+              
+              <el-table-column prop="name" label="名称" min-width="150" />
+            </el-table>
+          </div>
         </div>
       </el-tab-pane>
     </el-tabs>
@@ -68,15 +97,20 @@
 import { ref, computed } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
-import type { MapLayer, LayerType } from '@/types/mapEditor';
+import type { MapLayer, LayerType, LayerGroup } from '@/types/mapEditor';
 
 const mapEditorStore = useMapEditorStore();
 
 const activeTab = ref('layers');
 const selectedLayerId = ref<string | null>(null);
+const selectedLayerGroupId = ref<string | null>(null);
 
 const sortedLayers = computed(() => {
   return [...mapEditorStore.layers].sort((a, b) => b.zIndex - a.zIndex);
+});
+
+const layerGroups = computed(() => {
+  return mapEditorStore.layerGroups;
 });
 
 const getTypeLabel = (type: LayerType) => {
@@ -90,7 +124,18 @@ const getTypeLabel = (type: LayerType) => {
   return labels[type] || type;
 };
 
+const getLayerGroupName = (layerGroupId?: string) => {
+  if (!layerGroupId) return null;
+  const group = mapEditorStore.layerGroups.find(g => g.id === layerGroupId);
+  return group?.name || null;
+};
+
 const selectLayer = (layerId: string) => {
+  selectedLayerId.value = layerId;
+};
+
+const setActiveLayer = (layerId: string) => {
+  mapEditorStore.setActiveLayer(layerId);
   selectedLayerId.value = layerId;
 };
 
@@ -116,8 +161,11 @@ const handleAddLayer = () => {
       locked: false,
       zIndex: mapEditorStore.layers.length + 1,
       opacity: 1,
-      elementIds: []
+      elementIds: [],
+      active: true
     });
+    // 激活新创建的图层
+    setActiveLayer(newLayer.id);
     selectLayer(newLayer.id);
     ElMessage.success('添加成功');
   }).catch(() => {
@@ -168,6 +216,51 @@ const handleMoveLayerDown = () => {
     const tempZIndex = layer.zIndex;
     mapEditorStore.updateLayer(layer.id, { zIndex: nextLayer.zIndex });
     mapEditorStore.updateLayer(nextLayer.id, { zIndex: tempZIndex });
+  }
+};
+
+// 图层组相关方法
+const handleLayerGroupRowClick = (row: LayerGroup) => {
+  selectedLayerGroupId.value = row.id;
+};
+
+const handleLayerGroupVisibilityChange = (group: LayerGroup) => {
+  mapEditorStore.updateLayerGroup(group.id, { visible: group.visible });
+};
+
+const handleAddLayerGroup = () => {
+  ElMessageBox.prompt('请输入图层组名称', '添加图层组', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    inputPattern: /.+/,
+    inputErrorMessage: '图层组名称不能为空'
+  }).then(({ value }) => {
+    const newGroup = mapEditorStore.addLayerGroup({
+      name: value,
+      visible: true
+    });
+    selectedLayerGroupId.value = newGroup.id;
+    ElMessage.success('添加成功');
+  }).catch(() => {
+    // 用户取消
+  });
+};
+
+const handleDeleteSelectedLayerGroup = async () => {
+  if (!selectedLayerGroupId.value) return;
+  
+  try {
+    await ElMessageBox.confirm('确定要删除该图层组吗？', '提示', {
+      type: 'warning'
+    });
+    
+    mapEditorStore.deleteLayerGroup(selectedLayerGroupId.value);
+    ElMessage.success('删除成功');
+    selectedLayerGroupId.value = null;
+  } catch (error: any) {
+    if (error && error !== 'cancel') {
+      ElMessage.error(error.message || '删除失败');
+    }
   }
 };
 </script>
@@ -284,8 +377,58 @@ const handleMoveLayerDown = () => {
   .layers-group-content {
     flex: 1;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  
+  .layer-group-toolbar {
+    padding: 6px 8px;
+    border-bottom: 1px solid #e4e7ed;
+    background: #fafafa;
+    
+    :deep(.el-button-group) {
+      .el-button {
+        padding: 4px 8px;
+        font-size: 12px;
+      }
+    }
+  }
+  
+  .layer-group-table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    
+    :deep(.el-table) {
+      font-size: 12px;
+      
+      .el-table__header {
+        th {
+          background: #f5f7fa;
+          color: #606266;
+          font-weight: 500;
+          padding: 8px 0;
+        }
+      }
+      
+      .el-table__body {
+        tr {
+          cursor: pointer;
+          
+          &:hover {
+            background: #f5f7fa;
+          }
+          
+          &.current-row {
+            background: #ecf5ff;
+          }
+        }
+        
+        td {
+          padding: 6px 0;
+        }
+      }
+    }
   }
 }
 </style>

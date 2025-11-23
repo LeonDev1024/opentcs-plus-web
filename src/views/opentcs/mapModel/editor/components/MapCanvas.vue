@@ -1165,37 +1165,42 @@ onMounted(() => {
     }
   });
   
-  // 初始化默认图层
-  if (mapEditorStore.layers.length === 0) {
-    mapEditorStore.addLayer({
-      name: '点位层',
+  // 初始化默认图层组和默认图层（如果不存在）
+  if (mapEditorStore.layerGroups.length === 0) {
+    const defaultLayerGroup = mapEditorStore.addLayerGroup({
+      name: 'Default layer group',
+      visible: true
+    });
+    
+    const defaultLayer = mapEditorStore.addLayer({
+      name: 'Default layer',
       type: 'point' as any,
+      layerGroupId: defaultLayerGroup.id,
       visible: true,
       locked: false,
       zIndex: 1,
       opacity: 1,
-      elementIds: []
+      elementIds: [],
+      active: true
     });
     
-    mapEditorStore.addLayer({
-      name: '路径层',
-      type: 'path' as any,
+    mapEditorStore.setActiveLayer(defaultLayer.id);
+  } else if (mapEditorStore.layers.length === 0) {
+    // 如果已有图层组但没有图层，创建默认图层
+    const defaultLayerGroup = mapEditorStore.layerGroups.find(g => g.name === 'Default layer group') || mapEditorStore.layerGroups[0];
+    const defaultLayer = mapEditorStore.addLayer({
+      name: 'Default layer',
+      type: 'point' as any,
+      layerGroupId: defaultLayerGroup.id,
       visible: true,
       locked: false,
-      zIndex: 2,
+      zIndex: 1,
       opacity: 1,
-      elementIds: []
+      elementIds: [],
+      active: true
     });
     
-    mapEditorStore.addLayer({
-      name: '位置层',
-      type: 'location' as any,
-      visible: true,
-      locked: false,
-      zIndex: 3,
-      opacity: 1,
-      elementIds: []
-    });
+    mapEditorStore.setActiveLayer(defaultLayer.id);
   }
   
   // 注册键盘事件
