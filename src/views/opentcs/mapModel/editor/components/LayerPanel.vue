@@ -94,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import type { MapLayer, LayerType, LayerGroup } from '@/types/mapEditor';
@@ -156,13 +156,13 @@ const handleAddLayer = () => {
   }).then(({ value }) => {
     const newLayer = mapEditorStore.addLayer({
       name: value,
-      type: 'point',
+      type: 'point' as LayerType,
       visible: true,
       locked: false,
       zIndex: mapEditorStore.layers.length + 1,
       opacity: 1,
       elementIds: [],
-      active: true
+      active: true  // 默认激活新创建的图层
     });
     // 激活新创建的图层
     setActiveLayer(newLayer.id);
@@ -263,6 +263,36 @@ const handleDeleteSelectedLayerGroup = async () => {
     }
   }
 };
+
+// 确保默认图层被激活
+watch(
+  () => mapEditorStore.layers,
+  (layers) => {
+    if (layers.length > 0 && !mapEditorStore.activeLayerId) {
+      // 优先激活名为 "Default layer" 的图层
+      const defaultLayer = layers.find(l => l.name === 'Default layer');
+      if (defaultLayer) {
+        setActiveLayer(defaultLayer.id);
+      } else {
+        // 如果没有 "Default layer"，激活第一个图层
+        setActiveLayer(layers[0].id);
+      }
+    }
+  },
+  { immediate: true }
+);
+
+// 监听图层变化，确保始终有激活的图层
+watch(
+  () => mapEditorStore.layers,
+  (layers) => {
+    // 如果当前没有激活的图层，但有图层存在，则激活第一个图层
+    if (layers.length > 0 && !mapEditorStore.activeLayerId) {
+      const defaultLayer = layers.find(l => l.name === 'Default layer') || layers[0];
+      setActiveLayer(defaultLayer.id);
+    }
+  }
+);
 </script>
 
 <style scoped lang="scss">

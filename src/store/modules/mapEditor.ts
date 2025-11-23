@@ -201,12 +201,24 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         // 确保至少有一个激活的图层
         const hasActiveLayer = layers.value.some(l => l.active);
         if (!hasActiveLayer && layers.value.length > 0) {
-          layers.value[0].active = true;
-          activeLayerId.value = layers.value[0].id;
+          // 优先激活名为 "Default layer" 的图层
+          const defaultLayer = layers.value.find(l => l.name === 'Default layer');
+          if (defaultLayer) {
+            setActiveLayer(defaultLayer.id);
+          } else {
+            // 如果没有 "Default layer"，激活第一个图层
+            setActiveLayer(layers.value[0].id);
+          }
         } else {
           const activeLayer = layers.value.find(l => l.active);
           if (activeLayer) {
             activeLayerId.value = activeLayer.id;
+          } else if (layers.value.length > 0) {
+            // 如果 active 属性存在但 activeLayerId 未设置，确保同步
+            const defaultLayer = layers.value.find(l => l.name === 'Default layer');
+            if (defaultLayer && defaultLayer.active) {
+              activeLayerId.value = defaultLayer.id;
+            }
           }
         }
       }
