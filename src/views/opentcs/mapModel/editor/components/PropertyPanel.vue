@@ -1,12 +1,25 @@
 <template>
   <div class="property-panel">
     <div class="panel-header">
-      <h3>{{ selectedType ? getTypeLabel(selectedType) : '属性' }}</h3>
+      <h3>{{ selectedType ? getTypeLabel(selectedType) : (selectedElements.length === 0 ? 'Layout' : '属性') }}</h3>
     </div>
     
     <div class="panel-content">
-      <div v-if="selectedElements.length === 0" class="empty-state">
-        <el-empty description="请选择一个元素进行编辑" :image-size="100" />
+      <div v-if="selectedElements.length === 0" class="property-table">
+        <el-table
+          :data="modelPropertyData"
+          border
+          size="small"
+          :show-header="true"
+          style="width: 100%"
+        >
+          <el-table-column prop="attribute" label="属性" width="140" />
+          <el-table-column prop="value" label="值">
+            <template #default="{ row }">
+              <span class="value-text">{{ row.value }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
       
       <div v-else-if="selectedElements.length === 1" class="property-table">
@@ -64,6 +77,48 @@ const getTypeLabel = (type: string) => {
   };
   return labels[type] || '属性';
 };
+
+// 模型属性数据（当没有选中元素时显示）
+const modelPropertyData = computed(() => {
+  const data: Array<{ attribute: string; value: string }> = [];
+  const mapInfo = mapEditorStore.mapData?.mapInfo;
+  
+  if (mapInfo) {
+    // Name
+    data.push({ 
+      attribute: 'Name', 
+      value: mapInfo.name || '新地图' 
+    });
+    
+    // Scale of x-axis
+    data.push({ 
+      attribute: 'Scale of x-axis', 
+      value: `${mapInfo.scaleX || 50.0} mm` 
+    });
+    
+    // Scale of y-axis
+    data.push({ 
+      attribute: 'Scale of y-axis', 
+      value: `${mapInfo.scaleY || 50.0} mm` 
+    });
+    
+    // Layers - 显示默认图层名称
+    const defaultLayer = mapEditorStore.layers.find(l => l.name === 'Default layer');
+    data.push({ 
+      attribute: 'Layers', 
+      value: defaultLayer ? defaultLayer.name : (mapEditorStore.layers[0]?.name || 'Default layer')
+    });
+    
+    // Layer groups - 显示默认图层组名称
+    const defaultLayerGroup = mapEditorStore.layerGroups.find(g => g.name === 'Default layer group');
+    data.push({ 
+      attribute: 'Layer groups', 
+      value: defaultLayerGroup ? defaultLayerGroup.name : (mapEditorStore.layerGroups[0]?.name || 'Default layer group')
+    });
+  }
+  
+  return data;
+});
 
 const propertyData = computed(() => {
   if (selectedElements.value.length !== 1) {

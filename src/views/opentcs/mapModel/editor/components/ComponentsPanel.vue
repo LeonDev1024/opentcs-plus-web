@@ -57,71 +57,68 @@ const treeProps = {
 const treeData = computed(() => {
   const data: any[] = [];
   
+  // Layout 节点名称
+  const layoutName = mapEditorStore.mapData?.mapInfo?.name || 'Layout VLayout-01';
+  
   // Layout 节点
   const layoutNode = {
     id: 'layout',
-    label: 'Layout VLayout-01',
+    label: layoutName,
     type: 'layout',
     children: []
   };
   
-  // Points 文件夹
+  // Points 文件夹 - 始终显示
   const points = mapEditorStore.points;
-  if (points.length > 0) {
-    const pointsFolder = {
-      id: 'points-folder',
-      label: 'Points',
-      type: 'folder',
-      children: points.map(point => ({
-        id: point.id,
-        label: `Point ${point.name || point.id}`,
-        type: 'element',
-        elementType: 'point',
-        elementId: point.id
-      }))
-    };
-    layoutNode.children.push(pointsFolder);
-  }
+  const pointsFolder = {
+    id: 'points-folder',
+    label: 'Points',
+    type: 'folder',
+    children: points.map(point => ({
+      id: point.id,
+      label: `Point ${point.name || point.id}`,
+      type: 'element',
+      elementType: 'point',
+      elementId: point.id
+    }))
+  };
+  layoutNode.children.push(pointsFolder);
   
-  // Paths 文件夹
-  const paths = mapEditorStore.paths;
-  if (paths.length > 0) {
-    const pathsFolder = {
-      id: 'paths-folder',
-      label: 'Paths',
-      type: 'folder',
-      children: paths.map(path => ({
-        id: path.id,
-        label: `Path ${path.name || path.id}`,
-        type: 'element',
-        elementType: 'path',
-        elementId: path.id
-      }))
-    };
-    layoutNode.children.push(pathsFolder);
-  }
-  
-  // Locations 文件夹
+  // Locations 文件夹 - 始终显示
   const locations = mapEditorStore.locations;
-  if (locations.length > 0) {
-    const locationsFolder = {
-      id: 'locations-folder',
-      label: 'Locations',
-      type: 'folder',
-      children: locations.map(location => ({
-        id: location.id,
-        label: `Location ${location.name || location.id}`,
-        type: 'element',
-        elementType: 'location',
-        elementId: location.id
-      }))
-    };
-    layoutNode.children.push(locationsFolder);
-  }
+  const locationsFolder = {
+    id: 'locations-folder',
+    label: 'Locations',
+    type: 'folder',
+    children: locations.map(location => ({
+      id: location.id,
+      label: `Location ${location.name || location.id}`,
+      type: 'element',
+      elementType: 'location',
+      elementId: location.id
+    }))
+  };
+  layoutNode.children.push(locationsFolder);
   
-  if (layoutNode.children.length > 0) {
-    data.push(layoutNode);
-  }
+  // Location types 文件夹 - 始终显示（空文件夹）
+  const locationTypesFolder = {
+    id: 'location-types-folder',
+    label: 'Location types',
+    type: 'folder',
+    children: []
+  };
+  layoutNode.children.push(locationTypesFolder);
+  
+  // Links 文件夹 - 始终显示（空文件夹）
+  const linksFolder = {
+    id: 'links-folder',
+    label: 'Links',
+    type: 'folder',
+    children: []
+  };
+  layoutNode.children.push(linksFolder);
+  
+  data.push(layoutNode);
   
   return data;
 });

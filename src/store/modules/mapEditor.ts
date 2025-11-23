@@ -159,6 +159,14 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         canvasState.scale = data.mapInfo.scale || 1;
         canvasState.offsetX = data.mapInfo.offsetX || 0;
         canvasState.offsetY = data.mapInfo.offsetY || 0;
+        
+        // 设置默认的 scaleX 和 scaleY（如果不存在）
+        if (data.mapInfo.scaleX === undefined) {
+          data.mapInfo.scaleX = 50.0;
+        }
+        if (data.mapInfo.scaleY === undefined) {
+          data.mapInfo.scaleY = 50.0;
+        }
       }
       
       // 如果没有图层组，创建默认图层组
@@ -254,7 +262,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         height: 1080,
         scale: 1,
         offsetX: 0,
-        offsetY: 0
+        offsetY: 0,
+        scaleX: 50.0,
+        scaleY: 50.0
       },
       layerGroups: [defaultLayerGroup],
       layers: [defaultLayer],

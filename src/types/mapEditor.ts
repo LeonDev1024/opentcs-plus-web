@@ -178,6 +178,8 @@ export interface MapEditorData {
     scale: number;        // 缩放比例
     offsetX: number;      // 偏移X
     offsetY: number;      // 偏移Y
+    scaleX?: number;      // X轴比例（单位：mm）
+    scaleY?: number;      // Y轴比例（单位：mm）
   };
   
   // 图层组数据
