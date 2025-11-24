@@ -46,18 +46,18 @@
 
       <el-table v-loading="loading" :data="mapModelList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column label="地图id" align="center" prop="id" />
+        <el-table-column label="地图模型ID" align="center" prop="plantModelId" width="200" />
         <el-table-column label="地图模型名称" align="center" prop="name" />
-        <el-table-column label="描述" align="center" prop="description" show-overflow-tooltip />
-        <el-table-column label="版本" align="center" prop="version" />
-        <el-table-column label="文件路径" align="center" prop="filePath" show-overflow-tooltip />
+        <el-table-column label="版本" align="center" prop="modelVersion" width="100" />
         <el-table-column key="status" label="状态" align="center">
           <template #default="scope">
             <el-switch v-model="scope.row.status" active-value="0" inactive-value="1" @change="handleStatusChange(scope.row)"></el-switch>
           </template>
         </el-table-column>
         <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
-        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="250">
+        <el-table-column label="描述" align="center" prop="description" show-overflow-tooltip />
+
+        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="180">
           <template #default="scope">
             <el-tooltip content="编辑地图" placement="top">
               <el-button v-hasPermi="['opentcs:mapModel:edit']" link type="primary" icon="EditPen" @click="handleEdit(scope.row)"></el-button>
