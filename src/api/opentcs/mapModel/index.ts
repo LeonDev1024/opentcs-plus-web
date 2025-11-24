@@ -40,7 +40,7 @@ export const addMapModel = (data: MapModelForm) => {
  */
 export const updateMapModel = (data: MapModelForm) => {
   return request({
-    url: '/map/model',
+    url: '/map/model/update',
     method: 'put',
     data: data
   });

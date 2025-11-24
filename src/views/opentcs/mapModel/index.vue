@@ -89,9 +89,6 @@
         <el-form-item label="版本" prop="version">
           <el-input v-model="form.version" placeholder="请输入版本号" />
         </el-form-item>
-        <el-form-item label="文件路径" prop="filePath">
-          <el-input v-model="form.filePath" placeholder="请输入文件路径" />
-        </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="form.status">
             <el-radio v-for="dict in sys_normal_disable" :key="dict.value" :value="dict.value">
