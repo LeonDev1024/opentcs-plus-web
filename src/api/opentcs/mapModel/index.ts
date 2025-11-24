@@ -92,14 +92,15 @@ export const saveMapEditorData = (mapModelId: string | number, data: any) => {
 
 /**
  * 加载地图编辑器数据（从文件加载）
- * @param mapModelId 地图模型ID
+ * @param plantModelId 工厂模型ID
  */
-export const loadMapEditorData = async (mapModelId: string | number): Promise<any> => {
+export const loadMapEditorData = async (plantModelId: string | number): Promise<any> => {
   try {
     // 当 responseType 为 'blob' 时，响应拦截器会直接返回 Blob 对象
     const blob = await request({
-      url: `/map/model/${mapModelId}/editor-data/download`,
-      method: 'get',
+      url: `/map/editor/load`,
+      method: 'post',
+      data: { plantModelId },
       responseType: 'blob'
     });
     
