@@ -35,11 +35,6 @@
               删除
             </el-button>
           </el-col>
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:mapModel:load']" type="warning" plain icon="Upload" :disabled="single" @click="handleLoad()">
-              加载模型
-            </el-button>
-          </el-col>
           <right-toolbar v-model:show-search="showSearch" @query-table="getList"></right-toolbar>
         </el-row>
       </template>
@@ -57,7 +52,7 @@
         <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
         <el-table-column label="描述" align="center" prop="description" show-overflow-tooltip />
 
-        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="180">
+        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="150">
           <template #default="scope">
             <el-tooltip content="编辑地图" placement="top">
               <el-button v-hasPermi="['opentcs:mapModel:edit']" link type="primary" icon="EditPen" @click="handleEdit(scope.row)"></el-button>
@@ -67,9 +62,6 @@
             </el-tooltip>
             <el-tooltip content="删除" placement="top">
               <el-button v-hasPermi="['opentcs:mapModel:remove']" link type="primary" icon="Delete" @click="handleDelete(scope.row)"></el-button>
-            </el-tooltip>
-            <el-tooltip content="加载模型" placement="top">
-              <el-button v-hasPermi="['opentcs:mapModel:load']" link type="warning" icon="Upload" @click="handleLoad(scope.row)"></el-button>
             </el-tooltip>
           </template>
         </el-table-column>
