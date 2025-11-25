@@ -126,6 +126,7 @@ export const loadMapEditorData = async (plantModelId: string | number): Promise<
       };
     } catch (parseError) {
       // 如果解析失败，可能是真正的 Blob 数据，但这里应该是 JSON
+      console.warn('Blob 数据格式错误：', blobText);
       throw new Error('地图数据格式错误：' + blobText.substring(0, 100));
     }
   } catch (error: any) {

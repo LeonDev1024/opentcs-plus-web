@@ -123,7 +123,41 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       try {
         const response = await loadMapEditorData(mapModelId);
         // loadMapEditorData 返回 { data: ... } 格式
-        data = (response.data || response) as MapEditorData;
+        const responseData = (response.data || response) as any;
+        
+        // 处理API返回的实际数据结构
+        if (responseData.mapInfo) {
+          // 转换API数据结构为MapEditorData格式
+          data = {
+            mapInfo: {
+              id: responseData.mapInfo.id || mapModelId,
+              name: responseData.mapInfo.name || '新地图',
+              mapVersion: responseData.mapInfo.modelVersion || '1.0',
+              description: responseData.mapInfo.description || '',
+              width: parseFloat(responseData.mapInfo.layoutWidth) || 1920,
+              height: parseFloat(responseData.mapInfo.layoutHeight) || 1080,
+              scale: parseFloat(responseData.mapInfo.scale) || 1,
+              offsetX: 0,
+              offsetY: 0,
+              scaleX: 50.0,
+              scaleY: 50.0
+            },
+            layerGroups: responseData.layerGroups || [],
+            layers: responseData.layers || [],
+            elements: {
+              points: responseData.elements?.points || responseData.points || [],
+              paths: responseData.elements?.paths || responseData.paths || [],
+              locations: responseData.elements?.locations || responseData.locations || []
+            },
+            metadata: {
+              createdAt: responseData.mapInfo.createTime || new Date().toISOString(),
+              updatedAt: responseData.mapInfo.updateTime || new Date().toISOString()
+            }
+          };
+        } else {
+          // 如果没有mapInfo，创建空的地图数据
+          data = createEmptyMapData(mapModelId);
+        }
       } catch (error: any) {
         // 如果文件不存在，创建空的地图数据
         if (error?.response?.status === 404 || error?.message?.includes('不存在')) {
@@ -135,6 +169,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       }
       
       // 验证数据格式
+      console.log('地图数据：', data.mapInfo);
       if (!data || !data.mapInfo) {
         throw new Error('地图数据格式错误');
       }

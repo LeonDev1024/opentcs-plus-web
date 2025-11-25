@@ -22,7 +22,13 @@ export interface MapModelVO {
   /**
    * 地图模型版本
    */
-  version?: string;
+  modelVersion?: string;
+
+  /**
+   * 地图模型id
+   */
+  plantModelId?: string | number;
+
 
   /**
    * 状态（0正常 1停用）

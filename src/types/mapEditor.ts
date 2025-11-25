@@ -171,7 +171,7 @@ export interface MapEditorData {
   mapInfo: {
     id: string | number;
     name: string;
-    version: string;
+    mapVersion: string;
     description?: string;
     width: number;        // 画布宽度
     height: number;       // 画布高度

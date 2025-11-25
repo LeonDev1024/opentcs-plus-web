@@ -6,7 +6,7 @@
         <span class="editor-title">
           地图编辑器 - {{ mapEditorStore.mapData?.mapInfo?.name || '未命名地图' }}
           <el-tag v-if="mapEditorStore.mapData" size="small" type="info" style="margin-left: 8px;">
-            v{{ mapEditorStore.mapData.mapInfo.version || '1.0' }}
+            v{{ mapEditorStore.mapData.mapInfo.mapVersion || '1.0' }}
           </el-tag>
         </span>
       </div>
