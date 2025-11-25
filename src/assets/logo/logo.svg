@@ -1,0 +1,40 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 室内交通控制路线 - 网格化路径规划 -->
+  
+  <!-- 网格路径 - 正交路线（水平和垂直，符合室内交通网格布局） -->
+  <!-- 水平主路径 -->
+  <line x1="6" y1="10" x2="12" y2="10" stroke="#409EFF" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="20" y1="10" x2="26" y2="10" stroke="#409EFF" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="6" y1="16" x2="26" y2="16" stroke="#409EFF" stroke-width="2" stroke-linecap="round"/>
+  <line x1="6" y1="22" x2="12" y2="22" stroke="#409EFF" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="20" y1="22" x2="26" y2="22" stroke="#409EFF" stroke-width="1.8" stroke-linecap="round"/>
+  
+  <!-- 垂直主路径 -->
+  <line x1="10" y1="6" x2="10" y2="12" stroke="#409EFF" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="10" y1="20" x2="10" y2="26" stroke="#409EFF" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="16" y1="6" x2="16" y2="26" stroke="#409EFF" stroke-width="2" stroke-linecap="round"/>
+  <line x1="22" y1="6" x2="22" y2="12" stroke="#409EFF" stroke-width="1.8" stroke-linecap="round"/>
+  <line x1="22" y1="20" x2="22" y2="26" stroke="#409EFF" stroke-width="1.8" stroke-linecap="round"/>
+  
+  <!-- 连接路径 - 绿色辅助路线（连接主路径） -->
+  <line x1="12" y1="10" x2="12" y2="16" stroke="#30b08f" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="20" y1="10" x2="20" y2="16" stroke="#30b08f" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="12" y1="16" x2="12" y2="22" stroke="#30b08f" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="20" y1="16" x2="20" y2="22" stroke="#30b08f" stroke-width="1.5" stroke-linecap="round"/>
+  
+  <!-- 节点/站点 - 蓝色主要节点（3x3网格） -->
+  <circle cx="10" cy="10" r="2" fill="#409EFF"/>
+  <circle cx="16" cy="10" r="2.2" fill="#409EFF"/>
+  <circle cx="22" cy="10" r="2" fill="#409EFF"/>
+  <circle cx="10" cy="16" r="2.2" fill="#409EFF"/>
+  <circle cx="16" cy="16" r="2.5" fill="#409EFF"/>
+  <circle cx="22" cy="16" r="2.2" fill="#409EFF"/>
+  <circle cx="10" cy="22" r="2" fill="#409EFF"/>
+  <circle cx="16" cy="22" r="2.2" fill="#409EFF"/>
+  <circle cx="22" cy="22" r="2" fill="#409EFF"/>
+  
+  <!-- 方向箭头 - 表示交通流向（双向流动） -->
+  <polygon points="12,14 10,16 12,18" fill="#30b08f" opacity="0.75"/>
+  <polygon points="20,14 22,16 20,18" fill="#30b08f" opacity="0.75"/>
+</svg>
+
