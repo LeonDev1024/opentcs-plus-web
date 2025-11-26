@@ -37,19 +37,20 @@
             title="平移工具"
           />
         </el-button-group>
-        
         <el-divider direction="vertical" />
-        
         <el-button-group>
           <div class="point-tool-wrapper">
             <el-button
               :type="currentTool === 'point' ? 'primary' : 'default'"
               size="small"
-              :icon="getPointTypeIcon(mapEditorStore.pointType)"
               @click="setTool(ToolMode.POINT)"
               title="绘制点"
               class="point-tool-main"
-            />
+            >
+              <template #icon>
+                <SvgIcon :icon-class="getPointTypeIconClass(mapEditorStore.pointType)" class="point-type-svg-icon" />
+              </template>
+            </el-button>
             <el-dropdown 
               @command="handlePointTypeChange"
               trigger="click"
@@ -70,15 +71,19 @@
                     command="Halt point"
                     :class="{ 'is-selected': mapEditorStore.pointType === 'Halt point' }"
                   >
-                  <el-icon style="margin-right: 8px;"><VideoPause /></el-icon>
-                  <span>临时停车 (Halt point)</span>
+                    <div class="point-type-option">
+                      <SvgIcon icon-class="halt-point" class="point-type-svg-icon" />
+                      <span>临时停车 (Halt point)</span>
+                    </div>
                   </el-dropdown-item>
                   <el-dropdown-item 
                     command="Park point"
                     :class="{ 'is-selected': mapEditorStore.pointType === 'Park point' }"
                   >
-                    <el-icon style="margin-right: 8px;"><Location /></el-icon>
-                    <span>长时间停车 (Park point)</span>
+                    <div class="point-type-option">
+                      <SvgIcon icon-class="park-point" class="point-type-svg-icon" />
+                      <span>长时间停车 (Park point)</span>
+                    </div>
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
@@ -355,13 +360,8 @@ const setTool = (tool: ToolMode) => {
   ElMessage.success(`已切换到${toolNames[tool]}`);
 };
 
-// 获取点位类型图标
-const getPointTypeIcon = (type: string) => {
-  const iconMap: Record<string, string> = {
-    'Halt point': 'VideoPause',
-    'Park point': 'Location'
-  };
-  return iconMap[type] || 'VideoPause';
+const getPointTypeIconClass = (type: string) => {
+  return type === 'Park point' ? 'park-point' : 'halt-point';
 };
 
 // 获取点位类型标签
@@ -685,7 +685,7 @@ onUnmounted(() => {
     .toolbar-left {
       display: flex;
       align-items: center;
-      gap: 18px;
+      gap: 24px;
       flex-wrap: nowrap;
       
       :deep(.el-divider--vertical) {
@@ -694,18 +694,10 @@ onUnmounted(() => {
         border-left-color: #e0e3eb;
       }
       
-      .el-button-group {
-        .el-button {
-          width: 24px;
-          height: 24px;
-          padding: 0;
-        }
-      }
-      
       .el-button {
-        width: 24px;
-        height: 24px;
-        padding: 0;
+        width: 32px;
+        height: 32px;
+        padding: 4px;
         border: none;
         background: transparent;
         color: #4c4c4c;
@@ -722,14 +714,24 @@ onUnmounted(() => {
           color: #1f2d3d;
           border: 1px solid rgba(64, 158, 255, 0.3);
         }
+
+        :deep(.el-icon) {
+          font-size: 20px;
+        }
+
+        :deep(.svg-icon),
+        :deep(svg) {
+          width: 20px;
+          height: 20px;
+        }
       }
       
       // 分段按钮样式
-      .point-tool-wrapper,
-      .path-tool-wrapper {
+        .point-tool-wrapper,
+        .path-tool-wrapper {
         display: inline-flex;
         align-items: center;
-        height: 24px;
+          height: 32px;
         border: 1px solid #e4e7ed;
         border-radius: 4px;
         background: #fff;
@@ -739,9 +741,9 @@ onUnmounted(() => {
           border-top-right-radius: 0;
           border-bottom-right-radius: 0;
           border-right: none;
-          width: 24px;
-          height: 24px;
-          padding: 0;
+          width: 32px;
+          height: 32px;
+          padding: 4px;
         }
         
         .point-tool-dropdown,
@@ -751,7 +753,7 @@ onUnmounted(() => {
           padding: 0 2px;
           min-width: auto;
           width: auto;
-          height: 24px;
+          height: 32px;
           
           .el-icon {
             font-size: 10px;
@@ -760,6 +762,24 @@ onUnmounted(() => {
         
         .path-type-icon {
           margin-right: 8px;
+        }
+
+        :deep(.point-type-option) {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          min-width: 160px;
+          
+          span {
+            font-size: 12px;
+            color: #303133;
+          }
+        }
+
+        .point-type-svg-icon {
+          font-size: 22px;
+          width: 22px;
+          height: 22px;
         }
       }
     }
@@ -770,8 +790,8 @@ onUnmounted(() => {
       gap: 8px;
       
       .collapse-toggle {
-        width: 32px;
-        height: 32px;
+        width: 36px;
+        height: 36px;
         border-radius: 8px;
         border: 1px solid #e0e6ef;
         background: #fff;
@@ -884,31 +904,31 @@ onUnmounted(() => {
           
           .el-button-group {
             .el-button {
-              width: 24px;
-              height: 24px;
-              padding: 0;
+              width: 32px;
+              height: 32px;
+              padding: 4px;
             }
           }
           
           .el-button {
-            width: 24px;
-            height: 24px;
-            padding: 0;
+            width: 32px;
+            height: 32px;
+            padding: 4px;
           }
           
           // 绘制点工具按钮样式
           .point-tool-wrapper {
             display: inline-flex;
             align-items: center;
-            height: 24px;
+            height: 32px;
             
             .point-tool-main {
               border-top-right-radius: 0;
               border-bottom-right-radius: 0;
               border-right: none;
-              width: 24px;
-              height: 24px;
-              padding: 0;
+              width: 32px;
+              height: 32px;
+              padding: 4px;
             }
             
             .point-tool-dropdown {
@@ -917,7 +937,7 @@ onUnmounted(() => {
               padding: 0 2px;
               min-width: auto;
               width: auto;
-              height: 24px;
+              height: 32px;
               
               .el-icon {
                 font-size: 10px;

@@ -33,6 +33,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   
   // 点位类型（默认临时停靠点）
   const pointType = ref<string>('Halt point');
+
+  // 点位命名计数器
+  const pointNameCounter = ref(0);
   
   // 路径连线类型
   const pathConnectionType = ref<'direct' | 'orthogonal' | 'curve'>('direct');
@@ -74,6 +77,33 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   
   // 是否已修改（用于提示保存）
   const isDirty = ref(false);
+
+  const POINT_NAME_REGEX = /^Point-(\d+)$/i;
+
+  const formatPointName = (index: number) => {
+    return `Point-${index.toString().padStart(4, '0')}`;
+  };
+
+  const updateCounterByName = (name?: string) => {
+    if (!name) return;
+    const match = name.match(POINT_NAME_REGEX);
+    if (match) {
+      const value = parseInt(match[1], 10);
+      if (!Number.isNaN(value)) {
+        pointNameCounter.value = Math.max(pointNameCounter.value, value);
+      }
+    }
+  };
+
+  const syncPointNameCounter = () => {
+    pointNameCounter.value = 0;
+    points.value.forEach(point => updateCounterByName(point.name));
+  };
+
+  const generatePointName = () => {
+    pointNameCounter.value += 1;
+    return formatPointName(pointNameCounter.value);
+  };
   
   // ==================== Getters ====================
   
@@ -222,6 +252,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       points.value = data.elements.points || [];
       paths.value = data.elements.paths || [];
       locations.value = data.elements.locations || [];
+
+      syncPointNameCounter();
       
       // 更新画布状态
       if (data.mapInfo) {
@@ -262,36 +294,13 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           locked: false,
           zIndex: 1,
           opacity: 1,
-          elementIds: [],
-          active: true
+          elementIds: []
         };
         layers.value.push(defaultLayer);
-        // 确保激活状态正确设置
-        setActiveLayer(defaultLayer.id);
-      } else {
-        // 确保至少有一个激活的图层
-        const hasActiveLayer = layers.value.some(l => l.active);
-        if (!hasActiveLayer && layers.value.length > 0) {
-          // 优先激活名为 "Default layer" 的图层
-          const defaultLayer = layers.value.find(l => l.name === 'Default layer');
-          if (defaultLayer) {
-            setActiveLayer(defaultLayer.id);
-          } else {
-            // 如果没有 "Default layer"，激活第一个图层
-            setActiveLayer(layers.value[0].id);
-          }
-        } else {
-          const activeLayer = layers.value.find(l => l.active);
-          if (activeLayer) {
-            activeLayerId.value = activeLayer.id;
-          } else if (layers.value.length > 0) {
-            // 如果 active 属性存在但 activeLayerId 未设置，确保同步
-            const defaultLayer = layers.value.find(l => l.name === 'Default layer');
-            if (defaultLayer && defaultLayer.active) {
-              activeLayerId.value = defaultLayer.id;
-            }
-          }
-        }
+        activeLayerId.value = defaultLayer.id;
+      } else if (!activeLayerId.value || !layers.value.some(l => l.id === activeLayerId.value)) {
+        const fallbackLayer = layers.value.find(l => l.name === 'Default layer') || layers.value[0];
+        activeLayerId.value = fallbackLayer ? fallbackLayer.id : null;
       }
       
       // 清空选择
@@ -329,15 +338,14 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       locked: false,
       zIndex: 1,
       opacity: 1,
-      elementIds: [],
-      active: true
+      elementIds: []
     };
     
     return {
       mapInfo: {
         id: mapId,
         name: '新地图',
-        version: '1.0',
+        mapVersion: '1.0',
         width: 1920,
         height: 1080,
         scale: 1,
@@ -441,10 +449,10 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   /**
    * 添加点
    */
-  const addPoint = (point: Omit<MapPoint, 'id'>) => {
+  const addPoint = (point: Omit<MapPoint, 'id'> & { id?: string }) => {
     const newPoint: MapPoint = {
       ...point,
-      id: `point_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      id: point.id || `point_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     };
     
     points.value.push(newPoint);
@@ -455,6 +463,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       layer.elementIds.push(newPoint.id);
     }
     
+    updateCounterByName(newPoint.name);
     isDirty.value = true;
     return newPoint;
   };
@@ -639,16 +648,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       }
     }
     
-    // 如果新图层要激活，先取消其他图层的激活状态
-    if (layer.active) {
-      layers.value.forEach(l => {
-        if (l.active) {
-          l.active = false;
-        }
-      });
-      activeLayerId.value = null; // 临时设置为null，稍后会设置为新图层ID
-    }
-    
     const newLayer: MapLayer = {
       ...layer,
       id: `layer_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -657,11 +656,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     };
     
     layers.value.push(newLayer);
-    
-    // 如果新图层是激活的，更新activeLayerId
-    if (newLayer.active) {
-      activeLayerId.value = newLayer.id;
-    }
     
     isDirty.value = true;
     return newLayer;
@@ -674,20 +668,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     const index = layers.value.findIndex(l => l.id === id);
     if (index !== -1) {
       layers.value[index] = { ...layers.value[index], ...updates };
-      // 如果更新了active状态，需要更新其他图层的active状态
-      if (updates.active !== undefined) {
-        if (updates.active) {
-          // 取消其他图层的激活状态
-          layers.value.forEach((layer, i) => {
-            if (i !== index && layer.active) {
-              layer.active = false;
-            }
-          });
-          activeLayerId.value = id;
-        } else {
-          activeLayerId.value = null;
-        }
-      }
       isDirty.value = true;
     }
   };
@@ -696,22 +676,13 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
    * 设置激活图层
    */
   const setActiveLayer = (id: string | null) => {
-    // 取消所有图层的激活状态
-    layers.value.forEach(layer => {
-      layer.active = false;
-    });
-    
-    // 设置新的激活图层
-    if (id) {
-      const layer = layers.value.find(l => l.id === id);
-      if (layer) {
-        layer.active = true;
-        activeLayerId.value = id;
-      }
-    } else {
-      activeLayerId.value = null;
+    if (id && !layers.value.find(layer => layer.id === id)) {
+      return;
     }
-    
+    if (activeLayerId.value === id) {
+      return;
+    }
+    activeLayerId.value = id;
     isDirty.value = true;
   };
   
@@ -734,12 +705,14 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         }
       });
       
-      // 如果删除的是激活图层，清除激活状态
+      layers.value.splice(index, 1);
+      
+      // 如果删除的是激活图层，重新选择一个
       if (activeLayerId.value === id) {
-        activeLayerId.value = null;
+        const fallbackLayer = layers.value.find(l => l.name === 'Default layer') || layers.value[0];
+        activeLayerId.value = fallbackLayer ? fallbackLayer.id : null;
       }
       
-      layers.value.splice(index, 1);
       isDirty.value = true;
     }
   };
@@ -826,6 +799,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     canvasState.offsetX = 0;
     canvasState.offsetY = 0;
     isDirty.value = false;
+    pointNameCounter.value = 0;
   };
   
   return {
@@ -857,6 +831,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     setTool,
     setPointType,
     setPathConnectionType,
+    generatePointName,
     updateCanvasState,
     addPoint,
     updatePoint,

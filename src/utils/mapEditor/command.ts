@@ -1,7 +1,7 @@
 /**
  * 命令模式实现 - 用于撤销/重做功能
  */
-import type { Command } from '@/types/mapEditor';
+import type { Command, MapPoint } from '@/types/mapEditor';
 
 /**
  * 命令管理器
@@ -96,23 +96,32 @@ export class CommandManager {
  * 添加点命令
  */
 export class AddPointCommand implements Command {
+  private createdPoint: MapPoint | null = null;
+
   constructor(
-    private point: any,
-    private addCallback: (point: any) => void,
+    private pointData: Omit<MapPoint, 'id'> & { id?: string },
+    private addCallback: (point: Omit<MapPoint, 'id'> & { id?: string }) => MapPoint,
     private removeCallback: (id: string) => void,
     public description: string = '添加点'
   ) {}
 
   execute(): void {
-    this.addCallback(this.point);
+    const payload = this.createdPoint || this.pointData;
+    this.createdPoint = this.addCallback(payload);
   }
 
   undo(): void {
-    this.removeCallback(this.point.id);
+    if (this.createdPoint) {
+      this.removeCallback(this.createdPoint.id);
+    }
   }
 
   redo(): void {
-    this.execute();
+    if (this.createdPoint) {
+      this.createdPoint = this.addCallback({ ...this.createdPoint });
+    } else {
+      this.execute();
+    }
   }
 }
 

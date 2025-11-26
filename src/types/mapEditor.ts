@@ -42,7 +42,6 @@ export interface MapLayer {
   zIndex: number;            // 层级顺序
   opacity: number;           // 透明度 (0-1)
   elementIds: string[];      // 该图层包含的元素ID列表
-  active?: boolean;          // 是否激活（当前选中的图层）
 }
 
 // ==================== 点（Point）模型 ====================
@@ -63,7 +62,9 @@ export interface MapPoint {
   // 编辑器扩展属性
   editorProps: {
     radius: number;          // 显示半径
-    color: string;         // 颜色
+    color: string;         // 填充颜色
+    strokeColor?: string;  // 描边颜色
+    textColor?: string;    // 图形内文字颜色
     icon?: string;         // 图标URL
     label?: string;        // 标签文本
     labelVisible: boolean; // 标签是否显示

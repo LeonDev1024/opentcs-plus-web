@@ -33,15 +33,20 @@
       
       <!-- 点位层 -->
       <v-layer ref="pointLayerRef" :config="{ name: 'point' }">
-        <v-circle
-          v-for="point in visiblePoints"
-          :key="point.id"
-          :config="getPointConfig(point)"
-          @click="handlePointClick(point, $event)"
-          @dragstart="handlePointDragStart(point)"
-          @dragmove="handlePointDragMove(point, $event)"
-          @dragend="handlePointDragEnd(point)"
-        />
+        <template v-for="point in visiblePoints" :key="point.id">
+          <v-circle
+            :config="getPointConfig(point)"
+            @click="handlePointClick(point, $event)"
+            @dragstart="handlePointDragStart(point)"
+            @dragmove="handlePointDragMove(point, $event)"
+            @dragend="handlePointDragEnd(point)"
+          />
+          <v-text
+            v-if="shouldRenderPointGlyph(point)"
+            :key="`${point.id}-glyph`"
+            :config="getPointGlyphConfig(point)"
+          />
+        </template>
       </v-layer>
       
       <!-- 路径层 -->
@@ -98,7 +103,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Stage, Layer, Line, Circle, Rect } from 'vue-konva';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import { ToolMode } from '@/types/mapEditor';
 import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
@@ -112,13 +116,13 @@ const mapEditorStore = useMapEditorStore();
 
 // Refs
 const containerRef = ref<HTMLDivElement>();
-const stageRef = ref<InstanceType<typeof Stage>>();
-const backgroundLayerRef = ref<InstanceType<typeof Layer>>();
-const gridLayerRef = ref<InstanceType<typeof Layer>>();
-const pointLayerRef = ref<InstanceType<typeof Layer>>();
-const pathLayerRef = ref<InstanceType<typeof Layer>>();
-const locationLayerRef = ref<InstanceType<typeof Layer>>();
-const tempLayerRef = ref<InstanceType<typeof Layer>>();
+const stageRef = ref<any>();
+const backgroundLayerRef = ref<any>();
+const gridLayerRef = ref<any>();
+const pointLayerRef = ref<any>();
+const pathLayerRef = ref<any>();
+const locationLayerRef = ref<any>();
+const tempLayerRef = ref<any>();
 
 // 辅助函数：获取 Konva 节点（兼容不同的 vue-konva 版本）
 const getKonvaNode = (ref: any) => {
@@ -242,6 +246,111 @@ const visibleLocations = computed(() => {
   });
 });
 
+const POINT_TYPE = {
+  HALT: 'Halt point',
+  PARK: 'Park point'
+} as const;
+
+type PointVisualMeta = {
+  fill: string;
+  stroke: string;
+  strokeWidth: number;
+  radius: number;
+  glyph?: string;
+  glyphColor: string;
+};
+
+const getPointVisualMeta = (point: MapPoint): PointVisualMeta => {
+  const base: PointVisualMeta = {
+    fill: point.editorProps.color || '#1890ff',
+    stroke: point.editorProps.strokeColor || '#ffffff',
+    strokeWidth: 1.2,
+    radius: point.editorProps.radius || 5,
+    glyph: undefined,
+    glyphColor: point.editorProps.textColor || '#606266'
+  };
+  
+  if (point.type === POINT_TYPE.PARK) {
+    base.fill = point.editorProps.color || '#409eff';
+    base.stroke = point.editorProps.strokeColor || '#1d6fd6';
+    base.strokeWidth = 1.6;
+    base.radius = point.editorProps.radius || 7;
+    base.glyph = 'P';
+    base.glyphColor = point.editorProps.textColor || '#ffffff';
+  } else if (point.type === POINT_TYPE.HALT) {
+    base.fill = point.editorProps.color || '#8c8c8c';
+    base.stroke = point.editorProps.strokeColor || '#d9d9d9';
+    base.radius = point.editorProps.radius || 5;
+    base.strokeWidth = 1.4;
+  }
+  
+  return base;
+};
+
+const shouldRenderPointGlyph = (point: MapPoint) => Boolean(getPointVisualMeta(point).glyph);
+
+const getPointGlyphConfig = (point: MapPoint) => {
+  const visual = getPointVisualMeta(point);
+  if (!visual.glyph) {
+    return {};
+  }
+  const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
+  const isConnecting = currentTool.value === ToolMode.PATH && pendingConnectionStart.value?.id === point.id;
+  const isDashedLinkSource = currentTool.value === ToolMode.DASHED_LINK && pendingDashedLinkStartPoint.value?.id === point.id;
+  const highlighted = isSelected || isConnecting || isDashedLinkSource;
+  
+  return {
+    x: point.x,
+    y: point.y,
+    text: visual.glyph,
+    fontSize: Math.max(10, visual.radius * 1.8),
+    fontStyle: 'bold',
+    fill: highlighted ? '#ffffff' : visual.glyphColor,
+    align: 'center',
+    verticalAlign: 'middle',
+    width: visual.radius * 2,
+    height: visual.radius * 2,
+    offsetX: visual.radius,
+    offsetY: visual.radius,
+    listening: false
+  };
+};
+
+const buildPointEditorProps = (type: string): MapPoint['editorProps'] => {
+  if (type === POINT_TYPE.PARK) {
+    return {
+      radius: 7,
+      color: '#409eff',
+      strokeColor: '#1d6fd6',
+      textColor: '#ffffff',
+      labelVisible: true
+    };
+  }
+  return {
+    radius: 5,
+    color: '#8c8c8c',
+    strokeColor: '#d9d9d9',
+    textColor: '#595959',
+    labelVisible: true
+  };
+};
+
+const createPointPayload = (x: number, y: number): Omit<MapPoint, 'id'> => {
+  const nextName = typeof mapEditorStore.generatePointName === 'function'
+    ? mapEditorStore.generatePointName()
+    : `Point-${Date.now()}`;
+    
+  return {
+    layerId: getDefaultLayerId('point'),
+    name: nextName,
+    x,
+    y,
+    status: '0',
+    type: mapEditorStore.pointType,
+    editorProps: buildPointEditorProps(mapEditorStore.pointType)
+  };
+};
+
 // 鼠标位置
 const mousePosition = ref({ x: 0, y: 0 });
 
@@ -264,18 +373,35 @@ const getPointConfig = (point: MapPoint) => {
   const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
   const isConnecting = currentTool.value === ToolMode.PATH && pendingConnectionStart.value?.id === point.id;
   const isDashedLinkSource = currentTool.value === ToolMode.DASHED_LINK && pendingDashedLinkStartPoint.value?.id === point.id;
+  const visual = getPointVisualMeta(point);
+  
+  let fill = visual.fill;
+  let stroke = visual.stroke;
+  let strokeWidth = visual.strokeWidth;
+  
+  if (isSelected) {
+    fill = '#ff4d4f';
+    stroke = '#ff7875';
+    strokeWidth = Math.max(2, strokeWidth);
+  } else if (isDashedLinkSource) {
+    fill = '#f7ba2a';
+    stroke = '#f5d48f';
+    strokeWidth = Math.max(2, strokeWidth);
+  }
+  
+  if (isConnecting && !isSelected) {
+    stroke = '#ff7875';
+    strokeWidth = Math.max(2, strokeWidth);
+  }
+  
   return {
     id: point.id,
     x: point.x,
     y: point.y,
-    radius: point.editorProps.radius || 5,
-    fill: isSelected
-      ? '#ff4d4f'
-      : isDashedLinkSource
-        ? '#f7ba2a'
-        : (point.editorProps.color || '#1890ff'),
-    stroke: (isSelected || isConnecting || isDashedLinkSource) ? '#ff7875' : '#ffffff',
-    strokeWidth: (isSelected || isConnecting || isDashedLinkSource) ? 2.5 : 1,
+    radius: visual.radius,
+    fill,
+    stroke,
+    strokeWidth,
     draggable: currentTool.value === ToolMode.SELECT && !isDragging.value,
     listening: true
   };
@@ -512,22 +638,11 @@ const handleMouseDown = (e: any) => {
     e.evt.preventDefault();
   } else if (currentTool.value === ToolMode.POINT) {
     // 绘制点
-    const point = mapEditorStore.addPoint({
-      layerId: getDefaultLayerId('point'),
-      name: `点_${Date.now()}`,
-      x,
-      y,
-      status: '0',
-      editorProps: {
-        radius: 5,
-        color: '#1890ff',
-        labelVisible: true
-      }
-    });
+    const pointPayload = createPointPayload(x, y);
     
     // 记录到历史
     const command = new AddPointCommand(
-      point,
+      pointPayload,
       (p) => mapEditorStore.addPoint(p),
       (id) => mapEditorStore.deletePoint(id)
     );
@@ -771,7 +886,7 @@ const handlePointDragMove = (point: MapPoint, e: any) => {
     { x, y },
     {
       snapToGrid: true,
-      gridSize: gridSize,
+      gridSize: gridSize.value,
       snapToPoint: true,
       targetPoints: mapEditorStore.points
         .filter(p => p.id !== point.id)
@@ -864,7 +979,7 @@ const handlePathControlPointDragMove = (path: MapPath, cp: any, index: number, e
     { x, y },
     {
       snapToGrid: true,
-      gridSize: gridSize,
+      gridSize: gridSize.value,
       snapToPoint: true,
       targetPoints: mapEditorStore.points.map(p => ({ x: p.x, y: p.y }))
     }
@@ -938,7 +1053,7 @@ const handleLocationVertexDragMove = (location: MapLocation, vertex: any, index:
     { x, y },
     {
       snapToGrid: true,
-      gridSize: gridSize,
+      gridSize: gridSize.value,
       snapToPoint: true,
       targetPoints: mapEditorStore.points.map(p => ({ x: p.x, y: p.y }))
     }
@@ -1180,8 +1295,7 @@ onMounted(() => {
       locked: false,
       zIndex: 1,
       opacity: 1,
-      elementIds: [],
-      active: true
+      elementIds: []
     });
     
     mapEditorStore.setActiveLayer(defaultLayer.id);
@@ -1196,8 +1310,7 @@ onMounted(() => {
       locked: false,
       zIndex: 1,
       opacity: 1,
-      elementIds: [],
-      active: true
+      elementIds: []
     });
     
     mapEditorStore.setActiveLayer(defaultLayer.id);

@@ -161,8 +161,7 @@ const handleAddLayer = () => {
       locked: false,
       zIndex: mapEditorStore.layers.length + 1,
       opacity: 1,
-      elementIds: [],
-      active: true  // 默认激活新创建的图层
+      elementIds: []
     });
     // 激活新创建的图层
     setActiveLayer(newLayer.id);

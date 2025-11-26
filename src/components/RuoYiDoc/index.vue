@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-const url = ref('https://plus-doc.dromara.org/');
+const url = ref('https://github.com/LeonDev1024/opentcs-plus-docs');
 
 function goto() {
   window.open(url.value);
