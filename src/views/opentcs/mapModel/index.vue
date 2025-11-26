@@ -78,9 +78,6 @@
         <el-form-item label="描述" prop="description">
           <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" />
         </el-form-item>
-        <el-form-item label="版本" prop="version">
-          <el-input v-model="form.version" placeholder="请输入版本号" />
-        </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="form.status">
             <el-radio v-for="dict in sys_normal_disable" :key="dict.value" :value="dict.value">

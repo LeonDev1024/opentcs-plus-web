@@ -53,15 +53,6 @@ export interface MapModelForm extends BaseEntity {
    */
   description?: string;
 
-  /**
-   * 地图模型文件路径
-   */
-  filePath?: string;
-
-  /**
-   * 地图模型版本
-   */
-  version?: string;
 
   /**
    * 状态（0正常 1停用）
