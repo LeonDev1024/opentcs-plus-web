@@ -138,10 +138,13 @@
             class="toolbar-tool toolbar-tool-location"
             :type="currentTool === 'location' ? 'primary' : 'default'"
             size="small"
-            icon="Grid"
             @click="setTool(ToolMode.LOCATION)"
             title="绘制位置"
-          />
+          >
+            <template #icon>
+              <LocationTypeIcon :active="currentTool === 'location'" symbol="L" />
+            </template>
+          </el-button>
           <el-button
             class="toolbar-tool toolbar-tool-dashed"
             :type="currentTool === 'dashedLink' ? 'primary' : 'default'"
@@ -300,6 +303,7 @@ import ComponentsPanel from './components/ComponentsPanel.vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import { ToolMode } from '@/types/mapEditor';
 import PathTypeIcon from './components/icons/PathTypeIcon.vue';
+import LocationTypeIcon from './components/icons/LocationTypeIcon.vue';
 import SvgIcon from '@/components/SvgIcon/index.vue';
 
 const route = useRoute();

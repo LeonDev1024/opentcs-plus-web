@@ -92,9 +92,24 @@
       <!-- 位置层 -->
       <v-layer ref="locationLayerRef" :config="{ name: 'location' }">
         <template v-for="location in visibleLocations" :key="location.id">
+          <!-- 业务位置：显示为中心点的小正方形方框；规则区域仍显示为多边形 -->
+          <v-rect
+            v-if="!isRuleRegionLocation(location)"
+            :config="getLocationRectConfig(location)"
+            @click="handleLocationClick(location, $event)"
+            @mouseover="setStageCursor('move')"
+            @mouseout="setStageCursor('default')"
+          />
           <v-line
+            v-else
             :config="getLocationConfig(location)"
             @click="handleLocationClick(location, $event)"
+          />
+          <!-- 位置中心 symbol 文本（例如业务位置类型的图标），默认不显示，只有设置了 label 才显示 -->
+          <v-text
+            v-if="location.editorProps?.label"
+            :key="`${location.id}-symbol`"
+            :config="getLocationSymbolConfig(location)"
           />
           <!-- 位置顶点（仅在选中时显示） -->
           <v-circle
@@ -519,6 +534,14 @@ const cancelPathDrag = (stage?: any) => {
     targetStage.container().style.cursor = 'default';
   }
 };
+
+// 设置画布鼠标样式
+const setStageCursor = (cursor: string) => {
+  const stage = getKonvaNode(stageRef.value);
+  if (stage && stage.container) {
+    stage.container().style.cursor = cursor;
+  }
+};
 const pendingDashedLinkStartPoint = ref<MapPoint | null>(null);
 
 // 拖拽状态
@@ -701,6 +724,51 @@ const getLocationCentroid = (location: MapLocation) => {
   };
 };
 
+// 判断该 Location 是否为规则区域（使用规则区域的颜色样式）
+const isRuleRegionLocation = (location: MapLocation) => {
+  const stroke = location.editorProps?.strokeColor;
+  const fill = location.editorProps?.fillColor;
+  return stroke === '#ff7d00' || fill === '#ffedd9';
+};
+
+// 获取业务位置的小正方形方框配置
+const getLocationRectConfig = (location: MapLocation) => {
+  const centroid = getLocationCentroid(location);
+  const isSelected = mapEditorStore.selection.selectedIds.has(location.id);
+  const size = 40; // 业务位置小方框尺寸
+  const half = size / 2;
+
+  return {
+    x: centroid.x - half,
+    y: centroid.y - half,
+    width: size,
+    height: size,
+    stroke: isSelected ? '#409eff' : '#000000',
+    strokeWidth: 2,
+    fill: '#ffffff',
+    listening: true
+  };
+};
+
+// 获取位置中心 symbol 文本的配置
+const getLocationSymbolConfig = (location: MapLocation) => {
+  const centroid = getLocationCentroid(location);
+  const isSelected = mapEditorStore.selection.selectedIds.has(location.id);
+  const text = location.editorProps?.label || '';
+
+  return {
+    x: centroid.x,
+    y: centroid.y,
+    text,
+    fontSize: 16,
+    fontStyle: 'bold',
+    fill: isSelected ? '#ff4d4f' : '#000000',
+    align: 'center',
+    verticalAlign: 'middle',
+    listening: false
+  };
+};
+
 const createDashedLinkBetweenPointAndLocation = (point: MapPoint, location: MapLocation) => {
   const centroid = getLocationCentroid(location);
   const timestamp = Date.now();
@@ -820,7 +888,35 @@ const handleMouseDown = (e: any) => {
       (id) => mapEditorStore.deletePoint(id)
     );
     mapEditorStore.executeCommand(command);
-  } else if (currentTool.value === ToolMode.LOCATION || currentTool.value === ToolMode.RULE_REGION) {
+  } else if (currentTool.value === ToolMode.LOCATION) {
+    // 业务位置：单击直接创建一个小正方形方框
+    const size = 40;
+    const half = size / 2;
+    const timestamp = Date.now();
+    const vertices = [
+      { id: `loc_${timestamp}_v1`, x: x - half, y: y - half },
+      { id: `loc_${timestamp}_v2`, x: x + half, y: y - half },
+      { id: `loc_${timestamp}_v3`, x: x + half, y: y + half },
+      { id: `loc_${timestamp}_v4`, x: x - half, y: y + half }
+    ];
+    
+    mapEditorStore.addLocation({
+      layerId: getDefaultLayerId('location'),
+      name: `Location-${Date.now()}`,
+      status: '0',
+      geometry: {
+        vertices,
+        closed: true
+      },
+      editorProps: {
+        fillColor: '#ffffff',
+        fillOpacity: 1,
+        strokeColor: '#000000',
+        strokeWidth: 2,
+        labelVisible: true
+      }
+    });
+  } else if (currentTool.value === ToolMode.RULE_REGION) {
     // 开始绘制位置（多边形）或添加顶点
     if (!isDrawing.value) {
       // 开始新的多边形
