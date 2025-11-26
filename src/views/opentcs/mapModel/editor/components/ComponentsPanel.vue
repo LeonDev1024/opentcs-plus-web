@@ -57,8 +57,10 @@ const treeProps = {
 const treeData = computed(() => {
   const data: any[] = [];
   
-  // Layout 节点名称
-  const layoutName = mapEditorStore.mapData?.mapInfo?.name || 'Layout VLayout-01';
+  // Layout 节点名称 - 使用 visualLayout.name，如果没有则使用默认值
+  const layoutName = mapEditorStore.mapData?.visualLayout?.name || 
+                     mapEditorStore.mapData?.mapInfo?.name || 
+                     'Layout VLayout-01';
   
   // Layout 节点
   const layoutNode = {

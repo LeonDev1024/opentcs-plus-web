@@ -123,11 +123,47 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       try {
         const response = await loadMapEditorData(mapId);
         // loadMapEditorData 返回 { data: ... } 格式
+        // 后端返回的数据结构：{ code: 200, msg: "操作成功", data: { name, mapId, modelVersion, points, paths, locations, visualLayout: { name, scaleX, scaleY, layers, layerGroups } } }
         const responseData = (response.data || response) as any;
         
         // 处理API返回的实际数据结构
-        if (responseData.mapInfo) {
+        // 如果 responseData 有 data 字段，说明是标准响应格式
+        const apiData = responseData.data || responseData;
+        
+        if (apiData && (apiData.name || apiData.visualLayout)) {
           // 转换API数据结构为MapEditorData格式
+          const visualLayout = apiData.visualLayout || {};
+          
+          data = {
+            mapInfo: {
+              id: apiData.mapId || mapId,
+              name: apiData.name || '新地图', // 使用 data.name 作为地图名字
+              mapVersion: apiData.modelVersion || '1.0',
+              description: apiData.description || '',
+              width: 1920, // 默认值，后端未提供
+              height: 1080, // 默认值，后端未提供
+              scale: 1,
+              offsetX: 0,
+              offsetY: 0,
+              scaleX: parseFloat(visualLayout.scaleX) || 50.0,
+              scaleY: parseFloat(visualLayout.scaleY) || 50.0
+            },
+            layerGroups: visualLayout.layerGroups || [],
+            layers: visualLayout.layers || [],
+            elements: {
+              points: apiData.points || [],
+              paths: apiData.paths || [],
+              locations: apiData.locations || []
+            },
+            metadata: {
+              createdAt: apiData.createTime || new Date().toISOString(),
+              updatedAt: apiData.updateTime || new Date().toISOString()
+            },
+            // 保存原始 visualLayout 数据，用于视图树显示
+            visualLayout: visualLayout
+          };
+        } else if (responseData.mapInfo) {
+          // 兼容旧的数据格式
           data = {
             mapInfo: {
               id: responseData.mapInfo.id || mapId,
@@ -155,7 +191,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             }
           };
         } else {
-          // 如果没有mapInfo，创建空的地图数据
+          // 如果没有数据，创建空的地图数据
           data = createEmptyMapData(mapId);
         }
       } catch (error: any) {

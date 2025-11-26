@@ -193,12 +193,12 @@
     
     <!-- 主内容区 -->
     <div class="editor-content">
-      <!-- 左侧面板：组件、属性、图层 -->
+      <!-- 左侧面板：视图、属性、图层 -->
       <div class="left-panels">
-        <!-- 组件面板 -->
+        <!-- 视图面板 -->
         <div class="panel-container">
           <div class="panel-header">
-            <span class="canval-title">组件</span>
+            <span class="canval-title">视图</span>
           </div>
           <div class="panel-content">
             <ComponentsPanel />

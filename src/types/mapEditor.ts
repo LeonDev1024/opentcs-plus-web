@@ -165,6 +165,17 @@ export interface MapLocation {
   updatedAt?: string;
 }
 
+// ==================== 视觉布局（Visual Layout）模型 ====================
+export interface VisualLayout {
+  visualLayoutId?: number;
+  name: string;
+  scaleX?: string | number;
+  scaleY?: string | number;
+  layers?: MapLayer[];
+  layerGroups?: LayerGroup[];
+  [key: string]: any; // 允许其他属性
+}
+
 // ==================== 地图编辑器完整数据模型 ====================
 export interface MapEditorData {
   // 地图基本信息
@@ -201,6 +212,9 @@ export interface MapEditorData {
     updatedAt: string;
     author?: string;
   };
+  
+  // 视觉布局数据（用于视图树显示）
+  visualLayout?: VisualLayout;
 }
 
 // ==================== 画布状态 ====================
