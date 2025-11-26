@@ -688,7 +688,7 @@ onUnmounted(() => {
     .toolbar-left {
       display: flex;
       align-items: center;
-      gap: 24px;
+      gap: 12px;
       flex-wrap: nowrap;
       
       :deep(.el-divider--vertical) {
