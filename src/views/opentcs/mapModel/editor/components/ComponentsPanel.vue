@@ -78,7 +78,7 @@ const treeData = computed(() => {
     type: 'folder',
     children: points.map(point => ({
       id: point.id,
-      label: `Point ${point.name || point.id}`,
+      label: point.name || point.id,
       type: 'element',
       elementType: 'point',
       elementId: point.id
@@ -94,7 +94,7 @@ const treeData = computed(() => {
     type: 'folder',
     children: locations.map(location => ({
       id: location.id,
-      label: `Location ${location.name || location.id}`,
+      label: location.name || location.id,
       type: 'element',
       elementType: 'location',
       elementId: location.id
@@ -201,13 +201,20 @@ const handleElementSelect = (id: string, elementType: 'point' | 'path' | 'locati
   
   .components-tree {
     height: 100%;
-    overflow-y: auto;
+    overflow: auto;
+    
+    :deep(.el-tree-node__content) {
+      min-width: max-content;
+    }
     
     .tree-node {
       display: flex;
       align-items: center;
+      justify-content: flex-start;
       gap: 6px;
+      flex-wrap: nowrap;
       flex: 1;
+      white-space: nowrap;
       
       .node-icon {
         font-size: 16px;
@@ -216,11 +223,13 @@ const handleElementSelect = (id: string, elementType: 'point' | 'path' | 'locati
       
       .node-label {
         font-size: 13px;
+        text-align: left;
       }
       
       .element-radio {
-        width: 100%;
+        width: auto;
         margin: 0;
+        flex-shrink: 0;
         
         :deep(.el-radio__label) {
           padding-left: 4px;

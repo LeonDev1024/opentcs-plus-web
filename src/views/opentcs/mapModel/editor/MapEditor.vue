@@ -38,8 +38,8 @@
           />
         </el-button-group>
         <el-divider direction="vertical" />
-        <el-button-group>
-          <div class="point-tool-wrapper">
+        <el-button-group class="creation-tool-group">
+          <div class="point-tool-wrapper toolbar-tool toolbar-tool-point">
             <el-button
               :type="currentTool === 'point' ? 'primary' : 'default'"
               size="small"
@@ -89,7 +89,7 @@
               </template>
             </el-dropdown>
           </div>
-          <div class="path-tool-wrapper">
+          <div class="path-tool-wrapper toolbar-tool toolbar-tool-path">
             <el-button
               :type="currentTool === 'path' ? 'primary' : 'default'"
               size="small"
@@ -135,6 +135,7 @@
             </el-dropdown>
           </div>
           <el-button
+            class="toolbar-tool toolbar-tool-location"
             :type="currentTool === 'location' ? 'primary' : 'default'"
             size="small"
             icon="Grid"
@@ -142,6 +143,7 @@
             title="绘制位置"
           />
           <el-button
+            class="toolbar-tool toolbar-tool-dashed"
             :type="currentTool === 'dashedLink' ? 'primary' : 'default'"
             size="small"
             @click="setTool(ToolMode.DASHED_LINK)"
@@ -152,6 +154,7 @@
             </template>
           </el-button>
           <el-button
+            class="toolbar-tool toolbar-tool-rule"
             :type="currentTool === 'ruleRegion' ? 'primary' : 'default'"
             size="small"
             @click="setTool(ToolMode.RULE_REGION)"
@@ -694,6 +697,11 @@ onUnmounted(() => {
         border-left-color: #e0e3eb;
       }
       
+      .el-button-group.creation-tool-group {
+        display: inline-flex;
+        gap: 6px;
+      }
+      
       .el-button {
         width: 32px;
         height: 32px;
@@ -781,6 +789,30 @@ onUnmounted(() => {
           width: 22px;
           height: 22px;
         }
+      }
+
+      .creation-tool-group .toolbar-tool {
+        order: 0;
+      }
+      
+      .creation-tool-group .toolbar-tool-point {
+        order: 0;
+      }
+      
+      .creation-tool-group .toolbar-tool-location {
+        order: 1;
+      }
+      
+      .creation-tool-group .toolbar-tool-path {
+        order: 2;
+      }
+      
+      .creation-tool-group .toolbar-tool-dashed {
+        order: 3;
+      }
+      
+      .creation-tool-group .toolbar-tool-rule {
+        order: 4;
       }
     }
     
