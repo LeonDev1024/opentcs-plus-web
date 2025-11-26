@@ -205,7 +205,7 @@ const handleAdd = () => {
 const handleEdit = (row: MapModelVO) => {
   router.push({
     path: '/opentcs/mapModel/editor',
-    query: { id: row.plantModelId }
+    query: { id: row.mapId }
   });
 };
 

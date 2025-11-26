@@ -70,10 +70,10 @@ export const loadMapModel = (id: string | number) => {
 
 /**
  * 保存地图编辑器数据（保存到文件）
- * @param mapModelId 地图模型ID
+ * @param mapId 地图ID
  * @param data 编辑器数据
  */
-export const saveMapEditorData = (mapModelId: string | number, data: any) => {
+export const saveMapEditorData = (mapId: string | number, data: any) => {
   // 将编辑器数据序列化为 JSON
   const jsonData = JSON.stringify(data, null, 2);
   
@@ -83,7 +83,7 @@ export const saveMapEditorData = (mapModelId: string | number, data: any) => {
   formData.append('file', blob, `map_${data.mapInfo?.version || '1.0'}.json`);
   
   return request({
-    url: `/map/model/${mapModelId}/editor-data/upload`,
+    url: `/map/model/${mapId}/editor-data/upload`,
     method: 'post',
     data: formData,
     headers: { 'Content-Type': 'multipart/form-data' }
@@ -94,13 +94,13 @@ export const saveMapEditorData = (mapModelId: string | number, data: any) => {
  * 加载地图编辑器数据（从文件加载）
  * @param plantModelId 工厂模型ID
  */
-export const loadMapEditorData = async (plantModelId: string | number): Promise<any> => {
+export const loadMapEditorData = async (mapId: string | number): Promise<any> => {
   try {
     // 当 responseType 为 'blob' 时，响应拦截器会直接返回 Blob 对象
     const blob = await request({
       url: `/map/editor/load`,
       method: 'post',
-      data: { plantModelId },
+      data: { mapId },
       responseType: 'blob'
     });
     
@@ -146,12 +146,12 @@ export const loadMapEditorData = async (plantModelId: string | number): Promise<
 
 /**
  * 导出地图文件
- * @param mapModelId 地图模型ID
+ * @param mapId 地图ID
  * @param format 导出格式：json 或 xml
  */
-export const exportMapFile = (mapModelId: string | number, format: 'json' | 'xml' = 'json') => {
+export const exportMapFile = (mapId: string | number, format: 'json' | 'xml' = 'json') => {
   return request({
-    url: `/map/model/${mapModelId}/export`,
+    url: `/map/model/${mapId}/export`,
     method: 'get',
     params: { format },
     responseType: 'blob'
@@ -160,15 +160,15 @@ export const exportMapFile = (mapModelId: string | number, format: 'json' | 'xml
 
 /**
  * 导入地图文件
- * @param mapModelId 地图模型ID
+ * @param mapId 地图ID
  * @param file 地图文件
  */
-export const importMapFile = (mapModelId: string | number, file: File) => {
+export const importMapFile = (mapId: string | number, file: File) => {
   const formData = new FormData();
   formData.append('file', file);
   
   return request({
-    url: `/map/model/${mapModelId}/import`,
+    url: `/map/model/${mapId}/import`,
     method: 'post',
     data: formData,
     headers: { 'Content-Type': 'multipart/form-data' }

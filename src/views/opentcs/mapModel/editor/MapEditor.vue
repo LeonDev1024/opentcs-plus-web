@@ -542,10 +542,10 @@ watch(() => mapCanvasRef.value, (canvas) => {
 // 初始化网格大小为20（固定值）
 onMounted(async () => {
   // 加载地图数据（从 query 参数获取）
-  const mapModelId = route.query.id as string;
-  if (mapModelId) {
+  const mapId = route.query.id as string;
+  if (mapId) {
     try {
-      await mapEditorStore.loadMap(mapModelId);
+      await mapEditorStore.loadMap(mapId);
       ElMessage.success('地图加载成功');
     } catch (error: any) {
       const errorMessage = error?.response?.data?.msg || error?.message || '加载失败';
@@ -553,11 +553,11 @@ onMounted(async () => {
       console.error('加载错误详情:', error);
     }
   } else {
-    ElMessage.warning('未指定地图模型ID，将创建新地图');
+    ElMessage.warning('未指定地图ID，将创建新地图');
     // 可以创建一个新地图
-    const newMapModelId = 'new_' + Date.now();
+    const newMapId = 'new_' + Date.now();
     try {
-      await mapEditorStore.loadMap(newMapModelId);
+      await mapEditorStore.loadMap(newMapId);
     } catch (error) {
       console.error('创建新地图失败:', error);
     }
@@ -978,4 +978,3 @@ onUnmounted(() => {
   min-height: 100vh;
 }
 </style>
-

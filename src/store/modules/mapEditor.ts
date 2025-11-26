@@ -112,16 +112,16 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   /**
    * 加载地图数据
    */
-  const loadMap = async (mapModelId: string | number) => {
+  const loadMap = async (mapId: string | number) => {
     try {
       loading.value = true;
-      currentMapModelId.value = mapModelId;
+      currentMapModelId.value = mapId;
       
       // 从后端加载地图编辑器数据
       let data: MapEditorData;
       
       try {
-        const response = await loadMapEditorData(mapModelId);
+        const response = await loadMapEditorData(mapId);
         // loadMapEditorData 返回 { data: ... } 格式
         const responseData = (response.data || response) as any;
         
@@ -130,7 +130,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           // 转换API数据结构为MapEditorData格式
           data = {
             mapInfo: {
-              id: responseData.mapInfo.id || mapModelId,
+              id: responseData.mapInfo.id || mapId,
               name: responseData.mapInfo.name || '新地图',
               mapVersion: responseData.mapInfo.modelVersion || '1.0',
               description: responseData.mapInfo.description || '',
@@ -156,13 +156,13 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           };
         } else {
           // 如果没有mapInfo，创建空的地图数据
-          data = createEmptyMapData(mapModelId);
+          data = createEmptyMapData(mapId);
         }
       } catch (error: any) {
         // 如果文件不存在，创建空的地图数据
         if (error?.response?.status === 404 || error?.message?.includes('不存在')) {
           console.warn('地图文件不存在，创建新地图');
-          data = createEmptyMapData(mapModelId);
+          data = createEmptyMapData(mapId);
         } else {
           throw error;
         }
@@ -275,10 +275,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     }
   };
   
-  /**
-   * 创建空的地图数据
-   */
-  const createEmptyMapData = (mapModelId: string | number): MapEditorData => {
+  const createEmptyMapData = (mapId: string | number): MapEditorData => {
     // 创建默认图层组
     const defaultLayerGroup: LayerGroup = {
       id: 'layer_group_default',
@@ -302,7 +299,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     
     return {
       mapInfo: {
-        id: mapModelId,
+        id: mapId,
         name: '新地图',
         version: '1.0',
         width: 1920,
