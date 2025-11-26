@@ -616,7 +616,7 @@ const createConnectionBetweenPoints = (start: MapPoint, end: MapPoint) => {
       strokeColor: '#52c41a',
       strokeWidth: 2,
       lineStyle: 'solid',
-      arrowVisible: false,
+      arrowVisible: true,
       labelVisible: true
     }
   });
