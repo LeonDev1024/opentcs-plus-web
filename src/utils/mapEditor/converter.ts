@@ -2,9 +2,6 @@
  * 数据转换工具 - 编辑器数据与后端实体数据相互转换
  */
 import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
-import type { PointForm, PointVO } from '@/api/opentcs/point/types';
-import type { PathForm, PathVO } from '@/api/opentcs/path/types';
-import type { LocationForm, LocationVO } from '@/api/opentcs/location/types';
 
 /**
  * 点数据转换器
@@ -13,7 +10,7 @@ export class PointConverter {
   /**
    * 编辑器点数据 -> 后端表单数据
    */
-  static toForm(point: MapPoint): PointForm {
+  static toForm(point: MapPoint): any {
     return {
       id: point.id,
       name: point.name,
@@ -30,7 +27,7 @@ export class PointConverter {
   /**
    * 后端VO数据 -> 编辑器点数据
    */
-  static fromVO(vo: PointVO, layerId: string): MapPoint {
+  static fromVO(vo: any, layerId: string): MapPoint {
     return {
       id: String(vo.id),
       layerId,
@@ -80,7 +77,7 @@ export class PathConverter {
   /**
    * 编辑器路径数据 -> 后端表单数据
    */
-  static toForm(path: MapPath): PathForm {
+  static toForm(path: MapPath): any {
     const controlPoints = path.geometry.controlPoints;
     const startPoint = controlPoints[0];
     const endPoint = controlPoints[controlPoints.length - 1];
@@ -102,7 +99,7 @@ export class PathConverter {
    * 后端VO数据 -> 编辑器路径数据
    * 注意：后端可能只存储起点和终点，需要根据实际情况补充控制点
    */
-  static fromVO(vo: PathVO, layerId: string, controlPoints?: Array<{ id: string; x: number; y: number; z?: number }>): MapPath {
+  static fromVO(vo: any, layerId: string, controlPoints?: Array<{ id: string; x: number; y: number; z?: number }>): MapPath {
     // 如果没有提供控制点，则根据起点和终点创建简单的两点路径
     const points = controlPoints || [
       { id: String(vo.startPointId || ''), x: 0, y: 0 },
@@ -175,7 +172,7 @@ export class LocationConverter {
   /**
    * 编辑器位置数据 -> 后端表单数据
    */
-  static toForm(location: MapLocation): LocationForm {
+  static toForm(location: MapLocation): any {
     const vertices = location.geometry.vertices;
     const center = this.calculatePolygonCenter(vertices);
 
@@ -198,7 +195,7 @@ export class LocationConverter {
    * 注意：后端可能只存储中心点，需要根据实际情况补充顶点数据
    */
   static fromVO(
-    vo: LocationVO,
+    vo: any,
     layerId: string,
     vertices?: Array<{ id: string; x: number; y: number; z?: number }>
   ): MapLocation {
@@ -251,21 +248,21 @@ export class BatchConverter {
   /**
    * 批量转换点数据
    */
-  static pointsToForm(points: MapPoint[]): PointForm[] {
+  static pointsToForm(points: MapPoint[]): any[] {
     return points.map(point => PointConverter.toForm(point));
   }
 
   /**
    * 批量转换路径数据
    */
-  static pathsToForm(paths: MapPath[]): PathForm[] {
+  static pathsToForm(paths: MapPath[]): any[] {
     return paths.map(path => PathConverter.toForm(path));
   }
 
   /**
    * 批量转换位置数据
    */
-  static locationsToForm(locations: MapLocation[]): LocationForm[] {
+  static locationsToForm(locations: MapLocation[]): any[] {
     return locations.map(location => LocationConverter.toForm(location));
   }
 }
