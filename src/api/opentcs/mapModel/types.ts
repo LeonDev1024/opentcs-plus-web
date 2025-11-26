@@ -14,10 +14,6 @@ export interface MapModelVO {
    */
   description?: string;
 
-  /**
-   * 地图模型文件路径
-   */
-  filePath?: string;
 
   /**
    * 地图模型版本
@@ -25,9 +21,9 @@ export interface MapModelVO {
   modelVersion?: string;
 
   /**
-   * 地图模型id
+   * 地图id
    */
-  plantModelId?: string | number;
+  mapId?: string | number;
 
 
   /**

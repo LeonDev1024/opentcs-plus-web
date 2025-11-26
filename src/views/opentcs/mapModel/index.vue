@@ -41,7 +41,7 @@
 
       <el-table v-loading="loading" :data="mapModelList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column label="地图模型ID" align="center" prop="plantModelId" width="200" />
+        <el-table-column label="地图模型ID" align="center" prop="mapId" width="200" />
         <el-table-column label="地图模型名称" align="center" prop="name" />
         <el-table-column label="版本" align="center" prop="modelVersion" width="100" />
         <el-table-column key="status" label="状态" align="center">
