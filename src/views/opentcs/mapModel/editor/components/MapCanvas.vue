@@ -56,6 +56,11 @@
             :config="getPathConfig(path)"
             @click="handlePathClick(path, $event)"
           />
+          <v-arrow
+            v-if="shouldShowPathArrow(path)"
+            :config="getPathArrowConfig(path)"
+            @click="handlePathClick(path, $event)"
+          />
           <!-- 路径控制点（仅在选中时显示） -->
           <v-circle
             v-for="(cp, index) in path.geometry.controlPoints"
@@ -95,13 +100,19 @@
           v-if="tempLocation"
           :config="tempLocation"
         />
+        <template v-if="tempPathPreview">
+          <v-line :config="tempPathPreview.line" />
+          <v-arrow :config="tempPathPreview.arrow" />
+          <v-circle :config="tempPathPreview.startMarker" />
+          <v-circle :config="tempPathPreview.endMarker" />
+        </template>
       </v-layer>
     </v-stage>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import { ToolMode } from '@/types/mapEditor';
@@ -113,6 +124,8 @@ import { snapPoint } from '@/utils/mapEditor/snap';
 // 注意：vue-konva 3.x 使用 v-stage, v-layer 等组件名
 
 const mapEditorStore = useMapEditorStore();
+
+type PathConnectionType = 'direct' | 'orthogonal' | 'curve';
 
 // Refs
 const containerRef = ref<HTMLDivElement>();
@@ -295,9 +308,9 @@ const getPointGlyphConfig = (point: MapPoint) => {
     return {};
   }
   const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
-  const isConnecting = currentTool.value === ToolMode.PATH && pendingConnectionStart.value?.id === point.id;
   const isDashedLinkSource = currentTool.value === ToolMode.DASHED_LINK && pendingDashedLinkStartPoint.value?.id === point.id;
-  const highlighted = isSelected || isConnecting || isDashedLinkSource;
+  const isPathStart = currentTool.value === ToolMode.PATH && pathDragState.startPoint?.id === point.id;
+  const highlighted = isSelected || isPathStart || isDashedLinkSource;
   
   return {
     x: point.x,
@@ -361,7 +374,96 @@ const drawingPoints = ref<Array<{ x: number; y: number }>>([]);
 const activeDrawingTool = ref<ToolMode | null>(null);
 
 // 连线状态
-const pendingConnectionStart = ref<MapPoint | null>(null);
+const hoveredPointId = ref<string | null>(null);
+
+const pathDragState = reactive<{
+  startPoint: MapPoint | null;
+  currentPos: { x: number; y: number };
+  pathType: PathConnectionType;
+}>({
+  startPoint: null,
+  currentPos: { x: 0, y: 0 },
+  pathType: 'direct'
+});
+
+const PATH_ARROW = {
+  radius: 6,
+  color: '#409eff'
+};
+
+const tempPathPreview = computed(() => {
+  if (!pathDragState.startPoint) return null;
+  const start = pathDragState.startPoint;
+  const end = { x: pathDragState.currentPos.x, y: pathDragState.currentPos.y };
+  const controlPoints = buildConnectionControlPoints(
+    start,
+    end,
+    pathDragState.pathType
+  );
+  const points: number[] = [];
+  controlPoints.forEach(cp => {
+    points.push(cp.x, cp.y);
+  });
+  const line = {
+    points,
+    stroke: '#409eff',
+    strokeWidth: 2,
+    lineCap: 'round',
+    lineJoin: 'round',
+    dash: [8, 8]
+  };
+  const arrow = {
+    points: [
+      controlPoints[controlPoints.length - 2].x,
+      controlPoints[controlPoints.length - 2].y,
+      end.x,
+      end.y
+    ],
+    pointerLength: PATH_ARROW.radius * 2.5,
+    pointerWidth: PATH_ARROW.radius * 1.6,
+    fill: PATH_ARROW.color,
+    stroke: PATH_ARROW.color,
+    strokeWidth: 2
+  };
+  const startMarker = {
+    x: start.x,
+    y: start.y,
+    radius: PATH_ARROW.radius,
+    stroke: '#73c0ff',
+    strokeWidth: 2,
+    fill: 'rgba(64, 158, 255, 0.15)'
+  };
+  const endMarker = {
+    x: end.x,
+    y: end.y,
+    radius: PATH_ARROW.radius,
+    stroke: '#409eff',
+    strokeWidth: 2,
+    fill: 'rgba(94, 200, 255, 0.2)'
+  };
+  return { line, arrow, startMarker, endMarker };
+});
+
+const findPointAtPosition = (x: number, y: number, toleranceMultiplier = 1.6) => {
+  for (const point of visiblePoints.value) {
+    const radius = point.editorProps.radius || 5;
+    const distance = Math.hypot(point.x - x, point.y - y);
+    if (distance <= radius * toleranceMultiplier) {
+      return point;
+    }
+  }
+  return null;
+};
+
+const cancelPathDrag = (stage?: any) => {
+  pathDragState.startPoint = null;
+  pathDragState.currentPos = { x: 0, y: 0 };
+  hoveredPointId.value = null;
+  const targetStage = stage || getKonvaNode(stageRef.value);
+  if (targetStage && targetStage.container) {
+    targetStage.container().style.cursor = 'default';
+  }
+};
 const pendingDashedLinkStartPoint = ref<MapPoint | null>(null);
 
 // 拖拽状态
@@ -371,8 +473,9 @@ const dragStartPos = ref({ x: 0, y: 0 });
 // 获取点的 Konva 配置
 const getPointConfig = (point: MapPoint) => {
   const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
-  const isConnecting = currentTool.value === ToolMode.PATH && pendingConnectionStart.value?.id === point.id;
   const isDashedLinkSource = currentTool.value === ToolMode.DASHED_LINK && pendingDashedLinkStartPoint.value?.id === point.id;
+  const isPathStart = currentTool.value === ToolMode.PATH && pathDragState.startPoint?.id === point.id;
+  const isPathHovered = currentTool.value === ToolMode.PATH && hoveredPointId.value === point.id && !isPathStart;
   const visual = getPointVisualMeta(point);
   
   let fill = visual.fill;
@@ -383,14 +486,16 @@ const getPointConfig = (point: MapPoint) => {
     fill = '#ff4d4f';
     stroke = '#ff7875';
     strokeWidth = Math.max(2, strokeWidth);
+  } else if (isPathStart) {
+    fill = '#409eff';
+    stroke = '#73c0ff';
+    strokeWidth = Math.max(2.2, strokeWidth);
+  } else if (isPathHovered) {
+    stroke = '#73c0ff';
+    strokeWidth = Math.max(2, strokeWidth);
   } else if (isDashedLinkSource) {
     fill = '#f7ba2a';
     stroke = '#f5d48f';
-    strokeWidth = Math.max(2, strokeWidth);
-  }
-  
-  if (isConnecting && !isSelected) {
-    stroke = '#ff7875';
     strokeWidth = Math.max(2, strokeWidth);
   }
   
@@ -433,7 +538,32 @@ const getPathConfig = (path: MapPath) => {
   };
 };
 
-const buildConnectionControlPoints = (start: MapPoint, end: MapPoint, type: 'direct' | 'orthogonal' | 'curve') => {
+const shouldShowPathArrow = (path: MapPath) => {
+  return path.editorProps.arrowVisible !== false;
+};
+
+const getPathArrowConfig = (path: MapPath) => {
+  const controlPoints = path.geometry.controlPoints;
+  if (!controlPoints || controlPoints.length < 2) {
+    return null;
+  }
+  const end = controlPoints[controlPoints.length - 1];
+  const prev = controlPoints[controlPoints.length - 2];
+  const isSelected = mapEditorStore.selection.selectedIds.has(path.id);
+  const stroke = isSelected ? '#ff4d4f' : (path.editorProps.strokeColor || '#52c41a');
+  return {
+    points: [prev.x, prev.y, end.x, end.y],
+    pointerLength: PATH_ARROW.radius * 2.2,
+    pointerWidth: PATH_ARROW.radius * 1.5,
+    fill: stroke,
+    stroke,
+    strokeWidth: path.editorProps.strokeWidth || 2
+  };
+};
+
+type PointLike = { x: number; y: number };
+
+const buildConnectionControlPoints = (start: PointLike, end: PointLike, type: PathConnectionType) => {
   const timestamp = Date.now();
   let index = 0;
   const createControlPoint = (x: number, y: number) => ({
@@ -462,13 +592,18 @@ const buildConnectionControlPoints = (start: MapPoint, end: MapPoint, type: 'dir
   return points;
 };
 
+const formatPointLabel = (point: MapPoint) => point.name || point.id;
+
 const createConnectionBetweenPoints = (start: MapPoint, end: MapPoint) => {
   const connectionType = mapEditorStore.pathConnectionType;
   const controlPoints = buildConnectionControlPoints(start, end, connectionType);
+  const startLabel = formatPointLabel(start);
+  const endLabel = formatPointLabel(end);
+  const pathName = `Path ${startLabel} --- ${endLabel}`;
   
   mapEditorStore.addPath({
     layerId: getDefaultLayerId('path'),
-    name: `${start.name || start.id} -> ${end.name || end.id}`,
+    name: pathName,
     startPointId: start.id,
     endPointId: end.id,
     status: '0',
@@ -541,23 +676,6 @@ const createDashedLinkBetweenPointAndLocation = (point: MapPoint, location: MapL
   });
   
   ElMessage.success('虚线链接已创建');
-};
-
-const handleConnectionPointClick = (point: MapPoint) => {
-  if (!pendingConnectionStart.value) {
-    pendingConnectionStart.value = point;
-    ElMessage.info(`已选择起点：${point.name || point.id}`);
-    return;
-  }
-  
-  if (pendingConnectionStart.value.id === point.id) {
-    pendingConnectionStart.value = null;
-    ElMessage.info('已取消连线起点');
-    return;
-  }
-  
-  createConnectionBetweenPoints(pendingConnectionStart.value, point);
-  pendingConnectionStart.value = null;
 };
 
 // 获取位置的 Konva 配置
@@ -664,10 +782,14 @@ const handleMouseDown = (e: any) => {
       ElMessage.info('已取消虚线起点');
     }
   } else if (currentTool.value === ToolMode.PATH) {
-    // 点击空白处时，如有连线起点则取消
-    if (pendingConnectionStart.value) {
-      pendingConnectionStart.value = null;
-      ElMessage.info('已取消连线起点');
+    const clickedPoint = findPointAtPosition(x, y);
+    if (clickedPoint) {
+      pathDragState.startPoint = clickedPoint;
+      pathDragState.currentPos = { x: clickedPoint.x, y: clickedPoint.y };
+      pathDragState.pathType = mapEditorStore.pathConnectionType;
+      stage.container().style.cursor = 'crosshair';
+    } else {
+      cancelPathDrag(stage);
     }
   }
 };
@@ -728,6 +850,16 @@ const handleMouseMove = (e: any) => {
       dash: [5, 5]
     };
   }
+
+  if (currentTool.value === ToolMode.PATH) {
+    const hoveredPoint = findPointAtPosition(x, y);
+    hoveredPointId.value = hoveredPoint?.id || null;
+    if (pathDragState.startPoint) {
+      pathDragState.currentPos = { x, y };
+    }
+  } else if (!pathDragState.startPoint) {
+    hoveredPointId.value = null;
+  }
 };
 
 const handleMouseUp = (e: any) => {
@@ -737,6 +869,27 @@ const handleMouseUp = (e: any) => {
     const stage = e.target.getStage();
     if (stage) {
       stage.container().style.cursor = 'default';
+    }
+    return;
+  }
+
+  if (currentTool.value === ToolMode.PATH && pathDragState.startPoint) {
+    const stage = e.target.getStage();
+    if (stage) {
+      const pointerPos = stage.getPointerPosition();
+      if (pointerPos && e.evt.button === 0) {
+        const x = (pointerPos.x - canvasState.value.offsetX) / canvasState.value.scale;
+        const y = (pointerPos.y - canvasState.value.offsetY) / canvasState.value.scale;
+        const endPoint = findPointAtPosition(x, y);
+        if (endPoint && endPoint.id !== pathDragState.startPoint.id) {
+          createConnectionBetweenPoints(pathDragState.startPoint, endPoint);
+        } else if (endPoint && endPoint.id === pathDragState.startPoint.id) {
+          ElMessage.info('请选择不同的终点');
+        } else {
+          ElMessage.warning('请拖拽到另一个点以创建连线');
+        }
+      }
+      cancelPathDrag(stage);
     }
     return;
   }
@@ -863,7 +1016,6 @@ const handlePointClick = (point: MapPoint, e: any) => {
   }
   
   if (currentTool.value === ToolMode.PATH) {
-    handleConnectionPointClick(point);
     return;
   }
   
@@ -1192,7 +1344,7 @@ watch(
 
 watch(currentTool, (tool) => {
   if (tool !== ToolMode.PATH) {
-    pendingConnectionStart.value = null;
+    cancelPathDrag();
   }
   if (tool !== ToolMode.DASHED_LINK) {
     pendingDashedLinkStartPoint.value = null;
@@ -1226,8 +1378,8 @@ const handleKeyDown = (e: KeyboardEvent) => {
       isDrawing.value
     ) {
       cancelLocationDrawing();
-    } else if (currentTool.value === ToolMode.PATH && pendingConnectionStart.value) {
-      pendingConnectionStart.value = null;
+    } else if (currentTool.value === ToolMode.PATH && pathDragState.startPoint) {
+      cancelPathDrag();
       ElMessage.info('已取消连线起点');
     } else if (currentTool.value === ToolMode.DASHED_LINK && pendingDashedLinkStartPoint.value) {
       pendingDashedLinkStartPoint.value = null;

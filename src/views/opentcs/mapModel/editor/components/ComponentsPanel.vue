@@ -16,8 +16,17 @@
                 <div class="tree-node">
                   <el-icon v-if="data.type === 'layout'" class="node-icon"><Grid /></el-icon>
                   <el-icon v-else-if="data.type === 'folder'" class="node-icon"><Folder /></el-icon>
+                  <span
+                    v-else-if="data.type === 'element' && data.elementType === 'path'"
+                    class="tree-element-icon path-icon"
+                  >
+                    <svg viewBox="0 0 24 24">
+                      <line x1="4" y1="12" x2="18" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                      <polygon points="18,8 22,12 18,16" fill="currentColor" />
+                    </svg>
+                  </span>
                   <el-radio
-                    v-else-if="data.type === 'element'"
+                    v-if="data.type === 'element'"
                     :model-value="isSelected(data.elementId, data.elementType)"
                     @click.stop
                     @change="handleElementSelect(data.elementId, data.elementType)"
@@ -44,6 +53,7 @@
 import { ref, computed } from 'vue';
 import { Grid, Folder } from '@element-plus/icons-vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
+import type { MapPath } from '@/types/mapEditor';
 
 const mapEditorStore = useMapEditorStore();
 
@@ -85,6 +95,40 @@ const treeData = computed(() => {
     }))
   };
   layoutNode.children.push(pointsFolder);
+
+  const getPointDisplayName = (pointId?: string | number) => {
+    if (pointId === undefined || pointId === null) return '';
+    const normalizedId = String(pointId);
+    const target = mapEditorStore.points.find(p => String(p.id) === normalizedId);
+    if (target) {
+      return target.name || target.id;
+    }
+    return normalizedId;
+  };
+
+  const buildPathLabel = (path: MapPath) => {
+    const startName = getPointDisplayName(path.startPointId);
+    const endName = getPointDisplayName(path.endPointId);
+    if (startName && endName) {
+      return path.name || `Path ${startName} --- ${endName}`;
+    }
+    return path.name || path.id;
+  };
+  
+  const paths = mapEditorStore.paths;
+  const pathsFolder = {
+    id: 'paths-folder',
+    label: 'Paths',
+    type: 'folder',
+    children: paths.map(path => ({
+      id: path.id,
+      label: buildPathLabel(path),
+      type: 'element',
+      elementType: 'path',
+      elementId: path.id
+    }))
+  };
+  layoutNode.children.push(pathsFolder);
   
   // Locations 文件夹 - 始终显示
   const locations = mapEditorStore.locations;
@@ -224,6 +268,21 @@ const handleElementSelect = (id: string, elementType: 'point' | 'path' | 'locati
       .node-label {
         font-size: 13px;
         text-align: left;
+      }
+      
+      .tree-element-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        color: #409eff;
+        flex-shrink: 0;
+        
+        svg {
+          width: 100%;
+          height: 100%;
+        }
       }
       
       .element-radio {
