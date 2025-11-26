@@ -14,6 +14,21 @@
         <v-rect :config="backgroundConfig" />
       </v-layer>
       
+      <!-- 中心标记层 -->
+      <v-layer :config="{ name: 'center-marker', listening: false }">
+        <v-line
+          v-if="showGrid"
+          :config="centerLineConfig.horizontal"
+        />
+        <v-line
+          v-if="showGrid"
+          :config="centerLineConfig.vertical"
+        />
+        <v-circle
+          :config="centerPointConfig"
+        />
+      </v-layer>
+      
       <!-- 网格层（在背景层之上，其他层之下） -->
       <v-layer 
         ref="gridLayerRef" 
@@ -174,6 +189,46 @@ const stageConfig = computed(() => {
     x: canvasState.value.offsetX,
     y: canvasState.value.offsetY,
     draggable: false // Stage 本身不可拖拽，通过平移工具控制
+  };
+});
+
+const centerPointConfig = computed(() => {
+  const width = canvasState.value.width || 1920;
+  const height = canvasState.value.height || 1080;
+  const centerX = Math.round(width / 2 / (gridSize.value || 20)) * (gridSize.value || 20);
+  const centerY = Math.round(height / 2 / (gridSize.value || 20)) * (gridSize.value || 20);
+  return {
+    x: centerX,
+    y: centerY,
+    radius: 6,
+    stroke: '#ff4d4f',
+    strokeWidth: 2,
+    fill: '#ffffff',
+    listening: false
+  };
+});
+
+const centerLineConfig = computed(() => {
+  const width = canvasState.value.width || 1920;
+  const height = canvasState.value.height || 1080;
+  const grid = gridSize.value || 20;
+  const centerX = Math.round(width / 2 / grid) * grid;
+  const centerY = Math.round(height / 2 / grid) * grid;
+  return {
+    horizontal: {
+      points: [0, centerY, width, centerY],
+      stroke: '#ff7875',
+      strokeWidth: 1.5,
+      dash: [8, 6],
+      listening: false
+    },
+    vertical: {
+      points: [centerX, 0, centerX, height],
+      stroke: '#ff7875',
+      strokeWidth: 1.5,
+      dash: [8, 6],
+      listening: false
+    }
   };
 });
 
@@ -1240,21 +1295,22 @@ const handleLocationVertexDragEnd = (location: MapLocation, vertex: any, index: 
 
 // 获取默认图层ID
 const getDefaultLayerId = (type: 'point' | 'path' | 'location'): string => {
-  const layer = mapEditorStore.layers.find(l => l.type === type);
-  if (layer) return layer.id;
+  // 使用激活的图层，如果没有则使用第一个可用图层
+  if (mapEditorStore.activeLayerId && mapEditorStore.layers.some(l => l.id === mapEditorStore.activeLayerId)) {
+    return mapEditorStore.activeLayerId;
+  }
   
-  // 如果没有找到，创建默认图层
-  const newLayer = mapEditorStore.addLayer({
-    name: `${type}图层`,
-    type: type as any,
-    visible: true,
-    locked: false,
-    zIndex: 1,
-    opacity: 1,
-    elementIds: []
-  });
+  // 如果没有激活图层，尝试找默认图层
+  const defaultLayer = mapEditorStore.layers.find(l => l.name === 'Default layer');
+  if (defaultLayer) return defaultLayer.id;
   
-  return newLayer.id;
+  // 如果都没有，使用第一个可用图层
+  if (mapEditorStore.layers.length > 0) {
+    return mapEditorStore.layers[0].id;
+  }
+  
+  // 如果没有任何图层，抛出错误（图层应该由后端创建）
+  throw new Error('没有可用的图层，请先在后端创建地图模型');
 };
 
 // 设置网格可见性（供父组件调用）
@@ -1432,40 +1488,13 @@ onMounted(() => {
     }
   });
   
-  // 初始化默认图层组和默认图层（如果不存在）
-  if (mapEditorStore.layerGroups.length === 0) {
-    const defaultLayerGroup = mapEditorStore.addLayerGroup({
-      name: 'Default layer group',
-      visible: true
-    });
-    
-    const defaultLayer = mapEditorStore.addLayer({
-      name: 'Default layer',
-      type: 'point' as any,
-      layerGroupId: defaultLayerGroup.id,
-      visible: true,
-      locked: false,
-      zIndex: 1,
-      opacity: 1,
-      elementIds: []
-    });
-    
-    mapEditorStore.setActiveLayer(defaultLayer.id);
-  } else if (mapEditorStore.layers.length === 0) {
-    // 如果已有图层组但没有图层，创建默认图层
-    const defaultLayerGroup = mapEditorStore.layerGroups.find(g => g.name === 'Default layer group') || mapEditorStore.layerGroups[0];
-    const defaultLayer = mapEditorStore.addLayer({
-      name: 'Default layer',
-      type: 'point' as any,
-      layerGroupId: defaultLayerGroup.id,
-      visible: true,
-      locked: false,
-      zIndex: 1,
-      opacity: 1,
-      elementIds: []
-    });
-    
-    mapEditorStore.setActiveLayer(defaultLayer.id);
+  // 使用 load 接口返回的图层，不创建新的默认图层
+  // 如果没有激活图层，选择第一个图层作为激活图层
+  if (!mapEditorStore.activeLayerId || !mapEditorStore.layers.some(l => l.id === mapEditorStore.activeLayerId)) {
+    const fallbackLayer = mapEditorStore.layers.find(l => l.name === 'Default layer') || mapEditorStore.layers[0];
+    if (fallbackLayer) {
+      mapEditorStore.setActiveLayer(fallbackLayer.id);
+    }
   }
   
   // 注册键盘事件

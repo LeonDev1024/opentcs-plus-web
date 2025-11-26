@@ -120,7 +120,7 @@ export class AddPointCommand implements Command {
     if (this.createdPoint) {
       this.createdPoint = this.addCallback({ ...this.createdPoint });
     } else {
-      this.execute();
+    this.execute();
     }
   }
 }

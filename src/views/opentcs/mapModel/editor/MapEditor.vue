@@ -73,7 +73,7 @@
                   >
                     <div class="point-type-option">
                       <SvgIcon icon-class="halt-point" class="point-type-svg-icon" />
-                      <span>临时停车 (Halt point)</span>
+                  <span>临时停车 (Halt point)</span>
                     </div>
                   </el-dropdown-item>
                   <el-dropdown-item 
@@ -82,7 +82,7 @@
                   >
                     <div class="point-type-option">
                       <SvgIcon icon-class="park-point" class="point-type-svg-icon" />
-                      <span>长时间停车 (Park point)</span>
+                    <span>长时间停车 (Park point)</span>
                     </div>
                   </el-dropdown-item>
                 </el-dropdown-menu>
@@ -735,8 +735,8 @@ onUnmounted(() => {
       }
       
       // 分段按钮样式
-        .point-tool-wrapper,
-        .path-tool-wrapper {
+      .point-tool-wrapper,
+      .path-tool-wrapper {
         display: inline-flex;
         align-items: center;
           height: 32px;

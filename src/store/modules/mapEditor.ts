@@ -33,7 +33,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   
   // 点位类型（默认临时停靠点）
   const pointType = ref<string>('Halt point');
-
+  
   // 点位命名计数器
   const pointNameCounter = ref(0);
   
@@ -221,14 +221,13 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             }
           };
         } else {
-          // 如果没有数据，创建空的地图数据
-          data = createEmptyMapData(mapId);
+          // 如果没有数据，抛出错误（默认图层应该由后端创建）
+          throw new Error('地图数据不存在，请先在后端创建地图模型');
         }
       } catch (error: any) {
-        // 如果文件不存在，创建空的地图数据
+        // 如果文件不存在，抛出错误（默认图层应该由后端创建）
         if (error?.response?.status === 404 || error?.message?.includes('不存在')) {
-          console.warn('地图文件不存在，创建新地图');
-          data = createEmptyMapData(mapId);
+          throw new Error('地图数据不存在，请先在后端创建地图模型');
         } else {
           throw error;
         }
@@ -272,33 +271,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         }
       }
       
-      // 如果没有图层组，创建默认图层组
-      if (layerGroups.value.length === 0) {
-        const defaultLayerGroup: LayerGroup = {
-          id: 'layer_group_default',
-          name: 'Default layer group',
-          visible: true
-        };
-        layerGroups.value.push(defaultLayerGroup);
-      }
-      
-      // 如果没有图层，创建默认图层
-      if (layers.value.length === 0) {
-        const defaultLayerGroup = layerGroups.value.find(g => g.name === 'Default layer group') || layerGroups.value[0];
-        const defaultLayer: MapLayer = {
-          id: 'layer_default',
-          name: 'Default layer',
-          type: 'point' as any,
-          layerGroupId: defaultLayerGroup.id,
-          visible: true,
-          locked: false,
-          zIndex: 1,
-          opacity: 1,
-          elementIds: []
-        };
-        layers.value.push(defaultLayer);
-        activeLayerId.value = defaultLayer.id;
-      } else if (!activeLayerId.value || !layers.value.some(l => l.id === activeLayerId.value)) {
+      // 使用接口返回的图层，不创建新的默认图层
+      // 如果没有激活图层，选择第一个图层作为激活图层
+      if (!activeLayerId.value || !layers.value.some(l => l.id === activeLayerId.value)) {
         const fallbackLayer = layers.value.find(l => l.name === 'Default layer') || layers.value[0];
         activeLayerId.value = fallbackLayer ? fallbackLayer.id : null;
       }
@@ -320,54 +295,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     }
   };
   
-  const createEmptyMapData = (mapId: string | number): MapEditorData => {
-    // 创建默认图层组
-    const defaultLayerGroup: LayerGroup = {
-      id: 'layer_group_default',
-      name: 'Default layer group',
-      visible: true
-    };
-    
-    // 创建默认图层
-    const defaultLayer: MapLayer = {
-      id: 'layer_default',
-      name: 'Default layer',
-      type: 'point' as any,
-      layerGroupId: defaultLayerGroup.id,
-      visible: true,
-      locked: false,
-      zIndex: 1,
-      opacity: 1,
-      elementIds: []
-    };
-    
-    return {
-      mapInfo: {
-        id: mapId,
-        name: '新地图',
-        mapVersion: '1.0',
-        width: 1920,
-        height: 1080,
-        scale: 1,
-        offsetX: 0,
-        offsetY: 0,
-        scaleX: 50.0,
-        scaleY: 50.0
-      },
-      layerGroups: [defaultLayerGroup],
-      layers: [defaultLayer],
-      elements: {
-        points: [],
-        paths: [],
-        locations: []
-      },
-      metadata: {
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }
-    };
-  };
-  
   /**
    * 保存地图数据
    */
@@ -379,9 +306,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     try {
       loading.value = true;
       
-      // 如果没有地图数据，创建新的
+      // 如果没有地图数据，抛出错误（默认图层应该由后端创建）
       if (!mapData.value) {
-        mapData.value = createEmptyMapData(currentMapModelId.value);
+        throw new Error('地图数据不存在，请先加载地图数据');
       }
       
       // 更新地图数据
@@ -854,8 +781,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     undo,
     redo,
     executeCommand,
-    reset,
-    createEmptyMapData
+    reset
   };
 });
 
