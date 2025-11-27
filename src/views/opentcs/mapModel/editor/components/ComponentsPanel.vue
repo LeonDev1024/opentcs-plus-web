@@ -122,12 +122,16 @@ const treeData = computed(() => {
   const linksGroupId = linksGroup?.id;
   
   // 分离 Links 路径和普通路径
+  // 判断标准：1. 路径名称以 "Link" 开头，或 2. 路径所属图层在 Links 图层组下
   const linksPaths: typeof paths = [];
   const normalPaths: typeof paths = [];
   
   paths.forEach(path => {
+    const isLink = path.name?.startsWith('Link') || path.name?.startsWith('link');
     const layer = mapEditorStore.layers.find(l => l.id === path.layerId);
-    if (layer && layer.layerGroupId === linksGroupId) {
+    const isInLinksGroup = layer && layer.layerGroupId === linksGroupId;
+    
+    if (isLink || isInLinksGroup) {
       linksPaths.push(path);
     } else {
       normalPaths.push(path);
