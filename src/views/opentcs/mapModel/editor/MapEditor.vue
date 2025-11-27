@@ -22,35 +22,38 @@
     <div class="toolbar">
       <div class="toolbar-left">
         <el-button-group>
-          <el-button
-            :type="currentTool === 'select' ? 'primary' : 'default'"
-            size="small"
-            icon="Pointer"
-            @click="setTool(ToolMode.SELECT)"
-            title="选择工具"
-          />
-          <el-button
-            :type="currentTool === 'pan' ? 'primary' : 'default'"
-            size="small"
-            icon="Rank"
-            @click="setTool(ToolMode.PAN)"
-            title="平移工具"
-          />
+          <el-tooltip content="选择工具" :show-after="50" placement="bottom">
+            <el-button
+              :type="currentTool === 'select' ? 'primary' : 'default'"
+              size="small"
+              icon="Pointer"
+              @click="setTool(ToolMode.SELECT)"
+            />
+          </el-tooltip>
+          <el-tooltip content="平移工具" :show-after="50" placement="bottom">
+            <el-button
+              :type="currentTool === 'pan' ? 'primary' : 'default'"
+              size="small"
+              icon="Rank"
+              @click="setTool(ToolMode.PAN)"
+            />
+          </el-tooltip>
         </el-button-group>
         <el-divider direction="vertical" />
         <el-button-group class="creation-tool-group">
           <div class="point-tool-wrapper toolbar-tool toolbar-tool-point">
-            <el-button
-              :type="currentTool === 'point' ? 'primary' : 'default'"
-              size="small"
-              @click="setTool(ToolMode.POINT)"
-              title="绘制点"
-              class="point-tool-main"
-            >
-              <template #icon>
-                <SvgIcon :icon-class="getPointTypeIconClass(mapEditorStore.pointType)" class="point-type-svg-icon" />
-              </template>
-            </el-button>
+            <el-tooltip content="绘制点" :show-after="50" placement="bottom">
+              <el-button
+                :type="currentTool === 'point' ? 'primary' : 'default'"
+                size="small"
+                @click="setTool(ToolMode.POINT)"
+                class="point-tool-main"
+              >
+                <template #icon>
+                  <SvgIcon :icon-class="getPointTypeIconClass(mapEditorStore.pointType)" class="point-type-svg-icon" />
+                </template>
+              </el-button>
+            </el-tooltip>
             <el-dropdown 
               @command="handlePointTypeChange"
               trigger="click"
@@ -90,17 +93,18 @@
             </el-dropdown>
           </div>
           <div class="path-tool-wrapper toolbar-tool toolbar-tool-path">
-            <el-button
-              :type="currentTool === 'path' ? 'primary' : 'default'"
-              size="small"
-              @click="setTool(ToolMode.PATH)"
-              title="创建连线"
-              class="path-tool-main"
-            >
-              <template #icon>
-                <PathTypeIcon :type="mapEditorStore.pathConnectionType" :active="currentTool === 'path'" />
-              </template>
-            </el-button>
+            <el-tooltip content="创建连线" :show-after="50" placement="bottom">
+              <el-button
+                :type="currentTool === 'path' ? 'primary' : 'default'"
+                size="small"
+                @click="setTool(ToolMode.PATH)"
+                class="path-tool-main"
+              >
+                <template #icon>
+                  <PathTypeIcon :type="mapEditorStore.pathConnectionType" :active="currentTool === 'path'" />
+                </template>
+              </el-button>
+            </el-tooltip>
             <el-dropdown 
               @command="handlePathTypeChange"
               trigger="click"
@@ -134,102 +138,117 @@
               </template>
             </el-dropdown>
           </div>
-          <el-button
-            class="toolbar-tool toolbar-tool-location"
-            :type="currentTool === 'location' ? 'primary' : 'default'"
-            size="small"
-            @click="setTool(ToolMode.LOCATION)"
-            title="绘制位置"
-          >
-            <template #icon>
-              <LocationTypeIcon :active="currentTool === 'location'" symbol="L" />
-            </template>
-          </el-button>
-          <el-button
-            class="toolbar-tool toolbar-tool-dashed"
-            :type="currentTool === 'dashedLink' ? 'primary' : 'default'"
-            size="small"
-            @click="setTool(ToolMode.DASHED_LINK)"
-            title="虚线路径（点↔业务位置）"
-          >
-            <template #icon>
-              <svg-icon icon-class="dashed-link" style="font-size: 16px;" />
-            </template>
-          </el-button>
-          <el-button
-            class="toolbar-tool toolbar-tool-rule"
-            :type="currentTool === 'ruleRegion' ? 'primary' : 'default'"
-            size="small"
-            @click="setTool(ToolMode.RULE_REGION)"
-            title="规则区域"
-          >
-            <template #icon>
-              <svg-icon icon-class="rule-region" style="font-size: 18px;" />
-            </template>
-          </el-button>
+          <el-tooltip content="绘制位置" :show-after="50" placement="bottom">
+            <el-button
+              class="toolbar-tool toolbar-tool-location"
+              :type="currentTool === 'location' ? 'primary' : 'default'"
+              size="small"
+              @click="setTool(ToolMode.LOCATION)"
+            >
+              <template #icon>
+                <LocationTypeIcon :active="currentTool === 'location'" symbol="L" />
+              </template>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="虚线路径（点↔业务位置）" :show-after="50" placement="bottom">
+            <el-button
+              class="toolbar-tool toolbar-tool-dashed"
+              :type="currentTool === 'dashedLink' ? 'primary' : 'default'"
+              size="small"
+              @click="setTool(ToolMode.DASHED_LINK)"
+            >
+              <template #icon>
+                <svg-icon icon-class="dashed-link" style="font-size: 16px;" />
+              </template>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="规则区域" :show-after="50" placement="bottom">
+            <el-button
+              class="toolbar-tool toolbar-tool-rule"
+              :type="currentTool === 'ruleRegion' ? 'primary' : 'default'"
+              size="small"
+              @click="setTool(ToolMode.RULE_REGION)"
+            >
+              <template #icon>
+                <svg-icon icon-class="rule-region" style="font-size: 18px;" />
+              </template>
+            </el-button>
+          </el-tooltip>
           
         </el-button-group>
         <el-divider direction="vertical" />
         
         <el-button-group>
-          <el-button
-            size="small"
-            icon="RefreshLeft"
-            :disabled="!canUndo"
-            @click="undo"
-            title="撤销 (Ctrl+Z)"
-          />
-          <el-button
-            size="small"
-            icon="RefreshRight"
-            :disabled="!canRedo"
-            @click="redo"
-            title="重做 (Ctrl+Shift+Z)"
-          />
+          <el-tooltip content="撤销 (Ctrl+Z)" :show-after="50" placement="bottom">
+            <el-button
+              size="small"
+              icon="RefreshLeft"
+              :disabled="!canUndo"
+              @click="undo"
+            />
+          </el-tooltip>
+          <el-tooltip content="重做 (Ctrl+Shift+Z)" :show-after="50" placement="bottom">
+            <el-button
+              size="small"
+              icon="RefreshRight"
+              :disabled="!canRedo"
+              @click="redo"
+            />
+          </el-tooltip>
         </el-button-group>
         <el-divider direction="vertical" />
         <span class="zoom-level">{{ Math.round(canvasState.scale * 100) }}%</span>
         <el-button-group size="small">
-          <el-button icon="ZoomIn" @click="zoomIn" title="放大" :circle="true" />
-          <el-button icon="ZoomOut" @click="zoomOut" title="缩小" :circle="true" />
-          <el-button icon="FullScreen" @click="resetZoom" title="重置缩放" :circle="true" />
+          <el-tooltip content="放大" :show-after="50" placement="bottom">
+            <el-button icon="ZoomIn" @click="zoomIn" :circle="true" />
+          </el-tooltip>
+          <el-tooltip content="缩小" :show-after="50" placement="bottom">
+            <el-button icon="ZoomOut" @click="zoomOut" :circle="true" />
+          </el-tooltip>
+          <el-tooltip content="重置缩放" :show-after="50" placement="bottom">
+            <el-button icon="FullScreen" @click="resetZoom" :circle="true" />
+          </el-tooltip>
         </el-button-group>
-        <el-button 
-          :type="showGrid ? 'primary' : 'default'"
-          size="small"
-          icon="Grid"
-          @click="toggleGrid"
-          title="显示/隐藏网格"
-          :circle="true"
-        />
-        <el-button 
-          :type="showLabels ? 'primary' : 'default'"
-          size="small"
-          icon="PriceTag"
-          @click="toggleLabels"
-          title="显示/隐藏标签"
-          :circle="true"
-        />
-        <el-button 
-          :type="showBlocks ? 'primary' : 'default'"
-          size="small"
-          icon="Box"
-          @click="toggleBlocks"
-          title="显示/隐藏Block"
-          :circle="true"
-        />
+        <el-tooltip content="显示/隐藏网格" :show-after="50" placement="bottom">
+          <el-button 
+            :type="showGrid ? 'primary' : 'default'"
+            size="small"
+            icon="Grid"
+            @click="toggleGrid"
+            :circle="true"
+          />
+        </el-tooltip>
+        <el-tooltip content="显示/隐藏标签" :show-after="50" placement="bottom">
+          <el-button 
+            :type="showLabels ? 'primary' : 'default'"
+            size="small"
+            icon="PriceTag"
+            @click="toggleLabels"
+            :circle="true"
+          />
+        </el-tooltip>
+        <el-tooltip content="显示/隐藏Block" :show-after="50" placement="bottom">
+          <el-button 
+            :type="showBlocks ? 'primary' : 'default'"
+            size="small"
+            icon="Box"
+            @click="toggleBlocks"
+            :circle="true"
+          />
+        </el-tooltip>
       </div>
       <div class="toolbar-right">
-        <el-button
-          class="collapse-toggle"
-          size="small"
-          @click="toggleHeaderCollapse"
-          :title="isHeaderCollapsed ? '展开导航栏' : '折叠导航栏'"
-        >
-          <el-icon>
-            <component :is="isHeaderCollapsed ? 'CaretBottom' : 'CaretTop'" />
-          </el-icon>
-        </el-button>
+        <el-tooltip :content="isHeaderCollapsed ? '展开导航栏' : '折叠导航栏'" :show-after="50" placement="bottom">
+          <el-button
+            class="collapse-toggle"
+            size="small"
+            @click="toggleHeaderCollapse"
+          >
+            <el-icon>
+              <component :is="isHeaderCollapsed ? 'CaretBottom' : 'CaretTop'" />
+            </el-icon>
+          </el-button>
+        </el-tooltip>
       </div>
     </div>
     
@@ -700,6 +719,15 @@ onUnmounted(() => {
       .el-button-group.creation-tool-group {
         display: inline-flex;
         gap: 6px;
+      }
+      
+      // 确保 tooltip 不影响按钮布局
+      :deep(.el-tooltip) {
+        display: inline-block;
+      }
+      
+      :deep(.el-tooltip__trigger) {
+        display: inline-block;
       }
       
       .zoom-level {
