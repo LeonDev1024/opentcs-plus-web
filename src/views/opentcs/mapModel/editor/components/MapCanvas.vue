@@ -130,11 +130,11 @@
           v-if="tempLocation"
           :config="tempLocation"
         />
-        <template v-if="tempPathPreview">
-          <v-line :config="tempPathPreview.line" />
-          <v-arrow :config="tempPathPreview.arrow" />
-          <v-circle :config="tempPathPreview.startMarker" />
-          <v-circle :config="tempPathPreview.endMarker" />
+        <template v-if="tempPathPreview && pathDragState.startPoint">
+          <v-line :key="`preview-line-${pathDragState.startPoint.id}`" :config="tempPathPreview.line" />
+          <v-arrow :key="`preview-arrow-${pathDragState.startPoint.id}`" :config="tempPathPreview.arrow" />
+          <v-circle :key="`preview-start-${pathDragState.startPoint.id}`" :config="tempPathPreview.startMarker" />
+          <v-circle :key="`preview-end-${pathDragState.startPoint.id}`" :config="tempPathPreview.endMarker" />
         </template>
       </v-layer>
     </v-stage>
@@ -526,13 +526,55 @@ const findPointAtPosition = (x: number, y: number, toleranceMultiplier = 1.6) =>
 };
 
 const cancelPathDrag = (stage?: any) => {
-  pathDragState.startPoint = null;
-  pathDragState.currentPos = { x: 0, y: 0 };
+  // 先清除临时图层的所有内容
+  const tempLayer = getKonvaNode(tempLayerRef.value);
+  if (tempLayer) {
+    // 获取所有子节点并销毁它们
+    const children = tempLayer.getChildren();
+    children.forEach((child: any) => {
+      child.destroy();
+    });
+    tempLayer.clear();
+  }
+  
+  // 使用 Object.assign 重置整个对象，触发更强的响应式更新
+  Object.assign(pathDragState, {
+    startPoint: null,
+    currentPos: { x: 0, y: 0 },
+    pathType: 'direct'
+  });
   hoveredPointId.value = null;
+  
   const targetStage = stage || getKonvaNode(stageRef.value);
   if (targetStage && targetStage.container) {
     targetStage.container().style.cursor = 'default';
   }
+  
+  // 立即强制重绘整个舞台
+  const stageNode = getKonvaNode(stageRef.value);
+  if (stageNode) {
+    stageNode.batchDraw();
+  }
+  
+  // 使用 nextTick 等待 Vue 响应式更新完成后再次确认
+  nextTick(() => {
+    const layer = getKonvaNode(tempLayerRef.value);
+    const stage = getKonvaNode(stageRef.value);
+    
+    if (layer) {
+      // 再次确保清除所有子节点
+      const children = layer.getChildren();
+      children.forEach((child: any) => {
+        child.destroy();
+      });
+      layer.clear();
+      layer.batchDraw();
+    }
+    
+    if (stage) {
+      stage.batchDraw();
+    }
+  });
 };
 
 // 设置画布鼠标样式
@@ -940,6 +982,12 @@ const handleMouseDown = (e: any) => {
       pathDragState.pathType = mapEditorStore.pathConnectionType;
       stage.container().style.cursor = 'crosshair';
     } else {
+      // 点击空白处，清除预览
+      cancelPathDrag(stage);
+    }
+  } else if (e.target === stage) {
+    // 点击空白处且不在路径工具模式，如果有残留预览也清除
+    if (pathDragState.startPoint) {
       cancelPathDrag(stage);
     }
   }
@@ -1005,44 +1053,64 @@ const handleMouseMove = (e: any) => {
   if (currentTool.value === ToolMode.PATH) {
     const hoveredPoint = findPointAtPosition(x, y);
     hoveredPointId.value = hoveredPoint?.id || null;
+    // 只有当 startPoint 存在时才更新预览位置
     if (pathDragState.startPoint) {
       pathDragState.currentPos = { x, y };
     }
-  } else if (!pathDragState.startPoint) {
+  } else {
+    // 如果不在路径工具模式，清除悬停状态
     hoveredPointId.value = null;
+    // 如果还有残留的路径拖拽状态，清除它
+    if (pathDragState.startPoint) {
+      cancelPathDrag();
+    }
   }
 };
 
 const handleMouseUp = (e: any) => {
+  const stage = e.target?.getStage();
+  
   // 平移模式结束
   if (currentTool.value === ToolMode.PAN && isDragging.value) {
     isDragging.value = false;
-    const stage = e.target.getStage();
     if (stage) {
       stage.container().style.cursor = 'default';
     }
-    return;
   }
 
-  if (currentTool.value === ToolMode.PATH && pathDragState.startPoint) {
-    const stage = e.target.getStage();
-    if (stage) {
+  // 处理路径工具模式 - 鼠标松开时处理路径创建
+  if (pathDragState.startPoint) {
+    const startPoint = pathDragState.startPoint; // 保存引用，因为后面会清除
+    let pathCreated = false;
+    
+    if (currentTool.value === ToolMode.PATH && stage && e.evt.button === 0) {
+      // 左键松开时处理路径创建
       const pointerPos = stage.getPointerPosition();
-      if (pointerPos && e.evt.button === 0) {
+      if (pointerPos) {
         const x = (pointerPos.x - canvasState.value.offsetX) / canvasState.value.scale;
         const y = (pointerPos.y - canvasState.value.offsetY) / canvasState.value.scale;
         const endPoint = findPointAtPosition(x, y);
-        if (endPoint && endPoint.id !== pathDragState.startPoint.id) {
-          createConnectionBetweenPoints(pathDragState.startPoint, endPoint);
-        } else if (endPoint && endPoint.id === pathDragState.startPoint.id) {
+        if (endPoint && endPoint.id !== startPoint.id) {
+          createConnectionBetweenPoints(startPoint, endPoint);
+          pathCreated = true;
+        } else if (endPoint && endPoint.id === startPoint.id) {
           ElMessage.info('请选择不同的终点');
         } else {
           ElMessage.warning('请拖拽到另一个点以创建连线');
         }
       }
-      cancelPathDrag(stage);
     }
-    return;
+    
+    // 无论是否创建成功，都清除路径拖拽状态和预览
+    cancelPathDrag(stage);
+    
+    // 如果路径创建成功，切换回选择模式
+    if (pathCreated) {
+      mapEditorStore.setTool(ToolMode.SELECT);
+    }
+  } else if (currentTool.value === ToolMode.PATH && stage && e.evt.button === 0) {
+    // 点击空白处清除残留的预览线
+    cancelPathDrag(stage);
   }
   
   // 右键完成绘制
