@@ -37,6 +37,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   // 点位命名计数器
   const pointNameCounter = ref(0);
   
+  // Location命名计数器
+  const locationNameCounter = ref(0);
+  
   // 路径连线类型
   const pathConnectionType = ref<'direct' | 'orthogonal' | 'curve'>('direct');
   
@@ -103,6 +106,33 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const generatePointName = () => {
     pointNameCounter.value += 1;
     return formatPointName(pointNameCounter.value);
+  };
+
+  const LOCATION_NAME_REGEX = /^Location-(\d+)$/i;
+
+  const formatLocationName = (index: number) => {
+    return `Location-${index.toString().padStart(4, '0')}`;
+  };
+
+  const updateLocationCounterByName = (name?: string) => {
+    if (!name) return;
+    const match = name.match(LOCATION_NAME_REGEX);
+    if (match) {
+      const value = parseInt(match[1], 10);
+      if (!Number.isNaN(value)) {
+        locationNameCounter.value = Math.max(locationNameCounter.value, value);
+      }
+    }
+  };
+
+  const syncLocationNameCounter = () => {
+    locationNameCounter.value = 0;
+    locations.value.forEach(location => updateLocationCounterByName(location.name));
+  };
+
+  const generateLocationName = () => {
+    locationNameCounter.value += 1;
+    return formatLocationName(locationNameCounter.value);
   };
   
   // ==================== Getters ====================
@@ -253,6 +283,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       locations.value = data.elements.locations || [];
 
       syncPointNameCounter();
+      syncLocationNameCounter();
       
       // 更新画布状态
       if (data.mapInfo) {
@@ -501,6 +532,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       layer.elementIds.push(newLocation.id);
     }
     
+    updateLocationCounterByName(newLocation.name);
     isDirty.value = true;
     return newLocation;
   };
@@ -727,6 +759,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     canvasState.offsetY = 0;
     isDirty.value = false;
     pointNameCounter.value = 0;
+    locationNameCounter.value = 0;
   };
   
   return {
@@ -759,6 +792,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     setPointType,
     setPathConnectionType,
     generatePointName,
+    generateLocationName,
     updateCanvasState,
     addPoint,
     updatePoint,

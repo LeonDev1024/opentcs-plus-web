@@ -1129,9 +1129,13 @@ const handleMouseDown = (e: any) => {
       { id: `loc_${timestamp}_v4`, x: x - half, y: y + half }
     ];
     
+    const nextLocationName = typeof mapEditorStore.generateLocationName === 'function'
+      ? mapEditorStore.generateLocationName()
+      : `Location-${Date.now()}`;
+    
     mapEditorStore.addLocation({
       layerId: getDefaultLayerId('location'),
-      name: `Location-${Date.now()}`,
+      name: nextLocationName,
       status: '0',
       geometry: {
         vertices,
@@ -1357,9 +1361,17 @@ const completeLocationDrawing = () => {
   const drawingTool = activeDrawingTool.value || ToolMode.LOCATION;
   const isRuleRegion = drawingTool === ToolMode.RULE_REGION;
   const polygonStyle = getPolygonPersistStyles(drawingTool);
+  
+  // 对于普通 Location 使用递增命名，规则区域保持原逻辑
+  const nextLocationName = isRuleRegion
+    ? `规则区域_${Date.now()}`
+    : (typeof mapEditorStore.generateLocationName === 'function'
+        ? mapEditorStore.generateLocationName()
+        : `Location-${Date.now()}`);
+  
   const location = mapEditorStore.addLocation({
     layerId: getDefaultLayerId('location'),
-    name: `${isRuleRegion ? '规则区域' : '位置'}_${Date.now()}`,
+    name: nextLocationName,
     status: '0',
     geometry: {
       vertices: drawingPoints.value.map((p, index) => ({
