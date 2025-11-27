@@ -116,11 +116,30 @@ const treeData = computed(() => {
   };
   
   const paths = mapEditorStore.paths;
+  
+  // 查找 Links 图层组
+  const linksGroup = mapEditorStore.layerGroups.find(g => g.name === 'Links');
+  const linksGroupId = linksGroup?.id;
+  
+  // 分离 Links 路径和普通路径
+  const linksPaths: typeof paths = [];
+  const normalPaths: typeof paths = [];
+  
+  paths.forEach(path => {
+    const layer = mapEditorStore.layers.find(l => l.id === path.layerId);
+    if (layer && layer.layerGroupId === linksGroupId) {
+      linksPaths.push(path);
+    } else {
+      normalPaths.push(path);
+    }
+  });
+  
+  // Paths 文件夹 - 显示非 Links 的路径
   const pathsFolder = {
     id: 'paths-folder',
     label: 'Paths',
     type: 'folder',
-    children: paths.map(path => ({
+    children: normalPaths.map(path => ({
       id: path.id,
       label: buildPathLabel(path),
       type: 'element',
@@ -155,12 +174,18 @@ const treeData = computed(() => {
   };
   layoutNode.children.push(locationTypesFolder);
   
-  // Links 文件夹 - 始终显示（空文件夹）
+  // Links 文件夹 - 显示属于 Links 图层组的路径
   const linksFolder = {
     id: 'links-folder',
     label: 'Links',
     type: 'folder',
-    children: []
+    children: linksPaths.map(path => ({
+      id: path.id,
+      label: buildPathLabel(path),
+      type: 'element',
+      elementType: 'path',
+      elementId: path.id
+    }))
   };
   layoutNode.children.push(linksFolder);
   

@@ -97,8 +97,8 @@
             v-if="!isRuleRegionLocation(location)"
             :config="getLocationRectConfig(location)"
             @click="handleLocationClick(location, $event)"
-            @mouseover="setStageCursor('move')"
-            @mouseout="setStageCursor('default')"
+            @mouseover="handleLocationMouseOver(location)"
+            @mouseout="handleLocationMouseOut(location, $event)"
           />
           <v-line
             v-else
@@ -111,16 +111,18 @@
             :key="`${location.id}-symbol`"
             :config="getLocationSymbolConfig(location)"
           />
-          <!-- 位置顶点（仅在选中时显示） -->
+          <!-- 位置中心点（虚线链接工具模式下，悬停或选中时显示） -->
           <v-circle
-            v-for="(vertex, index) in location.geometry.vertices"
-            :key="`${location.id}-v-${index}`"
-            :config="getLocationVertexConfig(location, vertex, index)"
-            @click.stop="handleLocationVertexClick(location, vertex, index, $event)"
-            @dragstart="handleLocationVertexDragStart(location, vertex, index)"
-            @dragmove="handleLocationVertexDragMove(location, vertex, index, $event)"
-            @dragend="handleLocationVertexDragEnd(location, vertex, index)"
+            v-if="currentTool === ToolMode.DASHED_LINK && (hoveredLocationId === location.id || dashedLinkDragState.startLocation?.id === location.id)"
+            :key="`${location.id}-center`"
+            :config="getLocationCenterPointConfig(location)"
+            @click="handleLocationCenterClick(location, $event)"
+            @mousedown="handleLocationCenterMouseDown(location, $event)"
+            @mouseup="handleLocationCenterMouseUp(location, $event)"
+            @mouseover="handleLocationCenterMouseOver(location)"
+            @mouseout="handleLocationCenterMouseOut"
           />
+          <!-- 位置顶点（已隐藏，不再显示） -->
         </template>
       </v-layer>
       
@@ -136,6 +138,12 @@
           <v-circle :key="`preview-start-${pathDragState.startPoint.id}`" :config="tempPathPreview.startMarker" />
           <v-circle :key="`preview-end-${pathDragState.startPoint.id}`" :config="tempPathPreview.endMarker" />
         </template>
+        <!-- 虚线链接预览 -->
+        <v-line
+          v-if="tempDashedLinkPreview && dashedLinkDragState.startLocation"
+          :key="`dashed-link-preview-${dashedLinkDragState.startLocation.id}`"
+          :config="tempDashedLinkPreview"
+        />
       </v-layer>
     </v-stage>
   </div>
@@ -145,7 +153,7 @@
 import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
-import { ToolMode } from '@/types/mapEditor';
+import { ToolMode, LayerType } from '@/types/mapEditor';
 import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
 import { AddPointCommand, MovePointCommand } from '@/utils/mapEditor/command';
 import { snapPoint } from '@/utils/mapEditor/snap';
@@ -378,9 +386,8 @@ const getPointGlyphConfig = (point: MapPoint) => {
     return {};
   }
   const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
-  const isDashedLinkSource = currentTool.value === ToolMode.DASHED_LINK && pendingDashedLinkStartPoint.value?.id === point.id;
   const isPathStart = currentTool.value === ToolMode.PATH && pathDragState.startPoint?.id === point.id;
-  const highlighted = isSelected || isPathStart || isDashedLinkSource;
+  const highlighted = isSelected || isPathStart;
   
   return {
     x: point.x,
@@ -584,7 +591,17 @@ const setStageCursor = (cursor: string) => {
     stage.container().style.cursor = cursor;
   }
 };
-const pendingDashedLinkStartPoint = ref<MapPoint | null>(null);
+// 虚线链接拖拽状态（从 location 连接到 point）
+const dashedLinkDragState = reactive<{
+  startLocation: MapLocation | null;
+  currentPos: { x: number; y: number };
+}>({
+  startLocation: null,
+  currentPos: { x: 0, y: 0 }
+});
+
+// 悬停的位置ID（用于显示中心点）
+const hoveredLocationId = ref<string | null>(null);
 
 // 拖拽状态
 const isDragging = ref(false);
@@ -593,9 +610,9 @@ const dragStartPos = ref({ x: 0, y: 0 });
 // 获取点的 Konva 配置
 const getPointConfig = (point: MapPoint) => {
   const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
-  const isDashedLinkSource = currentTool.value === ToolMode.DASHED_LINK && pendingDashedLinkStartPoint.value?.id === point.id;
   const isPathStart = currentTool.value === ToolMode.PATH && pathDragState.startPoint?.id === point.id;
   const isPathHovered = currentTool.value === ToolMode.PATH && hoveredPointId.value === point.id && !isPathStart;
+  const isDashedLinkTarget = currentTool.value === ToolMode.DASHED_LINK && dashedLinkDragState.startLocation && hoveredPointId.value === point.id;
   const visual = getPointVisualMeta(point);
   
   let fill = visual.fill;
@@ -613,7 +630,7 @@ const getPointConfig = (point: MapPoint) => {
   } else if (isPathHovered) {
     stroke = '#73c0ff';
     strokeWidth = Math.max(2, strokeWidth);
-  } else if (isDashedLinkSource) {
+  } else if (isDashedLinkTarget) {
     fill = '#f7ba2a';
     stroke = '#f5d48f';
     strokeWidth = Math.max(2, strokeWidth);
@@ -811,19 +828,89 @@ const getLocationSymbolConfig = (location: MapLocation) => {
   };
 };
 
-const createDashedLinkBetweenPointAndLocation = (point: MapPoint, location: MapLocation) => {
+// 查找位置（通过检查点是否在位置区域内）
+const findLocationAtPosition = (x: number, y: number) => {
+  for (const location of visibleLocations.value) {
+    // 对于业务位置（正方形），检查点是否在矩形内
+    if (!isRuleRegionLocation(location)) {
+      const centroid = getLocationCentroid(location);
+      const size = 40; // 业务位置小方框尺寸
+      const half = size / 2;
+      
+      if (
+        x >= centroid.x - half &&
+        x <= centroid.x + half &&
+        y >= centroid.y - half &&
+        y <= centroid.y + half
+      ) {
+        return location;
+      }
+    } else {
+      // 对于规则区域（多边形），使用点在多边形内的算法
+      const vertices = location.geometry.vertices || [];
+      if (vertices.length < 3) continue;
+      
+      let inside = false;
+      for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+        const xi = vertices[i].x;
+        const yi = vertices[i].y;
+        const xj = vertices[j].x;
+        const yj = vertices[j].y;
+        
+        const intersect = ((yi > y) !== (yj > y)) &&
+          (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+      }
+      
+      if (inside) {
+        return location;
+      }
+    }
+  }
+  return null;
+};
+
+// 虚线链接预览
+const tempDashedLinkPreview = computed(() => {
+  if (!dashedLinkDragState.startLocation) return null;
+  
+  const centroid = getLocationCentroid(dashedLinkDragState.startLocation);
+  const end = { x: dashedLinkDragState.currentPos.x, y: dashedLinkDragState.currentPos.y };
+  
+  return {
+    points: [centroid.x, centroid.y, end.x, end.y],
+    stroke: '#909399',
+    strokeWidth: 1.5,
+    lineCap: 'round',
+    lineJoin: 'round',
+    dash: [5, 5],
+    listening: false
+  };
+});
+
+// 创建从 location 到 point 的虚线链接
+const createDashedLinkBetweenLocationAndPoint = (location: MapLocation, point: MapPoint) => {
+  // 使用位置的中心点
   const centroid = getLocationCentroid(location);
   const timestamp = Date.now();
   const controlPoints = [
-    { id: `dl_${timestamp}_0`, x: point.x, y: point.y },
-    { id: `dl_${timestamp}_1`, x: centroid.x, y: centroid.y }
+    { id: `dl_${timestamp}_0`, x: centroid.x, y: centroid.y },
+    { id: `dl_${timestamp}_1`, x: point.x, y: point.y }
   ];
   
+  // 生成链接名称，格式：Link Location-XXXX --- Point-YYYY
+  const locationName = location.name || location.id;
+  const pointName = point.name || point.id;
+  const linkName = `Link ${locationName} --- ${pointName}`;
+  
+  // 使用 Links 图层组下的图层（如果存在），否则使用默认图层
+  const linksLayerId = getLinksLayerId();
+  
   mapEditorStore.addPath({
-    layerId: getDefaultLayerId('path'),
-    name: `Link ${point.name || point.id} -> ${location.name || location.id}`,
-    startPointId: point.id,
-    endPointId: location.id,
+    layerId: linksLayerId,
+    name: linkName,
+    startPointId: location.id, // 起点是 location
+    endPointId: point.id,     // 终点是 point
     status: '0',
     type: 'direct',
     geometry: {
@@ -834,13 +921,113 @@ const createDashedLinkBetweenPointAndLocation = (point: MapPoint, location: MapL
       strokeColor: '#909399',
       strokeWidth: 1.5,
       lineStyle: 'dashed',
-      arrowVisible: false,
-      label: `${point.name || point.id}→${location.name || location.id}`,
+      arrowVisible: false, // 虚线没有方向，不显示箭头
+      label: `${locationName} --- ${pointName}`,
       labelVisible: true
     }
   });
   
   ElMessage.success('虚线链接已创建');
+};
+
+// 取消虚线链接拖拽
+const cancelDashedLinkDrag = (stage?: any) => {
+  Object.assign(dashedLinkDragState, {
+    startLocation: null,
+    currentPos: { x: 0, y: 0 }
+  });
+  
+  hoveredLocationId.value = null;
+  
+  const targetStage = stage || getKonvaNode(stageRef.value);
+  if (targetStage && targetStage.container) {
+    targetStage.container().style.cursor = 'default';
+  }
+  
+  const stageNode = getKonvaNode(stageRef.value);
+  if (stageNode) {
+    stageNode.batchDraw();
+  }
+};
+
+// 获取位置中心点配置（用于虚线链接）
+const getLocationCenterPointConfig = (location: MapLocation) => {
+  const centroid = getLocationCentroid(location);
+  const isSelected = dashedLinkDragState.startLocation?.id === location.id;
+  
+  return {
+    x: centroid.x,
+    y: centroid.y,
+    radius: isSelected ? 8 : 6,
+    fill: isSelected ? '#f7ba2a' : '#909399',
+    stroke: '#ffffff',
+    strokeWidth: 2,
+    listening: true,
+    opacity: isSelected ? 1 : 0.8,
+    hitStrokeWidth: 20, // 增大点击区域，方便点击
+    perfectDrawEnabled: false,
+    zIndex: 10 // 确保中心点在位置矩形之上
+  };
+};
+
+// 位置中心点鼠标按下
+const handleLocationCenterMouseDown = (location: MapLocation, e: any) => {
+  e.cancelBubble = true;
+  if (e.evt) {
+    e.evt.stopPropagation();
+  }
+  
+  if (currentTool.value === ToolMode.DASHED_LINK) {
+    // 开始拖拽连线
+    const stage = e.target.getStage();
+    if (stage) {
+      dashedLinkDragState.startLocation = location;
+      const centroid = getLocationCentroid(location);
+      dashedLinkDragState.currentPos = { x: centroid.x, y: centroid.y };
+      stage.container().style.cursor = 'crosshair';
+      // 确保工具模式保持为虚线链接
+      if (mapEditorStore.currentTool !== ToolMode.DASHED_LINK) {
+        mapEditorStore.setTool(ToolMode.DASHED_LINK);
+      }
+    }
+  }
+};
+
+// 位置中心点鼠标抬起
+const handleLocationCenterMouseUp = (location: MapLocation, e: any) => {
+  e.cancelBubble = true;
+  if (e.evt) {
+    e.evt.stopPropagation();
+  }
+};
+
+// 位置中心点点击
+const handleLocationCenterClick = (location: MapLocation, e: any) => {
+  e.cancelBubble = true;
+  if (e.evt) {
+    e.evt.stopPropagation();
+  }
+  
+  // 点击事件已经在 mousedown 中处理了，这里不需要重复处理
+};
+
+// 位置中心点鼠标悬停
+const handleLocationCenterMouseOver = (location: MapLocation) => {
+  if (currentTool.value === ToolMode.DASHED_LINK) {
+    hoveredLocationId.value = location.id;
+    setStageCursor('pointer');
+  }
+};
+
+// 位置中心点鼠标离开
+const handleLocationCenterMouseOut = () => {
+  if (currentTool.value === ToolMode.DASHED_LINK) {
+    // 如果不在拖拽状态，清除悬停
+    if (!dashedLinkDragState.startLocation) {
+      hoveredLocationId.value = null;
+    }
+    setStageCursor('default');
+  }
 };
 
 // 获取位置的 Konva 配置
@@ -969,10 +1156,10 @@ const handleMouseDown = (e: any) => {
       // 添加顶点
       drawingPoints.value.push({ x, y });
     }
-  } else if (currentTool.value === ToolMode.DASHED_LINK && e.target === stage) {
-    if (pendingDashedLinkStartPoint.value) {
-      pendingDashedLinkStartPoint.value = null;
-      ElMessage.info('已取消虚线起点');
+  } else if (currentTool.value === ToolMode.DASHED_LINK) {
+    // 虚线链接模式：点击空白处，取消拖拽
+    if (e.target === stage) {
+      cancelDashedLinkDrag(stage);
     }
   } else if (currentTool.value === ToolMode.PATH) {
     const clickedPoint = findPointAtPosition(x, y);
@@ -1057,12 +1244,24 @@ const handleMouseMove = (e: any) => {
     if (pathDragState.startPoint) {
       pathDragState.currentPos = { x, y };
     }
+  } else if (currentTool.value === ToolMode.DASHED_LINK) {
+    // 虚线链接模式：更新拖拽位置
+    if (dashedLinkDragState.startLocation) {
+      dashedLinkDragState.currentPos = { x, y };
+    }
+    // 检查是否悬停在点上
+    const hoveredPoint = findPointAtPosition(x, y);
+    hoveredPointId.value = hoveredPoint?.id || null;
   } else {
     // 如果不在路径工具模式，清除悬停状态
     hoveredPointId.value = null;
     // 如果还有残留的路径拖拽状态，清除它
     if (pathDragState.startPoint) {
       cancelPathDrag();
+    }
+    // 如果还有残留的虚线链接拖拽状态，清除它
+    if (dashedLinkDragState.startLocation) {
+      cancelDashedLinkDrag();
     }
   }
 };
@@ -1111,6 +1310,25 @@ const handleMouseUp = (e: any) => {
   } else if (currentTool.value === ToolMode.PATH && stage && e.evt.button === 0) {
     // 点击空白处清除残留的预览线
     cancelPathDrag(stage);
+  }
+  
+  // 处理虚线链接工具模式 - 鼠标松开时处理虚线链接创建
+  if (dashedLinkDragState.startLocation && currentTool.value === ToolMode.DASHED_LINK && stage && e.evt.button === 0) {
+    const startLocation = dashedLinkDragState.startLocation; // 保存引用
+    const pointerPos = stage.getPointerPosition();
+    if (pointerPos) {
+      const x = (pointerPos.x - canvasState.value.offsetX) / canvasState.value.scale;
+      const y = (pointerPos.y - canvasState.value.offsetY) / canvasState.value.scale;
+      const endPoint = findPointAtPosition(x, y);
+      
+      if (endPoint) {
+        createDashedLinkBetweenLocationAndPoint(startLocation, endPoint);
+        cancelDashedLinkDrag(stage);
+      } else {
+        // 没有拖拽到点，取消拖拽
+        cancelDashedLinkDrag(stage);
+      }
+    }
   }
   
   // 右键完成绘制
@@ -1229,9 +1447,12 @@ const handlePointClick = (point: MapPoint, e: any) => {
   e.cancelBubble = true;
   
   if (currentTool.value === ToolMode.DASHED_LINK) {
-    pendingDashedLinkStartPoint.value = point;
-    ElMessage.info(`已选择点位：${point.name || point.id}，请点击业务位置完成虚线链接`);
-    return;
+    // 虚线链接模式：如果已经有起点位置，点击点完成连接
+    if (dashedLinkDragState.startLocation) {
+      createDashedLinkBetweenLocationAndPoint(dashedLinkDragState.startLocation, point);
+      cancelDashedLinkDrag(e.target.getStage());
+      return;
+    }
   }
   
   if (currentTool.value === ToolMode.PATH) {
@@ -1295,18 +1516,61 @@ const handlePathClick = (path: MapPath, e: any) => {
 const handleLocationClick = (location: MapLocation, e: any) => {
   e.cancelBubble = true;
   
+  // 虚线链接模式下，点击位置本身不处理，由中心点处理
   if (currentTool.value === ToolMode.DASHED_LINK) {
-    if (!pendingDashedLinkStartPoint.value) {
-      ElMessage.warning('请先选择需要连接的点位');
-      return;
+    // 检查是否点击在中心点区域
+    const centroid = getLocationCentroid(location);
+    const pointerPos = e.target.getStage()?.getPointerPosition();
+    if (pointerPos) {
+      const x = (pointerPos.x - canvasState.value.offsetX) / canvasState.value.scale;
+      const y = (pointerPos.y - canvasState.value.offsetY) / canvasState.value.scale;
+      const distance = Math.hypot(x - centroid.x, y - centroid.y);
+      // 如果点击在中心点附近（半径10像素内），不处理，让中心点处理
+      if (distance <= 10) {
+        return;
+      }
     }
-    createDashedLinkBetweenPointAndLocation(pendingDashedLinkStartPoint.value, location);
-    pendingDashedLinkStartPoint.value = null;
     return;
   }
   
   const multiSelect = e.evt.ctrlKey || e.evt.metaKey;
   mapEditorStore.selectElement(location.id, 'location', multiSelect);
+};
+
+// 位置鼠标悬停
+const handleLocationMouseOver = (location: MapLocation) => {
+  if (currentTool.value === ToolMode.DASHED_LINK && !isRuleRegionLocation(location)) {
+    hoveredLocationId.value = location.id;
+    setStageCursor('pointer');
+  } else {
+    setStageCursor('move');
+  }
+};
+
+// 位置鼠标离开
+const handleLocationMouseOut = (location: MapLocation, e: any) => {
+  if (currentTool.value === ToolMode.DASHED_LINK) {
+    // 检查鼠标是否移动到了中心点区域
+    const stage = e.target.getStage();
+    if (stage) {
+      const pointerPos = stage.getPointerPosition();
+      if (pointerPos) {
+        const x = (pointerPos.x - canvasState.value.offsetX) / canvasState.value.scale;
+        const y = (pointerPos.y - canvasState.value.offsetY) / canvasState.value.scale;
+        const centroid = getLocationCentroid(location);
+        const distance = Math.hypot(x - centroid.x, y - centroid.y);
+        // 如果鼠标在中心点附近（半径25像素内），不清除悬停，让中心点处理
+        if (distance <= 25) {
+          return;
+        }
+      }
+    }
+    // 如果不在拖拽状态，清除悬停
+    if (!dashedLinkDragState.startLocation) {
+      hoveredLocationId.value = null;
+    }
+  }
+  setStageCursor('default');
 };
 
 // ==================== 路径控制点编辑 ====================
@@ -1457,6 +1721,26 @@ const handleLocationVertexDragEnd = (location: MapLocation, vertex: any, index: 
   }
 };
 
+// 获取 Links 图层组下的图层ID
+const getLinksLayerId = (): string => {
+  // 查找 Links 图层组
+  const linksGroup = mapEditorStore.layerGroups.find(g => g.name === 'Links');
+  
+  if (linksGroup) {
+    // 查找 Links 图层组下的图层
+    const linksLayer = mapEditorStore.layers.find(
+      l => l.layerGroupId === linksGroup.id
+    );
+    
+    if (linksLayer) {
+      return linksLayer.id;
+    }
+  }
+  
+  // 如果找不到 Links 图层组或图层，使用默认图层（不创建新图层）
+  return getDefaultLayerId('path');
+};
+
 // 获取默认图层ID
 const getDefaultLayerId = (type: 'point' | 'path' | 'location'): string => {
   // 使用激活的图层，如果没有则使用第一个可用图层
@@ -1567,7 +1851,7 @@ watch(currentTool, (tool) => {
     cancelPathDrag();
   }
   if (tool !== ToolMode.DASHED_LINK) {
-    pendingDashedLinkStartPoint.value = null;
+    cancelDashedLinkDrag();
   }
   if (
     ![ToolMode.LOCATION, ToolMode.RULE_REGION].includes(tool) &&
@@ -1601,8 +1885,8 @@ const handleKeyDown = (e: KeyboardEvent) => {
     } else if (currentTool.value === ToolMode.PATH && pathDragState.startPoint) {
       cancelPathDrag();
       ElMessage.info('已取消连线起点');
-    } else if (currentTool.value === ToolMode.DASHED_LINK && pendingDashedLinkStartPoint.value) {
-      pendingDashedLinkStartPoint.value = null;
+    } else if (currentTool.value === ToolMode.DASHED_LINK && dashedLinkDragState.startLocation) {
+      cancelDashedLinkDrag();
       ElMessage.info('已取消虚线起点');
     }
   }
