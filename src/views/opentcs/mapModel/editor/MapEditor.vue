@@ -187,6 +187,37 @@
             title="重做 (Ctrl+Shift+Z)"
           />
         </el-button-group>
+        <el-divider direction="vertical" />
+        <span class="zoom-level">{{ Math.round(canvasState.scale * 100) }}%</span>
+        <el-button-group size="small">
+          <el-button icon="ZoomIn" @click="zoomIn" title="放大" :circle="true" />
+          <el-button icon="ZoomOut" @click="zoomOut" title="缩小" :circle="true" />
+          <el-button icon="FullScreen" @click="resetZoom" title="重置缩放" :circle="true" />
+        </el-button-group>
+        <el-button 
+          :type="showGrid ? 'primary' : 'default'"
+          size="small"
+          icon="Grid"
+          @click="toggleGrid"
+          title="显示/隐藏网格"
+          :circle="true"
+        />
+        <el-button 
+          :type="showLabels ? 'primary' : 'default'"
+          size="small"
+          icon="PriceTag"
+          @click="toggleLabels"
+          title="显示/隐藏标签"
+          :circle="true"
+        />
+        <el-button 
+          :type="showBlocks ? 'primary' : 'default'"
+          size="small"
+          icon="Box"
+          @click="toggleBlocks"
+          title="显示/隐藏Block"
+          :circle="true"
+        />
       </div>
       <div class="toolbar-right">
         <el-button
@@ -239,41 +270,6 @@
       
       <!-- 中间：画布区域 -->
       <div class="canvas-area">
-        <div class="canvas-header">
-          <span class="canvas-title">地图模型视图</span>
-          <div class="canvas-toolbar">
-            <span class="zoom-level">{{ Math.round(canvasState.scale * 100) }}%</span>
-            <el-button-group size="small">
-              <el-button icon="ZoomIn" @click="zoomIn" title="放大" :circle="true" />
-              <el-button icon="ZoomOut" @click="zoomOut" title="缩小" :circle="true" />
-              <el-button icon="FullScreen" @click="resetZoom" title="重置缩放" :circle="true" />
-            </el-button-group>
-            <el-button 
-              :type="showGrid ? 'primary' : 'default'"
-              size="small"
-              icon="Grid"
-              @click="toggleGrid"
-              title="显示/隐藏网格"
-              :circle="true"
-            />
-            <el-button 
-              :type="showLabels ? 'primary' : 'default'"
-              size="small"
-              icon="PriceTag"
-              @click="toggleLabels"
-              title="显示/隐藏标签"
-              :circle="true"
-            />
-            <el-button 
-              :type="showBlocks ? 'primary' : 'default'"
-              size="small"
-              icon="Box"
-              @click="toggleBlocks"
-              title="显示/隐藏Block"
-              :circle="true"
-            />
-          </div>
-        </div>
         <div class="canvas-wrapper">
           <MapCanvas ref="mapCanvasRef" />
         </div>
@@ -706,6 +702,18 @@ onUnmounted(() => {
         gap: 6px;
       }
       
+      .zoom-level {
+        font-size: 12px;
+        color: #606266;
+        font-weight: 500;
+        padding: 2px 8px;
+        background: #f5f7fa;
+        border-radius: 4px;
+        min-width: 50px;
+        text-align: center;
+        margin: 0 4px;
+      }
+      
       .el-button {
         width: 32px;
         height: 32px;
@@ -735,6 +743,14 @@ onUnmounted(() => {
         :deep(svg) {
           width: 20px;
           height: 20px;
+        }
+      }
+      
+      .el-button-group {
+        .el-button {
+          width: 32px;
+          height: 32px;
+          padding: 4px;
         }
       }
       
@@ -904,88 +920,6 @@ onUnmounted(() => {
       overflow: hidden;
       min-width: 0;
       position: relative;
-      
-      .canvas-header {
-        height: 30px;
-        background: #fff;
-        border-bottom: 1px solid #e4e7ed;
-        padding: 0 12px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        flex-shrink: 0;
-        
-        .canvas-title {
-          font-size: 12px;
-          color: #606266;
-          line-height: 1;
-        }
-        
-        .canvas-toolbar {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          
-          .zoom-level {
-            font-size: 12px;
-            color: #606266;
-            font-weight: 500;
-            padding: 2px 8px;
-            background: #f5f7fa;
-            border-radius: 4px;
-            min-width: 50px;
-            text-align: center;
-            margin-right: 4px;
-          }
-          
-          .el-button-group {
-            .el-button {
-              width: 32px;
-              height: 32px;
-              padding: 4px;
-            }
-          }
-          
-          .el-button {
-            width: 32px;
-            height: 32px;
-            padding: 4px;
-          }
-          
-          // 绘制点工具按钮样式
-          .point-tool-wrapper {
-            display: inline-flex;
-            align-items: center;
-            height: 32px;
-            
-            .point-tool-main {
-              border-top-right-radius: 0;
-              border-bottom-right-radius: 0;
-              border-right: none;
-              width: 32px;
-              height: 32px;
-              padding: 4px;
-            }
-            
-            .point-tool-dropdown {
-              border-top-left-radius: 0;
-              border-bottom-left-radius: 0;
-              padding: 0 2px;
-              min-width: auto;
-              width: auto;
-              height: 32px;
-              
-              .el-icon {
-                font-size: 10px;
-              }
-            }
-          }
-          
-          .path-type-icon {
-            margin-right: 8px;
-          }
-        }
-      }
       
       .canvas-wrapper {
         flex: 1;
