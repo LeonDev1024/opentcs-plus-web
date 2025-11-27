@@ -24,9 +24,9 @@
               <el-table-column width="60" align="center" label="激活">
                 <template #default="{ row }">
                   <el-radio
-                    :model-value="mapEditorStore.activeLayerId === row.id"
+                    :model-value="isActiveLayer(row.id)"
                     @click.stop
-                    @change="setActiveLayer(row.id)"
+                    @change="() => setActiveLayer(row.id)"
                   />
                 </template>
               </el-table-column>
@@ -94,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import type { MapLayer, LayerType, LayerGroup } from '@/types/mapEditor';
@@ -112,6 +112,9 @@ const sortedLayers = computed(() => {
 const layerGroups = computed(() => {
   return mapEditorStore.layerGroups;
 });
+
+// 计算属性：当前激活的图层ID（确保响应式）
+const activeLayerId = computed(() => mapEditorStore.activeLayerId);
 
 const getTypeLabel = (type: LayerType) => {
   const labels: Record<LayerType, string> = {
@@ -132,6 +135,12 @@ const getLayerGroupName = (layerGroupId?: string) => {
 
 const selectLayer = (layerId: string) => {
   selectedLayerId.value = layerId;
+};
+
+const isActiveLayer = (layerId: string) => {
+  const activeId = activeLayerId.value;
+  if (!activeId || !layerId) return false;
+  return String(activeId) === String(layerId);
 };
 
 const setActiveLayer = (layerId: string) => {
@@ -265,32 +274,23 @@ const handleDeleteSelectedLayerGroup = async () => {
 
 // 确保默认图层被激活
 watch(
-  () => mapEditorStore.layers,
-  (layers) => {
-    if (layers.length > 0 && !mapEditorStore.activeLayerId) {
-      // 优先激活名为 "Default layer" 的图层
-      const defaultLayer = layers.find(l => l.name === 'Default layer');
-      if (defaultLayer) {
-        setActiveLayer(defaultLayer.id);
-      } else {
-        // 如果没有 "Default layer"，激活第一个图层
-        setActiveLayer(layers[0].id);
+  () => [mapEditorStore.layers, mapEditorStore.activeLayerId],
+  ([layers, activeId]) => {
+    if (layers.length > 0) {
+      // 如果当前激活的图层不存在，或者没有激活的图层
+      const activeLayerExists = activeId && layers.some(l => String(l.id) === String(activeId));
+      if (!activeLayerExists) {
+        // 优先激活名为 "Default layer" 或 "默认图层" 的图层
+        const defaultLayer = layers.find(l => 
+          l.name === 'Default layer' || l.name === '默认图层'
+        ) || layers[0];
+        if (defaultLayer) {
+          setActiveLayer(defaultLayer.id);
+        }
       }
     }
   },
   { immediate: true }
-);
-
-// 监听图层变化，确保始终有激活的图层
-watch(
-  () => mapEditorStore.layers,
-  (layers) => {
-    // 如果当前没有激活的图层，但有图层存在，则激活第一个图层
-    if (layers.length > 0 && !mapEditorStore.activeLayerId) {
-      const defaultLayer = layers.find(l => l.name === 'Default layer') || layers[0];
-      setActiveLayer(defaultLayer.id);
-    }
-  }
 );
 </script>
 
