@@ -255,7 +255,7 @@
     <!-- 主内容区 -->
     <div class="editor-content">
       <!-- 左侧面板：视图、属性、图层 -->
-      <div class="left-panels">
+      <div class="left-panels" :style="{ width: leftPanelWidth + 'px' }">
         <!-- 视图面板 -->
         <div class="panel-container">
           <div class="panel-header">
@@ -286,6 +286,13 @@
           </div>
         </div>
       </div>
+      
+      <!-- 可拖拽的分隔条 -->
+      <div 
+        class="panel-resizer" 
+        @mousedown="handleResizeStart"
+        :class="{ 'resizing': isResizing }"
+      ></div>
       
       <!-- 中间：画布区域 -->
       <div class="canvas-area">
@@ -340,6 +347,17 @@ const mousePosition = ref({ x: 0, y: 0 });
 
 // 顶部导航折叠状态
 const isHeaderCollapsed = ref(false);
+
+// 左侧面板宽度
+const LEFT_PANEL_MIN_WIDTH = 200;
+const LEFT_PANEL_MAX_WIDTH = 600;
+const LEFT_PANEL_DEFAULT_WIDTH = 280;
+const LEFT_PANEL_WIDTH_KEY = 'map-editor-left-panel-width';
+
+const leftPanelWidth = ref(LEFT_PANEL_DEFAULT_WIDTH);
+const isResizing = ref(false);
+const resizeStartX = ref(0);
+const resizeStartWidth = ref(0);
 
 // 从 store 获取状态
 const currentTool = computed(() => mapEditorStore.currentTool);
@@ -561,8 +579,57 @@ watch(() => mapCanvasRef.value, (canvas) => {
   }
 }, { immediate: true });
 
+// 拖拽调整面板宽度
+const handleResizeStart = (e: MouseEvent) => {
+  isResizing.value = true;
+  resizeStartX.value = e.clientX;
+  resizeStartWidth.value = leftPanelWidth.value;
+  
+  document.addEventListener('mousemove', handleResizeMove);
+  document.addEventListener('mouseup', handleResizeEnd);
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  
+  e.preventDefault();
+};
+
+const handleResizeMove = (e: MouseEvent) => {
+  if (!isResizing.value) return;
+  
+  const deltaX = e.clientX - resizeStartX.value;
+  const newWidth = resizeStartWidth.value + deltaX;
+  
+  // 限制宽度范围
+  leftPanelWidth.value = Math.max(
+    LEFT_PANEL_MIN_WIDTH,
+    Math.min(LEFT_PANEL_MAX_WIDTH, newWidth)
+  );
+};
+
+const handleResizeEnd = () => {
+  if (!isResizing.value) return;
+  
+  isResizing.value = false;
+  document.removeEventListener('mousemove', handleResizeMove);
+  document.removeEventListener('mouseup', handleResizeEnd);
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  
+  // 保存宽度到 localStorage
+  localStorage.setItem(LEFT_PANEL_WIDTH_KEY, leftPanelWidth.value.toString());
+};
+
 // 初始化网格大小为20（固定值）
 onMounted(async () => {
+  // 从 localStorage 加载面板宽度
+  const savedWidth = localStorage.getItem(LEFT_PANEL_WIDTH_KEY);
+  if (savedWidth) {
+    const width = parseInt(savedWidth, 10);
+    if (width >= LEFT_PANEL_MIN_WIDTH && width <= LEFT_PANEL_MAX_WIDTH) {
+      leftPanelWidth.value = width;
+    }
+  }
+  
   // 加载地图数据（从 query 参数获取）
   const mapId = route.query.id as string;
   if (mapId) {
@@ -653,6 +720,13 @@ const handleKeyDown = (e: KeyboardEvent) => {
 onUnmounted(() => {
   // 移除键盘事件
   window.removeEventListener('keydown', handleKeyDown);
+  
+  // 清理拖拽事件
+  document.removeEventListener('mousemove', handleResizeMove);
+  document.removeEventListener('mouseup', handleResizeEnd);
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  
   const appWrapper = document.querySelector('.app-wrapper');
   appWrapper?.classList.remove('map-editor-header-collapsed');
   
@@ -896,12 +970,12 @@ onUnmounted(() => {
     
     // 左侧面板组
     .left-panels {
-      width: 280px;
       background: #fff;
       border-right: 1px solid #e4e7ed;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      flex-shrink: 0;
       
       .panel-container {
         flex: 1;
@@ -936,6 +1010,35 @@ onUnmounted(() => {
           overflow-y: auto;
           padding: 8px;
         }
+      }
+    }
+    
+    // 可拖拽的分隔条
+    .panel-resizer {
+      width: 4px;
+      background: transparent;
+      cursor: col-resize;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 10;
+      transition: background-color 0.2s;
+      
+      &:hover {
+        background: #409eff;
+      }
+      
+      &.resizing {
+        background: #409eff;
+      }
+      
+      &::before {
+        content: '';
+        position: absolute;
+        left: -2px;
+        right: -2px;
+        top: 0;
+        bottom: 0;
+        cursor: col-resize;
       }
     }
     

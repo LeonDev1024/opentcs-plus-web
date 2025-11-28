@@ -169,15 +169,6 @@ const treeData = computed(() => {
   };
   layoutNode.children.push(locationsFolder);
   
-  // Location types 文件夹 - 始终显示（空文件夹）
-  const locationTypesFolder = {
-    id: 'location-types-folder',
-    label: 'Location types',
-    type: 'folder',
-    children: []
-  };
-  layoutNode.children.push(locationTypesFolder);
-  
   // Links 文件夹 - 显示属于 Links 图层组的路径
   const linksFolder = {
     id: 'links-folder',
