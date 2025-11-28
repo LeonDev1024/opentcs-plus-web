@@ -238,6 +238,17 @@
         </el-tooltip>
       </div>
       <div class="toolbar-right">
+        <el-tooltip :content="isLeftPanelCollapsed ? '展开侧边栏' : '收起侧边栏'" :show-after="50" placement="bottom">
+          <el-button
+            class="collapse-toggle"
+            size="small"
+            @click="toggleLeftPanelCollapse"
+          >
+            <el-icon>
+              <component :is="isLeftPanelCollapsed ? 'CaretRight' : 'CaretLeft'" />
+            </el-icon>
+          </el-button>
+        </el-tooltip>
         <el-tooltip :content="isHeaderCollapsed ? '展开导航栏' : '折叠导航栏'" :show-after="50" placement="bottom">
           <el-button
             class="collapse-toggle"
@@ -255,7 +266,11 @@
     <!-- 主内容区 -->
     <div class="editor-content">
       <!-- 左侧面板：视图、属性、图层 -->
-      <div class="left-panels" :style="{ width: leftPanelWidth + 'px' }">
+      <div 
+        v-show="!isLeftPanelCollapsed"
+        class="left-panels" 
+        :style="{ width: leftPanelWidth + 'px' }"
+      >
         <!-- 视图面板 -->
         <div class="panel-container">
           <div class="panel-header">
@@ -289,6 +304,7 @@
       
       <!-- 可拖拽的分隔条 -->
       <div 
+        v-show="!isLeftPanelCollapsed"
         class="panel-resizer" 
         @mousedown="handleResizeStart"
         :class="{ 'resizing': isResizing }"
@@ -347,6 +363,9 @@ const mousePosition = ref({ x: 0, y: 0 });
 
 // 顶部导航折叠状态
 const isHeaderCollapsed = ref(false);
+
+// 左侧面板收起状态
+const isLeftPanelCollapsed = ref(false);
 
 // 左侧面板宽度
 const LEFT_PANEL_MIN_WIDTH = 200;
@@ -458,6 +477,11 @@ const applyHeaderCollapseState = () => {
 const toggleHeaderCollapse = () => {
   isHeaderCollapsed.value = !isHeaderCollapsed.value;
   applyHeaderCollapseState();
+};
+
+// 左侧面板收起/展开
+const toggleLeftPanelCollapse = () => {
+  isLeftPanelCollapsed.value = !isLeftPanelCollapsed.value;
 };
 
 watch(isHeaderCollapsed, () => {
