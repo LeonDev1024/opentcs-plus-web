@@ -97,6 +97,19 @@ export const constantRoutes: RouteRecordRaw[] = [
         meta: { title: '地图编辑器', icon: 'map', noCache: true }
       }
     ]
+  },
+  {
+    path: '/opentcs/locationType',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/opentcs/locationType/index.vue'),
+        name: 'LocationType',
+        meta: { title: '位置类型管理', icon: 'location' }
+      }
+    ]
   }
 ];
 

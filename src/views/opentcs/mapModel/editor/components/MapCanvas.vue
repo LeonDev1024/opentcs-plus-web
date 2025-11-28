@@ -646,12 +646,23 @@ const hoveredLocationId = ref<string | null>(null);
 const isDragging = ref(false);
 const dragStartPos = ref({ x: 0, y: 0 });
 
+// 判断点是否被连线
+const isPointConnected = (point: MapPoint): boolean => {
+  return mapEditorStore.paths.some(path => {
+    const startId = String(path.startPointId || '');
+    const endId = String(path.endPointId || '');
+    const pointId = String(point.id);
+    return startId === pointId || endId === pointId;
+  });
+};
+
 // 获取点的 Konva 配置
 const getPointConfig = (point: MapPoint) => {
   const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
   const isPathStart = currentTool.value === ToolMode.PATH && pathDragState.startPoint?.id === point.id;
   const isPathHovered = currentTool.value === ToolMode.PATH && hoveredPointId.value === point.id && !isPathStart;
   const isDashedLinkTarget = currentTool.value === ToolMode.DASHED_LINK && dashedLinkDragState.startLocation && hoveredPointId.value === point.id;
+  const isConnected = isPointConnected(point);
   const visual = getPointVisualMeta(point);
   
   let fill = visual.fill;
@@ -667,12 +678,18 @@ const getPointConfig = (point: MapPoint) => {
     stroke = '#73c0ff';
     strokeWidth = Math.max(2.2, strokeWidth);
   } else if (isPathHovered) {
+    fill = '#73c0ff';
     stroke = '#73c0ff';
     strokeWidth = Math.max(2, strokeWidth);
   } else if (isDashedLinkTarget) {
     fill = '#f7ba2a';
     stroke = '#f5d48f';
     strokeWidth = Math.max(2, strokeWidth);
+  } else if (isConnected) {
+    // 如果点被连线，使用淡蓝色
+    fill = '#73c0ff';
+    stroke = '#73c0ff';
+    strokeWidth = Math.max(1.5, strokeWidth);
   }
   
   return {
@@ -704,7 +721,7 @@ const getPathConfig = (path: MapPath) => {
   return {
     id: path.id,
     points,
-    stroke: isSelected ? '#ff4d4f' : (path.editorProps.strokeColor || '#52c41a'),
+    stroke: isSelected ? '#ff4d4f' : (path.editorProps.strokeColor || '#73c0ff'),
     strokeWidth: path.editorProps.strokeWidth || 2,
     lineCap: 'round',
     lineJoin: isOrthogonal ? 'miter' : 'round',
@@ -726,7 +743,7 @@ const getPathArrowConfig = (path: MapPath) => {
   const end = controlPoints[controlPoints.length - 1];
   const prev = controlPoints[controlPoints.length - 2];
   const isSelected = mapEditorStore.selection.selectedIds.has(path.id);
-  const stroke = isSelected ? '#ff4d4f' : (path.editorProps.strokeColor || '#52c41a');
+  const stroke = isSelected ? '#ff4d4f' : (path.editorProps.strokeColor || '#73c0ff');
   return {
     points: [prev.x, prev.y, end.x, end.y],
     pointerLength: PATH_ARROW.radius * 2.2,
@@ -789,7 +806,7 @@ const createConnectionBetweenPoints = (start: MapPoint, end: MapPoint) => {
       pathType: connectionType === 'curve' ? 'curve' : 'line'
     },
     editorProps: {
-      strokeColor: '#52c41a',
+      strokeColor: '#73c0ff',
       strokeWidth: 2,
       lineStyle: 'solid',
       arrowVisible: true,

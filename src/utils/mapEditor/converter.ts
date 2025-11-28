@@ -122,7 +122,7 @@ export class PathConverter {
         pathType: 'line'
       },
       editorProps: {
-        strokeColor: '#52c41a',
+        strokeColor: '#73c0ff',
         strokeWidth: 2,
         lineStyle: 'solid',
         arrowVisible: false,
