@@ -278,9 +278,21 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       layers.value = data.layers || [];
       
       // 更新元素数据
-      points.value = data.elements.points || [];
+      points.value = (data.elements.points || []).map(point => ({
+        ...point,
+        editorProps: {
+          ...point.editorProps,
+          labelVisible: point.editorProps?.labelVisible !== false // 默认为 true
+        }
+      }));
       paths.value = data.elements.paths || [];
-      locations.value = data.elements.locations || [];
+      locations.value = (data.elements.locations || []).map(location => ({
+        ...location,
+        editorProps: {
+          ...location.editorProps,
+          labelVisible: location.editorProps?.labelVisible !== false // 默认为 true
+        }
+      }));
 
       syncPointNameCounter();
       syncLocationNameCounter();

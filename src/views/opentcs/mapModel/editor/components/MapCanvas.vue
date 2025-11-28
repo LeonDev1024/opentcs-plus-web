@@ -61,6 +61,12 @@
             :key="`${point.id}-glyph`"
             :config="getPointGlyphConfig(point)"
           />
+          <!-- 点名称标签 -->
+          <v-text
+            v-if="shouldShowPointLabel(point)"
+            :key="`${point.id}-label`"
+            :config="getPointLabelConfig(point)"
+          />
         </template>
       </v-layer>
       
@@ -110,6 +116,12 @@
             v-if="location.editorProps?.label"
             :key="`${location.id}-symbol`"
             :config="getLocationSymbolConfig(location)"
+          />
+          <!-- 位置名称标签 -->
+          <v-text
+            v-if="shouldShowLocationLabel(location)"
+            :key="`${location.id}-label`"
+            :config="getLocationLabelConfig(location)"
           />
           <!-- 位置中心点（虚线链接工具模式下，悬停或选中时显示） -->
           <v-circle
@@ -379,6 +391,33 @@ const getPointVisualMeta = (point: MapPoint): PointVisualMeta => {
 };
 
 const shouldRenderPointGlyph = (point: MapPoint) => Boolean(getPointVisualMeta(point).glyph);
+
+// 判断是否显示点标签
+const shouldShowPointLabel = (point: MapPoint) => {
+  const labelVisible = point.editorProps?.labelVisible !== false; // 默认为 true
+  return showLabels.value && labelVisible && (point.name || point.id);
+};
+
+// 获取点标签配置
+const getPointLabelConfig = (point: MapPoint) => {
+  const visual = getPointVisualMeta(point);
+  const labelText = point.name || point.id;
+  const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
+  
+  return {
+    x: point.x,
+    y: point.y + visual.radius + 8, // 标签显示在点下方
+    text: labelText,
+    fontSize: 12,
+    fontFamily: 'Arial, sans-serif',
+    fill: isSelected ? '#ff4d4f' : '#303133',
+    align: 'center',
+    verticalAlign: 'top',
+    padding: 2,
+    listening: false,
+    perfectDrawEnabled: false
+  };
+};
 
 const getPointGlyphConfig = (point: MapPoint) => {
   const visual = getPointVisualMeta(point);
@@ -825,6 +864,37 @@ const getLocationSymbolConfig = (location: MapLocation) => {
     align: 'center',
     verticalAlign: 'middle',
     listening: false
+  };
+};
+
+// 判断是否显示位置标签
+const shouldShowLocationLabel = (location: MapLocation) => {
+  const labelVisible = location.editorProps?.labelVisible !== false; // 默认为 true
+  return showLabels.value && labelVisible && (location.name || location.id);
+};
+
+// 获取位置标签配置
+const getLocationLabelConfig = (location: MapLocation) => {
+  const centroid = getLocationCentroid(location);
+  const labelText = location.name || location.id;
+  const isSelected = mapEditorStore.selection.selectedIds.has(location.id);
+  
+  // 对于规则区域，标签显示在多边形中心下方
+  // 对于业务位置，标签显示在矩形中心下方
+  const offsetY = isRuleRegionLocation(location) ? 15 : 20;
+  
+  return {
+    x: centroid.x,
+    y: centroid.y + offsetY,
+    text: labelText,
+    fontSize: 12,
+    fontFamily: 'Arial, sans-serif',
+    fill: isSelected ? '#ff4d4f' : '#303133',
+    align: 'center',
+    verticalAlign: 'top',
+    padding: 2,
+    listening: false,
+    perfectDrawEnabled: false
   };
 };
 
