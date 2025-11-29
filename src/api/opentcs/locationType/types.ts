@@ -10,19 +10,19 @@ export interface LocationTypeVO {
   name: string;
 
   /**
-   * 允许的操作列表：LOAD, UNLOAD, NOP等
+   * 允许的操作列表：对象数组格式，如 [{ "name": "LOAD" }]
    */
-  allowedOperations?: string;
+  allowedOperations?: Array<{ name: string }>;
 
   /**
-   * 允许的外围设备操作
+   * 允许的外围设备操作：对象数组格式，如 [{ "name": "LIFT_UP" }]
    */
-  allowedPeripheralOperations?: string;
+  allowedPeripheralOperations?: Array<{ name: string }>;
 
   /**
-   * 扩展属性（JSON字符串，可能包含Symbol图标等）
+   * 扩展属性（对象类型，可能包含Symbol图标等）
    */
-  properties?: string;
+  properties?: Record<string, any>;
 
   /**
    * 创建时间
@@ -47,19 +47,19 @@ export interface LocationTypeForm extends BaseEntity {
   name?: string;
 
   /**
-   * 允许的操作列表：LOAD, UNLOAD, NOP等（逗号分隔）
+   * 允许的操作列表：对象数组格式，如 [{ "name": "LOAD" }]
    */
-  allowedOperations?: string;
+  allowedOperations?: Array<{ name: string }>;
 
   /**
-   * 允许的外围设备操作（逗号分隔）
+   * 允许的外围设备操作：对象数组格式，如 [{ "name": "LIFT_UP" }]
    */
-  allowedPeripheralOperations?: string;
+  allowedPeripheralOperations?: Array<{ name: string }>;
 
   /**
-   * 扩展属性（JSON字符串，可能包含Symbol图标等）
+   * 扩展属性（对象类型，可能包含Symbol图标等）
    */
-  properties?: string;
+  properties?: Record<string, any>;
 }
 
 export interface LocationTypeQuery extends PageQuery {

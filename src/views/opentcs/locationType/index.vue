@@ -101,7 +101,7 @@
           </el-select>
           <div class="form-tip">选择该位置类型支持的外设动作</div>
         </el-form-item>
-        <el-form-item label="Symbol图标" prop="symbol">
+        <el-form-item label="ICON图标" prop="symbol">
           <el-input v-model="form.symbol" placeholder="请输入Symbol图标，如：L, P, W等" maxlength="10" />
           <div class="form-tip">用于在地图上显示该位置类型的标识</div>
         </el-form-item>
@@ -143,40 +143,22 @@ const dialog = reactive<DialogOption>({
   title: ''
 });
 
-// 将操作列表字符串转换为数组
-const getOperationsList = (operations?: string): string[] => {
-  if (!operations) return [];
-  return operations.split(',').filter(op => op.trim());
+// 将操作列表（对象数组）转换为名称数组
+const getOperationsList = (operations?: Array<{ name: string }>): string[] => {
+  if (!operations || !Array.isArray(operations)) return [];
+  return operations.map(op => op.name).filter((name: string) => name);
+};
+
+// 解析操作数组（对象数组）为名称数组
+const parseOperationsArray = (operations?: Array<{ name: string }>): string[] => {
+  if (!operations || !Array.isArray(operations)) return [];
+  return operations.map(op => op.name).filter((name: string) => name);
 };
 
 // 从properties中获取Symbol
-const getSymbol = (properties?: string): string | null => {
+const getSymbol = (properties?: Record<string, any>): string | null => {
   if (!properties) return null;
-  try {
-    const props = JSON.parse(properties);
-    return props.symbol || props.Symbol || null;
-  } catch {
-    return null;
-  }
-};
-
-// 将properties字符串转换为对象
-const parseProperties = (properties?: string): any => {
-  if (!properties) return {};
-  try {
-    return JSON.parse(properties);
-  } catch {
-    return {};
-  }
-};
-
-// 将对象转换为properties字符串
-const stringifyProperties = (obj: any): string => {
-  try {
-    return JSON.stringify(obj);
-  } catch {
-    return '{}';
-  }
+  return properties.symbol || properties.Symbol || null;
 };
 
 const initFormData = {
@@ -262,13 +244,17 @@ const handleUpdate = async (row?: LocationTypeVO) => {
   // 解析数据到表单
   form.value.id = data.id;
   form.value.name = data.name;
-  form.value.allowedOperationsList = getOperationsList(data.allowedOperations);
-  form.value.allowedPeripheralOperationsList = getOperationsList(data.allowedPeripheralOperations);
   
-  // 解析properties
-  const props = parseProperties(data.properties);
-  form.value.symbol = props.symbol || props.Symbol || '';
-  form.value.propertiesText = data.properties || '';
+  // 解析 allowedOperations（对象数组）
+  form.value.allowedOperationsList = parseOperationsArray(data.allowedOperations);
+  
+  // 解析 allowedPeripheralOperations（对象数组）
+  form.value.allowedPeripheralOperationsList = parseOperationsArray(data.allowedPeripheralOperations);
+  
+  // 解析properties（对象类型）
+  form.value.symbol = data.properties?.symbol || data.properties?.Symbol || '';
+  // 将properties对象转换为JSON字符串用于编辑
+  form.value.propertiesText = data.properties ? JSON.stringify(data.properties, null, 2) : '';
   
   dialog.visible = true;
   dialog.title = '修改位置类型';
@@ -284,12 +270,13 @@ const submitForm = () => {
       const submitData: LocationTypeForm = {
         id: form.value.id,
         name: form.value.name,
-        allowedOperations: form.value.allowedOperationsList.join(','),
-        allowedPeripheralOperations: form.value.allowedPeripheralOperationsList.join(',')
+        // 将选中的操作转换为对象数组格式 [{ "name": "LOAD" }]
+        allowedOperations: form.value.allowedOperationsList.map(name => ({ name })),
+        allowedPeripheralOperations: form.value.allowedPeripheralOperationsList.map(name => ({ name }))
       };
       
-      // 处理properties
-      const props: any = {};
+      // 处理properties（对象类型）
+      const props: Record<string, any> = {};
       if (form.value.symbol) {
         props.symbol = form.value.symbol;
       }
@@ -308,7 +295,8 @@ const submitForm = () => {
         }
       }
       
-      submitData.properties = Object.keys(props).length > 0 ? JSON.stringify(props) : undefined;
+      // properties 直接作为对象传递，而不是JSON字符串
+      submitData.properties = Object.keys(props).length > 0 ? props : undefined;
       
       try {
         if (form.value.id) {

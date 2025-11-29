@@ -9,7 +9,7 @@ import { LocationTypeVO, LocationTypeForm, LocationTypeQuery } from '@/api/opent
  */
 export const listLocationType = (query?: LocationTypeQuery): AxiosPromise<LocationTypeVO[]> => {
   return request({
-    url: '/opentcs/locationType/list',
+    url: '/map/locationType/list',
     method: 'get',
     params: query
   });
@@ -21,7 +21,7 @@ export const listLocationType = (query?: LocationTypeQuery): AxiosPromise<Locati
  */
 export const getLocationType = (id: string | number): AxiosPromise<LocationTypeVO> => {
   return request({
-    url: '/opentcs/locationType/' + id,
+    url: '/map/locationType/' + id,
     method: 'get'
   });
 };
@@ -32,7 +32,7 @@ export const getLocationType = (id: string | number): AxiosPromise<LocationTypeV
  */
 export const addLocationType = (data: LocationTypeForm) => {
   return request({
-    url: '/opentcs/locationType',
+    url: '/map/locationType/create',
     method: 'post',
     data: data
   });
@@ -44,7 +44,7 @@ export const addLocationType = (data: LocationTypeForm) => {
  */
 export const updateLocationType = (data: LocationTypeForm) => {
   return request({
-    url: '/opentcs/locationType',
+    url: '/map/locationType',
     method: 'put',
     data: data
   });
@@ -56,7 +56,7 @@ export const updateLocationType = (data: LocationTypeForm) => {
  */
 export const delLocationType = (id: string | number | Array<string | number>) => {
   return request({
-    url: '/opentcs/locationType/' + id,
+    url: '/map/locationType/' + id,
     method: 'delete'
   });
 };
