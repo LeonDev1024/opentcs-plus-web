@@ -102,8 +102,8 @@
           <div class="form-tip">选择该位置类型支持的外设动作</div>
         </el-form-item>
         <el-form-item label="ICON图标" prop="symbol">
-          <el-input v-model="form.symbol" placeholder="请输入Symbol图标，如：L, P, W等" maxlength="10" />
-          <div class="form-tip">用于在地图上显示该位置类型的标识</div>
+          <IconifyIconSelect v-model="form.symbol" />
+          <div class="form-tip">选择 Iconify 图标或输入自定义文本（如：L, P, W等），用于在地图上显示该位置类型的标识</div>
         </el-form-item>
         <el-form-item label="其他参数" prop="properties">
           <el-input v-model="form.propertiesText" type="textarea" :rows="4" placeholder='请输入JSON格式的其他参数，如：{"key": "value"}' />
@@ -123,6 +123,7 @@
 <script setup name="LocationType" lang="ts">
 import { listLocationType, getLocationType, delLocationType, addLocationType, updateLocationType } from '@/api/opentcs/locationType';
 import { LocationTypeVO, LocationTypeQuery, LocationTypeForm } from '@/api/opentcs/locationType/types';
+import IconifyIconSelect from '@/components/IconifyIconSelect/index.vue';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 

@@ -72,6 +72,7 @@ declare module 'vue' {
     FlowChart: typeof import('./../components/Process/flowChart.vue')['default']
     FlowChartImg: typeof import('./../components/Process/flowChartImg.vue')['default']
     Hamburger: typeof import('./../components/Hamburger/index.vue')['default']
+    IconifyIconSelect: typeof import('./../components/IconifyIconSelect/index.vue')['default']
     IconSelect: typeof import('./../components/IconSelect/index.vue')['default']
     IEpCaretBottom: typeof import('~icons/ep/caret-bottom')['default']
     IEpCaretTop: typeof import('~icons/ep/caret-top')['default']
