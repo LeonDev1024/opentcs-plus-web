@@ -13,7 +13,11 @@
               @node-click="handleNodeClick"
             >
               <template #default="{ node, data }">
-                <div class="tree-node">
+                <div 
+                  class="tree-node"
+                  @dblclick="handleNodeDoubleClick(data)"
+                  @contextmenu.prevent="handleNodeContextMenu($event, data)"
+                >
                   <el-icon v-if="data.type === 'layout'" class="node-icon"><Grid /></el-icon>
                   <el-icon v-else-if="data.type === 'folder'" class="node-icon"><Folder /></el-icon>
                   <span
@@ -46,18 +50,37 @@
         </div>
       </el-tab-pane>
     </el-tabs>
+    
+    <!-- 属性详情弹窗 -->
+    <PointDetailDialog 
+      v-model="showDetailDialog" 
+      :point="currentPoint"
+    />
+    
+    <!-- 编辑对话框 -->
+    <PointEditDialog 
+      v-model="showEditDialog" 
+      :point="currentPoint"
+      @updated="handlePointUpdated"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Grid, Folder } from '@element-plus/icons-vue';
+import { Grid, Folder, Edit } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
-import type { MapPath } from '@/types/mapEditor';
+import type { MapPath, MapPoint } from '@/types/mapEditor';
+import PointDetailDialog from './PointDetailDialog.vue';
+import PointEditDialog from './PointEditDialog.vue';
 
 const mapEditorStore = useMapEditorStore();
 
 const activeTab = ref('components');
+const showDetailDialog = ref(false);
+const showEditDialog = ref(false);
+const currentPoint = ref<MapPoint | null>(null);
 
 const treeProps = {
   children: 'children',
@@ -202,6 +225,100 @@ const handleNodeClick = (data: any) => {
 
 const handleElementSelect = (id: string, elementType: 'point' | 'path' | 'location') => {
   mapEditorStore.selectElement(id, elementType, false);
+};
+
+// 双击节点事件
+const handleNodeDoubleClick = (data: any) => {
+  if (data.type === 'element' && data.elementType === 'point') {
+    const point = mapEditorStore.points.find(p => p.id === data.elementId);
+    if (point) {
+      currentPoint.value = point;
+      showDetailDialog.value = true;
+    }
+  }
+};
+
+// 右键菜单事件
+const handleNodeContextMenu = (event: MouseEvent, data: any) => {
+  if (data.type === 'element' && data.elementType === 'point') {
+    const point = mapEditorStore.points.find(p => p.id === data.elementId);
+    if (point) {
+      // 移除已存在的菜单
+      const existingMenu = document.querySelector('.point-context-menu');
+      if (existingMenu) {
+        document.body.removeChild(existingMenu);
+      }
+      
+      // 创建右键菜单
+      const menu = document.createElement('div');
+      menu.className = 'point-context-menu';
+      menu.innerHTML = '<div class="menu-item">编辑</div>';
+      menu.style.cssText = `
+        position: fixed;
+        left: ${event.clientX}px;
+        top: ${event.clientY}px;
+        background: #fff;
+        border: 1px solid #e4e7ed;
+        border-radius: 4px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+        z-index: 9999;
+        min-width: 120px;
+        padding: 4px 0;
+      `;
+      
+      const menuItem = menu.querySelector('.menu-item') as HTMLElement;
+      menuItem.style.cssText = `
+        padding: 8px 16px;
+        cursor: pointer;
+        font-size: 14px;
+        color: #606266;
+        transition: background-color 0.2s;
+      `;
+      
+      menuItem.addEventListener('mouseenter', () => {
+        menuItem.style.backgroundColor = '#f5f7fa';
+      });
+      
+      menuItem.addEventListener('mouseleave', () => {
+        menuItem.style.backgroundColor = 'transparent';
+      });
+      
+      menuItem.addEventListener('click', () => {
+        currentPoint.value = point;
+        showEditDialog.value = true;
+        if (document.body.contains(menu)) {
+          document.body.removeChild(menu);
+        }
+        document.removeEventListener('click', closeMenu);
+        document.removeEventListener('contextmenu', closeMenu);
+      });
+      
+      document.body.appendChild(menu);
+      
+      // 点击其他地方或右键关闭菜单
+      const closeMenu = (e: MouseEvent) => {
+        if (!menu.contains(e.target as Node)) {
+          if (document.body.contains(menu)) {
+            document.body.removeChild(menu);
+          }
+          document.removeEventListener('click', closeMenu);
+          document.removeEventListener('contextmenu', closeMenu);
+        }
+      };
+      
+      // 使用 nextTick 确保菜单已渲染
+      setTimeout(() => {
+        document.addEventListener('click', closeMenu);
+        document.addEventListener('contextmenu', closeMenu);
+      }, 0);
+    }
+  }
+};
+
+// 点更新后的回调
+const handlePointUpdated = () => {
+  // 刷新视图树数据
+  // treeData 是 computed，会自动更新
 };
 </script>
 
