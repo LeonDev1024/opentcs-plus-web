@@ -281,22 +281,15 @@
           </div>
         </div>
         
-        <!-- 属性面板 -->
-        <div class="panel-container">
-          <div class="panel-header">
-            <span class="canvas-title">属性</span>
-          </div>
-          <div class="panel-content">
-            <PropertyPanel />
-          </div>
-        </div>
-        
         <!-- 图层面板 -->
         <div class="panel-container">
-          <div class="panel-header">
+          <div class="panel-header" @click="toggleLayerPanelCollapse">
             <span class="canvas-title">图层</span>
+            <el-icon class="collapse-icon" :class="{ 'collapsed': isLayerPanelCollapsed }">
+              <ArrowDown />
+            </el-icon>
           </div>
-          <div class="panel-content">
+          <div v-show="!isLayerPanelCollapsed" class="panel-content">
             <LayerPanel />
           </div>
         </div>
@@ -336,7 +329,6 @@ import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import MapCanvas from './components/MapCanvas.vue';
 import LayerPanel from './components/LayerPanel.vue';
-import PropertyPanel from './components/PropertyPanel.vue';
 import ComponentsPanel from './components/ComponentsPanel.vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import { ToolMode } from '@/types/mapEditor';
@@ -366,6 +358,9 @@ const isHeaderCollapsed = ref(false);
 
 // 左侧面板收起状态
 const isLeftPanelCollapsed = ref(false);
+
+// 图层面板折叠状态
+const isLayerPanelCollapsed = ref(false);
 
 // 左侧面板宽度
 const LEFT_PANEL_MIN_WIDTH = 200;
@@ -482,6 +477,11 @@ const toggleHeaderCollapse = () => {
 // 左侧面板收起/展开
 const toggleLeftPanelCollapse = () => {
   isLeftPanelCollapsed.value = !isLeftPanelCollapsed.value;
+};
+
+// 图层面板折叠/展开
+const toggleLayerPanelCollapse = () => {
+  isLayerPanelCollapsed.value = !isLayerPanelCollapsed.value;
 };
 
 watch(isHeaderCollapsed, () => {
@@ -1002,14 +1002,20 @@ onUnmounted(() => {
       flex-shrink: 0;
       
       .panel-container {
-        flex: 1;
         display: flex;
         flex-direction: column;
         border-bottom: 1px solid #e4e7ed;
         min-height: 0;
         
+        // 视图面板始终占据剩余空间
+        &:first-child {
+          flex: 1;
+        }
+        
+        // 图层面板根据内容自适应
         &:last-child {
           border-bottom: none;
+          flex-shrink: 0;
         }
         
         .panel-header {
@@ -1019,13 +1025,33 @@ onUnmounted(() => {
           border-bottom: 1px solid #e4e7ed;
           display: flex;
           align-items: center;
+          justify-content: space-between;
           box-sizing: border-box;
+          cursor: pointer;
+          user-select: none;
+          transition: background-color 0.2s;
           
-          .panel-title {
+          &:hover {
+            background: #f5f7fa;
+          }
+          
+          .panel-title,
+          .canval-title,
+          .canvas-title {
             font-size: 12px;
             color: #606266;
             line-height: 1;
             font-weight: 500;
+          }
+          
+          .collapse-icon {
+            font-size: 14px;
+            color: #909399;
+            transition: transform 0.3s ease;
+            
+            &.collapsed {
+              transform: rotate(-90deg);
+            }
           }
         }
         
