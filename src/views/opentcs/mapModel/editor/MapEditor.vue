@@ -306,7 +306,7 @@
       <!-- 中间：画布区域 -->
       <div class="canvas-area">
         <div class="canvas-wrapper">
-          <MapCanvas ref="mapCanvasRef" />
+          <MapCanvas ref="mapCanvasRef" @point-double-click="handlePointDoubleClick" />
         </div>
       </div>
     </div>
@@ -320,6 +320,13 @@
         </span>
       </div>
     </div>
+    
+    <!-- 点编辑对话框 -->
+    <PointEditDialog 
+      v-model="showPointEditDialog" 
+      :point="currentEditPoint"
+      @updated="handlePointUpdated"
+    />
   </div>
 </template>
 
@@ -330,8 +337,10 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import MapCanvas from './components/MapCanvas.vue';
 import LayerPanel from './components/LayerPanel.vue';
 import ComponentsPanel from './components/ComponentsPanel.vue';
+import PointEditDialog from './components/PointEditDialog.vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import { ToolMode } from '@/types/mapEditor';
+import type { MapPoint } from '@/types/mapEditor';
 import PathTypeIcon from './components/icons/PathTypeIcon.vue';
 import LocationTypeIcon from './components/icons/LocationTypeIcon.vue';
 import SvgIcon from '@/components/SvgIcon/index.vue';
@@ -352,6 +361,10 @@ const showBlocks = ref(true);
 
 // 鼠标位置（从画布组件获取）
 const mousePosition = ref({ x: 0, y: 0 });
+
+// 点编辑对话框
+const showPointEditDialog = ref(false);
+const currentEditPoint = ref<MapPoint | null>(null);
 
 // 顶部导航折叠状态
 const isHeaderCollapsed = ref(false);
@@ -717,6 +730,17 @@ const handleClose = async () => {
   }
   
   router.back();
+};
+
+// 处理点双击事件
+const handlePointDoubleClick = (point: MapPoint) => {
+  currentEditPoint.value = point;
+  showPointEditDialog.value = true;
+};
+
+// 点更新后的回调
+const handlePointUpdated = () => {
+  // 刷新视图
 };
 
 // 键盘快捷键

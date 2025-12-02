@@ -52,6 +52,7 @@
           <v-circle
             :config="getPointConfig(point)"
             @click="handlePointClick(point, $event)"
+            @dblclick="handlePointDoubleClick(point, $event)"
             @dragstart="handlePointDragStart(point)"
             @dragmove="handlePointDragMove(point, $event)"
             @dragend="handlePointDragEnd(point)"
@@ -174,6 +175,11 @@ import { snapPoint } from '@/utils/mapEditor/snap';
 // 注意：vue-konva 3.x 使用 v-stage, v-layer 等组件名
 
 const mapEditorStore = useMapEditorStore();
+
+// 定义事件
+const emit = defineEmits<{
+  'point-double-click': [point: MapPoint];
+}>();
 
 type PathConnectionType = 'direct' | 'orthogonal' | 'curve';
 
@@ -488,6 +494,9 @@ const tempLocation = ref<any>(null);
 const isDrawing = ref(false);
 const drawingPoints = ref<Array<{ x: number; y: number }>>([]);
 const activeDrawingTool = ref<ToolMode | null>(null);
+
+// 标记绘制点后需要切换工具
+const shouldSwitchToSelectAfterPoint = ref(false);
 
 // 连线状态
 const hoveredPointId = ref<string | null>(null);
@@ -1204,6 +1213,23 @@ const handleMouseDown = (e: any) => {
       (id) => mapEditorStore.deletePoint(id)
     );
     mapEditorStore.executeCommand(command);
+    
+    // 标记需要在鼠标松开时切换工具（双重保险）
+    shouldSwitchToSelectAfterPoint.value = true;
+    
+    // 绘制完成后切换回选择工具
+    // 使用双重延迟确保切换生效：先 requestAnimationFrame，再 setTimeout
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        // 再次检查工具状态，确保仍然是绘制点模式
+        if (mapEditorStore.currentTool === ToolMode.POINT) {
+          mapEditorStore.setTool(ToolMode.SELECT);
+        }
+      }, 50);
+    });
+    
+    e.evt.preventDefault();
+    e.evt.stopPropagation();
   } else if (currentTool.value === ToolMode.LOCATION) {
     // 业务位置：单击直接创建一个小正方形方框
     const size = 40;
@@ -1236,6 +1262,18 @@ const handleMouseDown = (e: any) => {
         labelVisible: true
       }
     });
+    
+    // 绘制完成后切换回选择工具
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (mapEditorStore.currentTool === ToolMode.LOCATION) {
+          mapEditorStore.setTool(ToolMode.SELECT);
+        }
+      }, 50);
+    });
+    
+    e.evt.preventDefault();
+    e.evt.stopPropagation();
   } else if (currentTool.value === ToolMode.RULE_REGION) {
     // 开始绘制位置（多边形）或添加顶点
     if (!isDrawing.value) {
@@ -1360,6 +1398,23 @@ const handleMouseMove = (e: any) => {
 const handleMouseUp = (e: any) => {
   const stage = e.target?.getStage();
   
+  // 绘制点后切换回选择工具（备用方案）
+  if (shouldSwitchToSelectAfterPoint.value) {
+    shouldSwitchToSelectAfterPoint.value = false;
+    if (mapEditorStore.currentTool === ToolMode.POINT) {
+      mapEditorStore.setTool(ToolMode.SELECT);
+    }
+  }
+  
+  // 如果工具仍然是绘制点模式，也尝试切换（双重保险）
+  if (currentTool.value === ToolMode.POINT && !shouldSwitchToSelectAfterPoint.value) {
+    setTimeout(() => {
+      if (mapEditorStore.currentTool === ToolMode.POINT) {
+        mapEditorStore.setTool(ToolMode.SELECT);
+      }
+    }, 100);
+  }
+  
   // 平移模式结束
   if (currentTool.value === ToolMode.PAN && isDragging.value) {
     isDragging.value = false;
@@ -1415,6 +1470,15 @@ const handleMouseUp = (e: any) => {
       if (endPoint) {
         createDashedLinkBetweenLocationAndPoint(startLocation, endPoint);
         cancelDashedLinkDrag(stage);
+        
+        // 绘制完成后切换回选择工具
+        requestAnimationFrame(() => {
+          setTimeout(() => {
+            if (mapEditorStore.currentTool === ToolMode.DASHED_LINK) {
+              mapEditorStore.setTool(ToolMode.SELECT);
+            }
+          }, 50);
+        });
       } else {
         // 没有拖拽到点，取消拖拽
         cancelDashedLinkDrag(stage);
@@ -1476,6 +1540,17 @@ const completeLocationDrawing = () => {
       labelVisible: true
     }
   });
+  
+  // 绘制完成后切换回选择工具（如果是规则区域）
+  if (isRuleRegion) {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (mapEditorStore.currentTool === ToolMode.RULE_REGION) {
+          mapEditorStore.setTool(ToolMode.SELECT);
+        }
+      }, 50);
+    });
+  }
   
   isDrawing.value = false;
   drawingPoints.value = [];
@@ -1541,6 +1616,10 @@ const handleWheel = (e: any) => {
   });
 };
 
+// 点点击延迟处理（用于区分单击和双击）
+let clickTimer: ReturnType<typeof setTimeout> | null = null;
+const CLICK_DELAY = 250; // 250ms 内的第二次点击视为双击
+
 // 点点击
 const handlePointClick = (point: MapPoint, e: any) => {
   e.cancelBubble = true;
@@ -1550,6 +1629,16 @@ const handlePointClick = (point: MapPoint, e: any) => {
     if (dashedLinkDragState.startLocation) {
       createDashedLinkBetweenLocationAndPoint(dashedLinkDragState.startLocation, point);
       cancelDashedLinkDrag(e.target.getStage());
+      
+      // 绘制完成后切换回选择工具
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (mapEditorStore.currentTool === ToolMode.DASHED_LINK) {
+            mapEditorStore.setTool(ToolMode.SELECT);
+          }
+        }, 50);
+      });
+      
       return;
     }
   }
@@ -1558,8 +1647,36 @@ const handlePointClick = (point: MapPoint, e: any) => {
     return;
   }
   
-  const multiSelect = e.evt.ctrlKey || e.evt.metaKey;
-  mapEditorStore.selectElement(point.id, 'point', multiSelect);
+  // 延迟处理单击，如果250ms内有双击则取消单击
+  if (clickTimer) {
+    clearTimeout(clickTimer);
+    clickTimer = null;
+    // 第二次点击在延迟时间内，视为双击，不处理单击
+    return;
+  }
+  
+  clickTimer = setTimeout(() => {
+    const multiSelect = e.evt.ctrlKey || e.evt.metaKey;
+    mapEditorStore.selectElement(point.id, 'point', multiSelect);
+    clickTimer = null;
+  }, CLICK_DELAY);
+};
+
+// 点双击
+const handlePointDoubleClick = (point: MapPoint, e: any) => {
+  e.cancelBubble = true;
+  
+  // 取消单击事件
+  if (clickTimer) {
+    clearTimeout(clickTimer);
+    clickTimer = null;
+  }
+  
+  // 只有在选择工具模式下才允许双击编辑
+  if (currentTool.value === ToolMode.SELECT) {
+    // 触发编辑事件，由父组件处理
+    emit('point-double-click', point);
+  }
 };
 
 // 点拖拽
