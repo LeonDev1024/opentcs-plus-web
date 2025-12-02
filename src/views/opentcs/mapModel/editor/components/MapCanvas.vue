@@ -497,6 +497,8 @@ const activeDrawingTool = ref<ToolMode | null>(null);
 
 // 标记绘制点后需要切换工具
 const shouldSwitchToSelectAfterPoint = ref(false);
+// 标记其他工具绘制后需要切换工具
+const shouldSwitchToSelectAfterOther = ref<{ tool: ToolMode } | null>(null);
 
 // 连线状态
 const hoveredPointId = ref<string | null>(null);
@@ -1263,7 +1265,10 @@ const handleMouseDown = (e: any) => {
       }
     });
     
-    // 绘制完成后切换回选择工具
+    // 标记需要在鼠标松开时切换工具（双重保险）
+    shouldSwitchToSelectAfterOther.value = { tool: ToolMode.LOCATION };
+    
+    // 绘制完成后切换回选择工具（使用和绘制点完全相同的逻辑）
     requestAnimationFrame(() => {
       setTimeout(() => {
         if (mapEditorStore.currentTool === ToolMode.LOCATION) {
@@ -1406,10 +1411,29 @@ const handleMouseUp = (e: any) => {
     }
   }
   
+  // 其他工具绘制后切换回选择工具（备用方案）
+  if (shouldSwitchToSelectAfterOther.value) {
+    const toolToSwitch = shouldSwitchToSelectAfterOther.value.tool;
+    shouldSwitchToSelectAfterOther.value = null;
+    if (mapEditorStore.currentTool === toolToSwitch) {
+      mapEditorStore.setTool(ToolMode.SELECT);
+    }
+  }
+  
   // 如果工具仍然是绘制点模式，也尝试切换（双重保险）
   if (currentTool.value === ToolMode.POINT && !shouldSwitchToSelectAfterPoint.value) {
     setTimeout(() => {
       if (mapEditorStore.currentTool === ToolMode.POINT) {
+        mapEditorStore.setTool(ToolMode.SELECT);
+      }
+    }, 100);
+  }
+  
+  // 如果其他工具仍然处于绘制模式，也尝试切换（双重保险）
+  const otherTools = [ToolMode.LOCATION, ToolMode.PATH, ToolMode.DASHED_LINK, ToolMode.RULE_REGION];
+  if (otherTools.includes(currentTool.value) && !shouldSwitchToSelectAfterOther.value) {
+    setTimeout(() => {
+      if (otherTools.includes(mapEditorStore.currentTool)) {
         mapEditorStore.setTool(ToolMode.SELECT);
       }
     }, 100);
@@ -1449,9 +1473,18 @@ const handleMouseUp = (e: any) => {
     // 无论是否创建成功，都清除路径拖拽状态和预览
     cancelPathDrag(stage);
     
-    // 如果路径创建成功，切换回选择模式
+    // 如果路径创建成功，切换回选择模式（使用和绘制点完全相同的逻辑）
     if (pathCreated) {
-      mapEditorStore.setTool(ToolMode.SELECT);
+      // 标记需要在鼠标松开时切换工具（双重保险）
+      shouldSwitchToSelectAfterOther.value = { tool: ToolMode.PATH };
+      
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (mapEditorStore.currentTool === ToolMode.PATH) {
+            mapEditorStore.setTool(ToolMode.SELECT);
+          }
+        }, 50);
+      });
     }
   } else if (currentTool.value === ToolMode.PATH && stage && e.evt.button === 0) {
     // 点击空白处清除残留的预览线
@@ -1471,7 +1504,10 @@ const handleMouseUp = (e: any) => {
         createDashedLinkBetweenLocationAndPoint(startLocation, endPoint);
         cancelDashedLinkDrag(stage);
         
-        // 绘制完成后切换回选择工具
+        // 标记需要在鼠标松开时切换工具（双重保险）
+        shouldSwitchToSelectAfterOther.value = { tool: ToolMode.DASHED_LINK };
+        
+        // 绘制完成后切换回选择工具（使用和绘制点完全相同的逻辑）
         requestAnimationFrame(() => {
           setTimeout(() => {
             if (mapEditorStore.currentTool === ToolMode.DASHED_LINK) {
@@ -1541,8 +1577,11 @@ const completeLocationDrawing = () => {
     }
   });
   
-  // 绘制完成后切换回选择工具（如果是规则区域）
+  // 绘制完成后切换回选择工具（如果是规则区域，使用和绘制点完全相同的逻辑）
   if (isRuleRegion) {
+    // 标记需要在鼠标松开时切换工具（双重保险）
+    shouldSwitchToSelectAfterOther.value = { tool: ToolMode.RULE_REGION };
+    
     requestAnimationFrame(() => {
       setTimeout(() => {
         if (mapEditorStore.currentTool === ToolMode.RULE_REGION) {
@@ -1630,7 +1669,7 @@ const handlePointClick = (point: MapPoint, e: any) => {
       createDashedLinkBetweenLocationAndPoint(dashedLinkDragState.startLocation, point);
       cancelDashedLinkDrag(e.target.getStage());
       
-      // 绘制完成后切换回选择工具
+      // 绘制完成后切换回选择工具（使用和绘制点相同的逻辑）
       requestAnimationFrame(() => {
         setTimeout(() => {
           if (mapEditorStore.currentTool === ToolMode.DASHED_LINK) {
