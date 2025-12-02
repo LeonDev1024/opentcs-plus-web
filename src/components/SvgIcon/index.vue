@@ -12,7 +12,15 @@ const props = defineProps({
   className: propTypes.string.def(''),
   color: propTypes.string.def('')
 });
-const iconName = computed(() => `#icon-${props.iconClass}`);
+
+// 计算图标名称
+// 对于所有通过 vite-plugin-svg-icons-ng 注册的图标，
+// symbolId 统一为 icon-[name]，因此这里统一使用该规则。
+const iconName = computed(() => {
+  const iconClass = props.iconClass;
+  return `#icon-${iconClass}`;
+});
+
 const svgClass = computed(() => {
   if (props.className) {
     return `svg-icon ${props.className}`;

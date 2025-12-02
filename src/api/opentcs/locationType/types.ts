@@ -20,9 +20,9 @@ export interface LocationTypeVO {
   allowedPeripheralOperations?: Array<{ name: string }>;
 
   /**
-   * 扩展属性（对象类型，可能包含Symbol图标等）
+   * 扩展属性（数组类型，可能包含Symbol图标等）
    */
-  properties?: Record<string, any>;
+  properties?: Array<Record<string, any>>;
 
   /**
    * 创建时间
@@ -57,9 +57,9 @@ export interface LocationTypeForm extends BaseEntity {
   allowedPeripheralOperations?: Array<{ name: string }>;
 
   /**
-   * 扩展属性（对象类型，可能包含Symbol图标等）
+   * 扩展属性（数组类型，可能包含Symbol图标等）
    */
-  properties?: Record<string, any>;
+  properties?: Array<Record<string, any>>;
 }
 
 export interface LocationTypeQuery extends PageQuery {

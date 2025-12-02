@@ -44,7 +44,7 @@ export const addLocationType = (data: LocationTypeForm) => {
  */
 export const updateLocationType = (data: LocationTypeForm) => {
   return request({
-    url: '/map/locationType',
+    url: '/map/locationType/update',
     method: 'put',
     data: data
   });

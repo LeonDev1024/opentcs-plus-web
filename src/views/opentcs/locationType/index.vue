@@ -52,9 +52,9 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="Symbol图标" align="center" min-width="100">
+        <el-table-column label="工作站图标" align="center" min-width="100">
           <template #default="scope">
-            <span v-if="getSymbol(scope.row.properties)">{{ getSymbol(scope.row.properties) }}</span>
+            <svg-icon v-if="getSymbol(scope.row.properties)" :icon-class="getSymbol(scope.row.properties)" style="font-size: 20px;" />
             <span v-else style="color: #909399;">-</span>
           </template>
         </el-table-column>
@@ -101,9 +101,9 @@
           </el-select>
           <div class="form-tip">选择该位置类型支持的外设动作</div>
         </el-form-item>
-        <el-form-item label="ICON图标" prop="symbol">
-          <IconifyIconSelect v-model="form.symbol" />
-          <div class="form-tip">选择 Iconify 图标或输入自定义文本（如：L, P, W等），用于在地图上显示该位置类型的标识</div>
+        <el-form-item label="工作站图标" prop="symbol">
+          <LocationIconSelect v-model="form.symbol" />
+          <div class="form-tip">选择 assets/location 目录下的图标，用于在地图上显示该位置类型的标识</div>
         </el-form-item>
         <el-form-item label="其他参数" prop="properties">
           <el-input v-model="form.propertiesText" type="textarea" :rows="4" placeholder='请输入JSON格式的其他参数，如：{"key": "value"}' />
@@ -123,7 +123,7 @@
 <script setup name="LocationType" lang="ts">
 import { listLocationType, getLocationType, delLocationType, addLocationType, updateLocationType } from '@/api/opentcs/locationType';
 import { LocationTypeVO, LocationTypeQuery, LocationTypeForm } from '@/api/opentcs/locationType/types';
-import IconifyIconSelect from '@/components/IconifyIconSelect/index.vue';
+import LocationIconSelect from '@/components/LocationIconSelect/index.vue';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 
@@ -156,10 +156,19 @@ const parseOperationsArray = (operations?: Array<{ name: string }>): string[] =>
   return operations.map(op => op.name).filter((name: string) => name);
 };
 
-// 从properties中获取Symbol
-const getSymbol = (properties?: Record<string, any>): string | null => {
-  if (!properties) return null;
-  return properties.symbol || properties.Symbol || null;
+// 从properties中获取Symbol（properties是数组类型，格式为 [{"name":"symbol","value":"bettery"}]）
+const getSymbol = (properties?: Array<Record<string, any>>): string | null => {
+  if (!properties || !Array.isArray(properties)) return null;
+  // 从数组中查找 name 为 "symbol" 或 "Symbol" 的项
+  for (const prop of properties) {
+    if (prop.name === 'symbol' || prop.name === 'Symbol') {
+      return prop.value || null;
+    }
+    // 兼容旧格式：直接包含 symbol 或 Symbol 键
+    if (prop.symbol) return prop.symbol;
+    if (prop.Symbol) return prop.Symbol;
+  }
+  return null;
 };
 
 const initFormData = {
@@ -252,10 +261,26 @@ const handleUpdate = async (row?: LocationTypeVO) => {
   // 解析 allowedPeripheralOperations（对象数组）
   form.value.allowedPeripheralOperationsList = parseOperationsArray(data.allowedPeripheralOperations);
   
-  // 解析properties（对象类型）
-  form.value.symbol = data.properties?.symbol || data.properties?.Symbol || '';
-  // 将properties对象转换为JSON字符串用于编辑
-  form.value.propertiesText = data.properties ? JSON.stringify(data.properties, null, 2) : '';
+  // 解析properties（数组类型，格式为 [{"name":"symbol","value":"bettery"}]）
+  if (data.properties && Array.isArray(data.properties)) {
+    // 从数组中查找 name 为 "symbol" 或 "Symbol" 的项
+    const symbolProp = data.properties.find(p => p.name === 'symbol' || p.name === 'Symbol');
+    form.value.symbol = symbolProp?.value || '';
+    // 兼容旧格式：直接包含 symbol 或 Symbol 键
+    if (!form.value.symbol) {
+      const oldSymbolProp = data.properties.find(p => p.symbol || p.Symbol);
+      form.value.symbol = oldSymbolProp?.symbol || oldSymbolProp?.Symbol || '';
+    }
+    // 将除了symbol之外的其他参数转换为JSON字符串用于编辑
+    const otherProps = data.properties.filter(p => {
+      const name = p.name || '';
+      return name !== 'symbol' && name !== 'Symbol' && !('symbol' in p) && !('Symbol' in p);
+    });
+    form.value.propertiesText = otherProps.length > 0 ? JSON.stringify(otherProps, null, 2) : '';
+  } else {
+    form.value.symbol = '';
+    form.value.propertiesText = '';
+  }
   
   dialog.visible = true;
   dialog.title = '修改位置类型';
@@ -276,28 +301,44 @@ const submitForm = () => {
         allowedPeripheralOperations: form.value.allowedPeripheralOperationsList.map(name => ({ name }))
       };
       
-      // 处理properties（对象类型）
-      const props: Record<string, any> = {};
-      if (form.value.symbol) {
-        props.symbol = form.value.symbol;
-      }
+      // 处理properties（数组类型，格式为 [{"name":"symbol","value":"bettery"}]）
+      // propertiesText 只包含除了 symbol 之外的其他参数
+      const propsArray: Array<Record<string, any>> = [];
       
-      // 如果propertiesText存在，尝试解析并合并
-      if (form.value.propertiesText) {
+      // 如果propertiesText存在且不为空，尝试解析（这些是除了symbol之外的其他参数）
+      if (form.value.propertiesText && form.value.propertiesText.trim()) {
         try {
           const parsedProps = JSON.parse(form.value.propertiesText);
-          Object.assign(props, parsedProps);
-          // 确保symbol优先使用表单中的值
-          if (form.value.symbol) {
-            props.symbol = form.value.symbol;
+          // 如果解析出来是数组，直接使用
+          if (Array.isArray(parsedProps)) {
+            propsArray.push(...parsedProps);
+          } else if (typeof parsedProps === 'object' && parsedProps !== null) {
+            // 如果是对象，转换为数组项
+            propsArray.push(parsedProps);
           }
         } catch {
-          // 如果解析失败，只使用symbol
+          // 如果解析失败，忽略
         }
       }
       
-      // properties 直接作为对象传递，而不是JSON字符串
-      submitData.properties = Object.keys(props).length > 0 ? props : undefined;
+      // 如果有symbol，添加到properties数组中（格式为 {"name":"symbol","value":"bettery"}）
+      if (form.value.symbol) {
+        propsArray.push({ name: 'symbol', value: form.value.symbol });
+      }
+      
+      // 过滤掉空对象（如 {"name":"","value":""} 或所有值为空的对象）
+      const filteredProps = propsArray.filter(prop => {
+        // 检查对象是否有任何非空值
+        const hasNonEmptyValue = Object.values(prop).some(value => {
+          if (value === null || value === undefined) return false;
+          if (typeof value === 'string' && value.trim() === '') return false;
+          return true;
+        });
+        return hasNonEmptyValue;
+      });
+      
+      // properties 作为数组传递（过滤后的），如果为空则不传递
+      submitData.properties = filteredProps.length > 0 ? filteredProps : undefined;
       
       try {
         if (form.value.id) {
