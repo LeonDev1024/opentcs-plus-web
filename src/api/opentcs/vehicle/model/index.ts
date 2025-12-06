@@ -1,13 +1,13 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { VehicleTypeVO, VehicleTypeForm, VehicleTypeQuery } from '@/api/opentcs/vehicleType/types';
+import { ModelVO, ModelForm, ModelQuery, VehicleTypeVO, VehicleTypeForm, VehicleTypeQuery } from '@/api/opentcs/vehicle/model/types';
 
 /**
  * 查询车辆类型列表
  * @param query
  * @returns {*}
  */
-export const listVehicleType = (query?: VehicleTypeQuery): AxiosPromise<VehicleTypeVO[]> => {
+export const listModel = (query?: ModelQuery): AxiosPromise<ModelVO[]> => {
   return request({
     url: '/opentcs/vehicleType/list',
     method: 'get',
@@ -19,7 +19,7 @@ export const listVehicleType = (query?: VehicleTypeQuery): AxiosPromise<VehicleT
  * 查询车辆类型详细
  * @param id
  */
-export const getVehicleType = (id: string | number): AxiosPromise<VehicleTypeVO> => {
+export const getModel = (id: string | number): AxiosPromise<ModelVO> => {
   return request({
     url: '/opentcs/vehicleType/' + id,
     method: 'get'
@@ -30,7 +30,7 @@ export const getVehicleType = (id: string | number): AxiosPromise<VehicleTypeVO>
  * 新增车辆类型
  * @param data
  */
-export const addVehicleType = (data: VehicleTypeForm) => {
+export const addModel = (data: ModelForm) => {
   return request({
     url: '/opentcs/vehicleType',
     method: 'post',
@@ -42,7 +42,7 @@ export const addVehicleType = (data: VehicleTypeForm) => {
  * 修改车辆类型
  * @param data
  */
-export const updateVehicleType = (data: VehicleTypeForm) => {
+export const updateModel = (data: ModelForm) => {
   return request({
     url: '/opentcs/vehicleType',
     method: 'put',
@@ -54,10 +54,17 @@ export const updateVehicleType = (data: VehicleTypeForm) => {
  * 删除车辆类型
  * @param id
  */
-export const delVehicleType = (id: string | number | Array<string | number>) => {
+export const delModel = (id: string | number | Array<string | number>) => {
   return request({
     url: '/opentcs/vehicleType/' + id,
     method: 'delete'
   });
 };
+
+// 兼容旧命名
+export const listVehicleType = listModel;
+export const getVehicleType = getModel;
+export const addVehicleType = addModel;
+export const updateVehicleType = updateModel;
+export const delVehicleType = delModel;
 

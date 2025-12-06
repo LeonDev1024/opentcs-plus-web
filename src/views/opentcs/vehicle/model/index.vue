@@ -42,7 +42,7 @@
         </el-row>
       </template>
 
-      <el-table v-loading="loading" :data="vehicleTypeList" border @selection-change="handleSelectionChange">
+      <el-table v-loading="loading" :data="modelList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
         <el-table-column label="id" align="center" prop="id" />
         <el-table-column label="车辆类型名称" align="center" prop="name" />
@@ -70,7 +70,7 @@
     </el-card>
     <!-- 添加或修改车辆类型对话框 -->
     <el-dialog v-model="dialog.visible" :title="dialog.title" width="500px" append-to-body>
-      <el-form ref="vehicleTypeFormRef" :model="form" :rules="rules" label-width="120px">
+      <el-form ref="modelFormRef" :model="form" :rules="rules" label-width="120px">
         <el-form-item label="车辆类型名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入车辆类型名称" />
         </el-form-item>
@@ -98,14 +98,14 @@
   </div>
 </template>
 
-<script setup name="VehicleType" lang="ts">
-import { listVehicleType, getVehicleType, delVehicleType, addVehicleType, updateVehicleType } from '@/api/opentcs/vehicleType';
-import { VehicleTypeVO, VehicleTypeQuery, VehicleTypeForm } from '@/api/opentcs/vehicleType/types';
+<script setup name="Model" lang="ts">
+import { listModel, getModel, delModel, addModel, updateModel } from '@/api/opentcs/vehicle/model';
+import { ModelVO, ModelQuery, ModelForm } from '@/api/opentcs/vehicle/model/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 const { sys_normal_disable } = toRefs<any>(proxy?.useDict('sys_normal_disable'));
 
-const vehicleTypeList = ref<VehicleTypeVO[]>([]);
+const modelList = ref<ModelVO[]>([]);
 const buttonLoading = ref(false);
 const loading = ref(true);
 const showSearch = ref(true);
@@ -115,21 +115,21 @@ const multiple = ref(true);
 const total = ref(0);
 
 const queryFormRef = ref<ElFormInstance>();
-const vehicleTypeFormRef = ref<ElFormInstance>();
+const modelFormRef = ref<ElFormInstance>();
 
 const dialog = reactive<DialogOption>({
   visible: false,
   title: ''
 });
 
-const initFormData: VehicleTypeForm = {
+const initFormData: ModelForm = {
   id: undefined,
   name: undefined,
   code: undefined,
   description: undefined,
   status: '0'
 };
-const data = reactive<PageData<VehicleTypeForm, VehicleTypeQuery>>({
+const data = reactive<PageData<ModelForm, ModelQuery>>({
   form: { ...initFormData },
   queryParams: {
     pageNum: 1,
@@ -148,8 +148,8 @@ const { queryParams, form, rules } = toRefs(data);
 /** 查询车辆类型列表 */
 const getList = async () => {
   loading.value = true;
-  const res = await listVehicleType(queryParams.value);
-  vehicleTypeList.value = res.rows;
+  const res = await listModel(queryParams.value);
+  modelList.value = res.rows;
   total.value = res.total;
   loading.value = false;
 };
@@ -163,7 +163,7 @@ const cancel = () => {
 /** 表单重置 */
 const reset = () => {
   form.value = { ...initFormData };
-  vehicleTypeFormRef.value?.resetFields();
+  modelFormRef.value?.resetFields();
 };
 
 /** 搜索按钮操作 */
@@ -179,7 +179,7 @@ const resetQuery = () => {
 };
 
 /** 多选框选中数据 */
-const handleSelectionChange = (selection: VehicleTypeVO[]) => {
+const handleSelectionChange = (selection: ModelVO[]) => {
   ids.value = selection.map((item) => item.id);
   single.value = selection.length != 1;
   multiple.value = !selection.length;
@@ -193,10 +193,10 @@ const handleAdd = () => {
 };
 
 /** 修改按钮操作 */
-const handleUpdate = async (row?: VehicleTypeVO) => {
+const handleUpdate = async (row?: ModelVO) => {
   reset();
   const _id = row?.id || ids.value[0];
-  const res = await getVehicleType(_id);
+  const res = await getModel(_id);
   Object.assign(form.value, res.data);
   dialog.visible = true;
   dialog.title = '修改车辆类型';
@@ -204,13 +204,13 @@ const handleUpdate = async (row?: VehicleTypeVO) => {
 
 /** 提交按钮 */
 const submitForm = () => {
-  vehicleTypeFormRef.value?.validate(async (valid: boolean) => {
+  modelFormRef.value?.validate(async (valid: boolean) => {
     if (valid) {
       buttonLoading.value = true;
       if (form.value.id) {
-        await updateVehicleType(form.value).finally(() => (buttonLoading.value = false));
+        await updateModel(form.value).finally(() => (buttonLoading.value = false));
       } else {
-        await addVehicleType(form.value).finally(() => (buttonLoading.value = false));
+        await addModel(form.value).finally(() => (buttonLoading.value = false));
       }
       proxy?.$modal.msgSuccess('操作成功');
       dialog.visible = false;
@@ -220,20 +220,20 @@ const submitForm = () => {
 };
 
 /** 删除按钮操作 */
-const handleDelete = async (row?: VehicleTypeVO) => {
+const handleDelete = async (row?: ModelVO) => {
   const _ids = row?.id || ids.value;
   await proxy?.$modal.confirm('是否确认删除车辆类型编号为"' + _ids + '"的数据项？').finally(() => (loading.value = false));
-  await delVehicleType(_ids);
+  await delModel(_ids);
   proxy?.$modal.msgSuccess('删除成功');
   await getList();
 };
 
 /** 状态修改  */
-const handleStatusChange = async (row: VehicleTypeVO) => {
+const handleStatusChange = async (row: ModelVO) => {
   const text = row.status === '0' ? '启用' : '停用';
   try {
     await proxy?.$modal.confirm('确认要"' + text + '"吗?');
-    await updateVehicleType({ id: row.id, status: row.status });
+    await updateModel({ id: row.id, status: row.status });
     proxy?.$modal.msgSuccess(text + '成功');
   } catch (err) {
     row.status = row.status === '0' ? '1' : '0';
