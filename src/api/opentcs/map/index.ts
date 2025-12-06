@@ -1,9 +1,9 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { MapModelVO, MapModelForm, MapModelQuery } from '@/api/opentcs/mapModel/types';
+import { MapVO, MapForm, MapQuery, MapModelVO, MapModelForm, MapModelQuery } from '@/api/opentcs/map/types';
 
 // 查询地图模型列表
-export function listMapModel(query?: MapModelQuery): AxiosPromise<MapModelVO[]> {
+export function listMap(query?: MapQuery): AxiosPromise<MapVO[]> {
   return request({
     url: '/map/model/list',
     method: 'get',
@@ -15,7 +15,7 @@ export function listMapModel(query?: MapModelQuery): AxiosPromise<MapModelVO[]> 
  * 查询地图模型详细
  * @param id
  */
-export const getMapModel = (id: string | number): AxiosPromise<MapModelVO> => {
+export const getMap = (id: string | number): AxiosPromise<MapVO> => {
   return request({
     url: '/map/model/' + id,
     method: 'get'
@@ -26,7 +26,7 @@ export const getMapModel = (id: string | number): AxiosPromise<MapModelVO> => {
  * 新增地图模型
  * @param data
  */
-export const addMapModel = (data: MapModelForm) => {
+export const addMap = (data: MapForm) => {
   return request({
     url: '/map/model/create',
     method: 'post',
@@ -38,7 +38,7 @@ export const addMapModel = (data: MapModelForm) => {
  * 修改地图模型
  * @param data
  */
-export const updateMapModel = (data: MapModelForm) => {
+export const updateMap = (data: MapForm) => {
   return request({
     url: '/map/model/update',
     method: 'put',
@@ -50,23 +50,33 @@ export const updateMapModel = (data: MapModelForm) => {
  * 删除地图模型
  * @param id
  */
-export const delMapModel = (id: string | number | Array<string | number>) => {
+export const delMap = (id: string | number | Array<string | number>) => {
   return request({
     url: '/map/model/' + id,
     method: 'delete'
   });
 };
 
+// 兼容旧命名
+export const listMapModel = listMap;
+export const getMapModel = getMap;
+export const addMapModel = addMap;
+export const updateMapModel = updateMap;
+export const delMapModel = delMap;
+
 /**
  * 加载地图模型
  * @param id
  */
-export const loadMapModel = (id: string | number) => {
+export const loadMap = (id: string | number) => {
   return request({
     url: '/map/model/load/' + id,
     method: 'post'
   });
 };
+
+// 兼容旧命名
+export const loadMapModel = loadMap;
 
 /**
  * 保存地图编辑器数据（保存到文件）

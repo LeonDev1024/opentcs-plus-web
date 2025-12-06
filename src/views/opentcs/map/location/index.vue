@@ -34,7 +34,7 @@
         </el-row>
       </template>
 
-      <el-table v-loading="loading" :data="locationTypeList" border @selection-change="handleSelectionChange">
+      <el-table v-loading="loading" :data="locationList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
         <el-table-column label="id" align="center" prop="id" width="80" />
         <el-table-column label="位置类型名称" align="center" prop="name" min-width="150" />
@@ -75,7 +75,7 @@
     </el-card>
     <!-- 添加或修改位置类型对话框 -->
     <el-dialog v-model="dialog.visible" :title="dialog.title" width="600px" append-to-body>
-      <el-form ref="locationTypeFormRef" :model="form" :rules="rules" label-width="140px">
+      <el-form ref="locationFormRef" :model="form" :rules="rules" label-width="140px">
         <el-form-item label="位置类型名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入位置类型名称" />
         </el-form-item>
@@ -120,14 +120,14 @@
   </div>
 </template>
 
-<script setup name="LocationType" lang="ts">
-import { listLocationType, getLocationType, delLocationType, addLocationType, updateLocationType } from '@/api/opentcs/locationType';
-import { LocationTypeVO, LocationTypeQuery, LocationTypeForm } from '@/api/opentcs/locationType/types';
+<script setup name="Location" lang="ts">
+import { listLocation, getLocation, delLocation, addLocation, updateLocation } from '@/api/opentcs/map/location';
+import { LocationVO, LocationQuery, LocationForm } from '@/api/opentcs/map/location/types';
 import LocationIconSelect from '@/components/LocationIconSelect/index.vue';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 
-const locationTypeList = ref<LocationTypeVO[]>([]);
+const locationList = ref<LocationVO[]>([]);
 const buttonLoading = ref(false);
 const loading = ref(true);
 const showSearch = ref(true);
@@ -137,7 +137,7 @@ const multiple = ref(true);
 const total = ref(0);
 
 const queryFormRef = ref<ElFormInstance>();
-const locationTypeFormRef = ref<ElFormInstance>();
+const locationFormRef = ref<ElFormInstance>();
 
 const dialog = reactive<DialogOption>({
   visible: false,
@@ -183,7 +183,7 @@ const initFormData = {
   propertiesText: ''
 };
 
-const data = reactive<PageData<any, LocationTypeQuery>>({
+const data = reactive<PageData<any, LocationQuery>>({
   form: { ...initFormData },
   queryParams: {
     pageNum: 1,
@@ -200,8 +200,8 @@ const { queryParams, form, rules } = toRefs(data);
 /** 查询位置类型列表 */
 const getList = async () => {
   loading.value = true;
-  const res = await listLocationType(queryParams.value);
-  locationTypeList.value = res.rows;
+  const res = await listLocation(queryParams.value);
+  locationList.value = res.rows;
   total.value = res.total;
   loading.value = false;
 };
@@ -215,7 +215,7 @@ const cancel = () => {
 /** 表单重置 */
 const reset = () => {
   form.value = { ...initFormData };
-  locationTypeFormRef.value?.resetFields();
+  locationFormRef.value?.resetFields();
 };
 
 /** 搜索按钮操作 */
@@ -231,7 +231,7 @@ const resetQuery = () => {
 };
 
 /** 多选框选中数据 */
-const handleSelectionChange = (selection: LocationTypeVO[]) => {
+const handleSelectionChange = (selection: LocationVO[]) => {
   ids.value = selection.map((item) => item.id);
   single.value = selection.length != 1;
   multiple.value = !selection.length;
@@ -245,10 +245,10 @@ const handleAdd = () => {
 };
 
 /** 修改按钮操作 */
-const handleUpdate = async (row?: LocationTypeVO) => {
+const handleUpdate = async (row?: LocationVO) => {
   reset();
   const _id = row?.id || ids.value[0];
-  const res = await getLocationType(_id);
+  const res = await getLocation(_id);
   const data = res.data;
   
   // 解析数据到表单
@@ -288,12 +288,12 @@ const handleUpdate = async (row?: LocationTypeVO) => {
 
 /** 提交按钮 */
 const submitForm = () => {
-  locationTypeFormRef.value?.validate(async (valid: boolean) => {
+  locationFormRef.value?.validate(async (valid: boolean) => {
     if (valid) {
       buttonLoading.value = true;
       
       // 构建提交数据
-      const submitData: LocationTypeForm = {
+      const submitData: LocationForm = {
         id: form.value.id,
         name: form.value.name,
         // 将选中的操作转换为对象数组格式 [{ "name": "LOAD" }]
@@ -342,9 +342,9 @@ const submitForm = () => {
       
       try {
         if (form.value.id) {
-          await updateLocationType(submitData);
+          await updateLocation(submitData);
         } else {
-          await addLocationType(submitData);
+          await addLocation(submitData);
         }
         proxy?.$modal.msgSuccess('操作成功');
         dialog.visible = false;
@@ -357,10 +357,10 @@ const submitForm = () => {
 };
 
 /** 删除按钮操作 */
-const handleDelete = async (row?: LocationTypeVO) => {
+const handleDelete = async (row?: LocationVO) => {
   const _ids = row?.id || ids.value;
   await proxy?.$modal.confirm('是否确认删除位置类型编号为"' + _ids + '"的数据项？').finally(() => (loading.value = false));
-  await delLocationType(_ids);
+  await delLocation(_ids);
   proxy?.$modal.msgSuccess('删除成功');
   await getList();
 };

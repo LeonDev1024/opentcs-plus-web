@@ -39,7 +39,7 @@
         </el-row>
       </template>
 
-      <el-table v-loading="loading" :data="mapModelList" border @selection-change="handleSelectionChange">
+      <el-table v-loading="loading" :data="mapList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
         <el-table-column label="地图模型ID" align="center" prop="mapId" width="200" />
         <el-table-column label="地图模型名称" align="center" prop="name" />
@@ -71,7 +71,7 @@
     </el-card>
     <!-- 添加或修改地图模型对话框 -->
     <el-dialog v-model="dialog.visible" :title="dialog.title" width="500px" append-to-body>
-      <el-form ref="mapModelFormRef" :model="form" :rules="rules" label-width="120px">
+      <el-form ref="mapFormRef" :model="form" :rules="rules" label-width="120px">
         <el-form-item label="地图模型名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入地图模型名称" />
         </el-form-item>
@@ -96,17 +96,17 @@
   </div>
 </template>
 
-<script setup name="MapModel" lang="ts">
+<script setup name="Map" lang="ts">
 import { useRouter } from 'vue-router';
-import { listMapModel, getMapModel, delMapModel, addMapModel, updateMapModel, loadMapModel } from '@/api/opentcs/mapModel';
-import { MapModelVO, MapModelQuery, MapModelForm } from '@/api/opentcs/mapModel/types';
+import { listMap, getMap, delMap, addMap, updateMap, loadMap } from '@/api/opentcs/map';
+import { MapVO, MapQuery, MapForm } from '@/api/opentcs/map/types';
 
 const router = useRouter();
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 const { sys_normal_disable } = toRefs<any>(proxy?.useDict('sys_normal_disable'));
 
-const mapModelList = ref<MapModelVO[]>([]);
+const mapList = ref<MapVO[]>([]);
 const buttonLoading = ref(false);
 const loading = ref(true);
 const showSearch = ref(true);
@@ -117,14 +117,14 @@ const total = ref(0);
 const statusChangeReady = ref(false);
 
 const queryFormRef = ref<ElFormInstance>();
-const mapModelFormRef = ref<ElFormInstance>();
+const mapFormRef = ref<ElFormInstance>();
 
 const dialog = reactive<DialogOption>({
   visible: false,
   title: ''
 });
 
-const initFormData: MapModelForm = {
+const initFormData: MapForm = {
   id: undefined,
   name: undefined,
   description: undefined,
@@ -132,7 +132,7 @@ const initFormData: MapModelForm = {
   version: undefined,
   status: '0'
 };
-const data = reactive<PageData<MapModelForm, MapModelQuery>>({
+const data = reactive<PageData<MapForm, MapQuery>>({
   form: { ...initFormData },
   queryParams: {
     pageNum: 1,
@@ -151,8 +151,8 @@ const { queryParams, form, rules } = toRefs(data);
 const getList = async () => {
   loading.value = true;
   statusChangeReady.value = false;
-  const res = await listMapModel(queryParams.value);
-  mapModelList.value = res.rows;
+  const res = await listMap(queryParams.value);
+  mapList.value = res.rows;
   total.value = res.total;
   loading.value = false;
   nextTick(() => {
@@ -169,7 +169,7 @@ const cancel = () => {
 /** 表单重置 */
 const reset = () => {
   form.value = { ...initFormData };
-  mapModelFormRef.value?.resetFields();
+  mapFormRef.value?.resetFields();
 };
 
 /** 搜索按钮操作 */
@@ -185,7 +185,7 @@ const resetQuery = () => {
 };
 
 /** 多选框选中数据 */
-const handleSelectionChange = (selection: MapModelVO[]) => {
+const handleSelectionChange = (selection: MapVO[]) => {
   ids.value = selection.map((item) => item.id);
   single.value = selection.length != 1;
   multiple.value = !selection.length;
@@ -199,18 +199,18 @@ const handleAdd = () => {
 };
 
 /** 编辑地图按钮操作 */
-const handleEdit = (row: MapModelVO) => {
+const handleEdit = (row: MapVO) => {
   router.push({
-    path: '/opentcs/mapModel/editor',
+    path: '/opentcs/map/editor',
     query: { id: row.mapId }
   });
 };
 
 /** 修改按钮操作 */
-const handleUpdate = async (row?: MapModelVO) => {
+const handleUpdate = async (row?: MapVO) => {
   reset();
   const _id = row?.id || ids.value[0];
-  const res = await getMapModel(_id);
+  const res = await getMap(_id);
   Object.assign(form.value, res.data);
   dialog.visible = true;
   dialog.title = '修改地图模型';
@@ -218,13 +218,13 @@ const handleUpdate = async (row?: MapModelVO) => {
 
 /** 提交按钮 */
 const submitForm = () => {
-  mapModelFormRef.value?.validate(async (valid: boolean) => {
+  mapFormRef.value?.validate(async (valid: boolean) => {
     if (valid) {
       buttonLoading.value = true;
       if (form.value.id) {
-        await updateMapModel(form.value).finally(() => (buttonLoading.value = false));
+        await updateMap(form.value).finally(() => (buttonLoading.value = false));
       } else {
-        await addMapModel(form.value).finally(() => (buttonLoading.value = false));
+        await addMap(form.value).finally(() => (buttonLoading.value = false));
       }
       proxy?.$modal.msgSuccess('操作成功');
       dialog.visible = false;
@@ -234,20 +234,20 @@ const submitForm = () => {
 };
 
 /** 删除按钮操作 */
-const handleDelete = async (row?: MapModelVO) => {
+const handleDelete = async (row?: MapVO) => {
   const _ids = row?.id || ids.value;
   await proxy?.$modal.confirm('是否确认删除地图模型编号为"' + _ids + '"的数据项？').finally(() => (loading.value = false));
-  await delMapModel(_ids);
+  await delMap(_ids);
   proxy?.$modal.msgSuccess('删除成功');
   await getList();
 };
 
 /** 加载模型按钮操作 */
-const handleLoad = async (row?: MapModelVO) => {
+const handleLoad = async (row?: MapVO) => {
   const _id = row?.id || ids.value[0];
   try {
     loading.value = true;
-    await loadMapModel(_id);
+    await loadMap(_id);
     proxy?.$modal.msgSuccess('加载模型成功');
   } catch (error) {
     console.error('加载模型失败:', error);
@@ -257,7 +257,7 @@ const handleLoad = async (row?: MapModelVO) => {
 };
 
 /** 状态修改  */
-const handleStatusChange = async (row: MapModelVO) => {
+const handleStatusChange = async (row: MapVO) => {
   if (!statusChangeReady.value) {
     return;
   }
@@ -265,7 +265,7 @@ const handleStatusChange = async (row: MapModelVO) => {
   try {
     await proxy?.$modal.confirm('确认要"' + text + '"吗?');
     // 这里需要调用状态修改接口，暂时使用更新接口
-    await updateMapModel({ id: row.id, status: row.status });
+    await updateMap({ id: row.id, status: row.status });
     proxy?.$modal.msgSuccess(text + '成功');
   } catch (err) {
     row.status = row.status === '0' ? '1' : '0';

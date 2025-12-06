@@ -1,4 +1,4 @@
-export interface MapModelVO {
+export interface MapVO {
   /**
    * id
    */
@@ -37,7 +37,7 @@ export interface MapModelVO {
   createTime?: string;
 }
 
-export interface MapModelForm extends BaseEntity {
+export interface MapForm extends BaseEntity {
   /**
    * id
    */
@@ -60,7 +60,7 @@ export interface MapModelForm extends BaseEntity {
   status?: string;
 }
 
-export interface MapModelQuery extends PageQuery {
+export interface MapQuery extends PageQuery {
   /**
    * 地图模型名称
    */
@@ -71,4 +71,9 @@ export interface MapModelQuery extends PageQuery {
    */
   status?: string;
 }
+
+// 兼容旧命名
+export type MapModelVO = MapVO;
+export type MapModelForm = MapForm;
+export type MapModelQuery = MapQuery;
 

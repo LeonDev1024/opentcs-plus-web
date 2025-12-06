@@ -1,4 +1,4 @@
-export interface LocationTypeVO {
+export interface LocationVO {
   /**
    * id
    */
@@ -35,7 +35,7 @@ export interface LocationTypeVO {
   updateTime?: string;
 }
 
-export interface LocationTypeForm extends BaseEntity {
+export interface LocationForm extends BaseEntity {
   /**
    * id
    */
@@ -62,10 +62,15 @@ export interface LocationTypeForm extends BaseEntity {
   properties?: Array<Record<string, any>>;
 }
 
-export interface LocationTypeQuery extends PageQuery {
+export interface LocationQuery extends PageQuery {
   /**
    * 位置类型名称
    */
   name?: string;
 }
+
+// 兼容旧命名
+export type LocationTypeVO = LocationVO;
+export type LocationTypeForm = LocationForm;
+export type LocationTypeQuery = LocationQuery;
 

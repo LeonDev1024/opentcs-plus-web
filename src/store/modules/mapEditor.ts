@@ -17,7 +17,7 @@ import type {
 } from '@/types/mapEditor';
 import { ToolMode as ToolModeEnum, LayerType } from '@/types/mapEditor';
 import { CommandManager } from '@/utils/mapEditor/command';
-import { loadMapEditorData, saveMapEditorData } from '@/api/opentcs/mapModel';
+import { loadMapEditorData, saveMapEditorData } from '@/api/opentcs/map';
 
 export const useMapEditorStore = defineStore('mapEditor', () => {
   // ==================== 状态 ====================

@@ -1,13 +1,13 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { LocationTypeVO, LocationTypeForm, LocationTypeQuery } from '@/api/opentcs/locationType/types';
+import { LocationVO, LocationForm, LocationQuery, LocationTypeVO, LocationTypeForm, LocationTypeQuery } from '@/api/opentcs/map/location/types';
 
 /**
  * 查询位置类型列表
  * @param query
  * @returns {*}
  */
-export const listLocationType = (query?: LocationTypeQuery): AxiosPromise<LocationTypeVO[]> => {
+export const listLocation = (query?: LocationQuery): AxiosPromise<LocationVO[]> => {
   return request({
     url: '/map/locationType/list',
     method: 'get',
@@ -19,7 +19,7 @@ export const listLocationType = (query?: LocationTypeQuery): AxiosPromise<Locati
  * 查询位置类型详细
  * @param id
  */
-export const getLocationType = (id: string | number): AxiosPromise<LocationTypeVO> => {
+export const getLocation = (id: string | number): AxiosPromise<LocationVO> => {
   return request({
     url: '/map/locationType/' + id,
     method: 'get'
@@ -30,7 +30,7 @@ export const getLocationType = (id: string | number): AxiosPromise<LocationTypeV
  * 新增位置类型
  * @param data
  */
-export const addLocationType = (data: LocationTypeForm) => {
+export const addLocation = (data: LocationForm) => {
   return request({
     url: '/map/locationType/create',
     method: 'post',
@@ -42,7 +42,7 @@ export const addLocationType = (data: LocationTypeForm) => {
  * 修改位置类型
  * @param data
  */
-export const updateLocationType = (data: LocationTypeForm) => {
+export const updateLocation = (data: LocationForm) => {
   return request({
     url: '/map/locationType/update',
     method: 'put',
@@ -54,10 +54,17 @@ export const updateLocationType = (data: LocationTypeForm) => {
  * 删除位置类型
  * @param id
  */
-export const delLocationType = (id: string | number | Array<string | number>) => {
+export const delLocation = (id: string | number | Array<string | number>) => {
   return request({
     url: '/map/locationType/' + id,
     method: 'delete'
   });
 };
+
+// 兼容旧命名
+export const listLocationType = listLocation;
+export const getLocationType = getLocation;
+export const addLocationType = addLocation;
+export const updateLocationType = updateLocation;
+export const delLocationType = delLocation;
 

@@ -86,27 +86,27 @@ export const constantRoutes: RouteRecordRaw[] = [
     ]
   },
   {
-    path: '/opentcs/mapModel/editor',
+    path: '/opentcs/map/editor',
     component: Layout,
     hidden: true,
     children: [
       {
         path: '',
-        component: () => import('@/views/opentcs/mapModel/editor/MapEditor.vue'),
+        component: () => import('@/views/opentcs/map/editor/MapEditor.vue'),
         name: 'MapEditor',
         meta: { title: '地图编辑器', icon: 'map', noCache: true }
       }
     ]
   },
   {
-    path: '/opentcs/locationType',
+    path: '/opentcs/map/location',
     component: Layout,
     hidden: true,
     children: [
       {
         path: '',
-        component: () => import('@/views/opentcs/locationType/index.vue'),
-        name: 'LocationType',
+        component: () => import('@/views/opentcs/map/location/index.vue'),
+        name: 'Location',
         meta: { title: '位置类型管理', icon: 'location' }
       }
     ]
