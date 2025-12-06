@@ -1,13 +1,13 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { TransportOrderVO, TransportOrderForm, TransportOrderQuery } from '@/api/opentcs/transportOrder/types';
+import { OrderVO, OrderForm, OrderQuery, TransportOrderVO, TransportOrderForm, TransportOrderQuery } from '@/api/opentcs/order/types';
 
 /**
  * 查询运输订单列表
  * @param query
  * @returns {*}
  */
-export const listTransportOrder = (query?: TransportOrderQuery): AxiosPromise<TransportOrderVO[]> => {
+export const listOrder = (query?: OrderQuery): AxiosPromise<OrderVO[]> => {
   return request({
     url: '/opentcs/transportOrder/list',
     method: 'get',
@@ -19,7 +19,7 @@ export const listTransportOrder = (query?: TransportOrderQuery): AxiosPromise<Tr
  * 查询运输订单详细
  * @param id
  */
-export const getTransportOrder = (id: string | number): AxiosPromise<TransportOrderVO> => {
+export const getOrder = (id: string | number): AxiosPromise<OrderVO> => {
   return request({
     url: '/opentcs/transportOrder/' + id,
     method: 'get'
@@ -30,7 +30,7 @@ export const getTransportOrder = (id: string | number): AxiosPromise<TransportOr
  * 新增运输订单
  * @param data
  */
-export const addTransportOrder = (data: TransportOrderForm) => {
+export const addOrder = (data: OrderForm) => {
   return request({
     url: '/opentcs/transportOrder',
     method: 'post',
@@ -42,7 +42,7 @@ export const addTransportOrder = (data: TransportOrderForm) => {
  * 修改运输订单
  * @param data
  */
-export const updateTransportOrder = (data: TransportOrderForm) => {
+export const updateOrder = (data: OrderForm) => {
   return request({
     url: '/opentcs/transportOrder',
     method: 'put',
@@ -54,12 +54,19 @@ export const updateTransportOrder = (data: TransportOrderForm) => {
  * 删除运输订单
  * @param id
  */
-export const delTransportOrder = (id: string | number | Array<string | number>) => {
+export const delOrder = (id: string | number | Array<string | number>) => {
   return request({
     url: '/opentcs/transportOrder/' + id,
     method: 'delete'
   });
 };
+
+// 兼容旧命名
+export const listTransportOrder = listOrder;
+export const getTransportOrder = getOrder;
+export const addTransportOrder = addOrder;
+export const updateTransportOrder = updateOrder;
+export const delTransportOrder = delOrder;
 
 /**
  * 分配订单到车辆

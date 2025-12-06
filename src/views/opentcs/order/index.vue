@@ -76,7 +76,7 @@
         </el-row>
       </template>
 
-      <el-table v-loading="loading" :data="transportOrderList" border @selection-change="handleSelectionChange">
+      <el-table v-loading="loading" :data="orderList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
         <el-table-column label="id" align="center" prop="id" />
         <el-table-column label="订单编号" align="center" prop="orderNo" width="180" />
@@ -134,7 +134,7 @@
     </el-card>
     <!-- 添加或修改运输订单对话框 -->
     <el-dialog v-model="dialog.visible" :title="dialog.title" width="600px" append-to-body>
-      <el-form ref="transportOrderFormRef" :model="form" :rules="rules" label-width="120px">
+      <el-form ref="orderFormRef" :model="form" :rules="rules" label-width="120px">
         <el-form-item label="订单编号" prop="orderNo">
           <el-input v-model="form.orderNo" placeholder="请输入订单编号" :disabled="!!form.id" />
         </el-form-item>
@@ -200,13 +200,13 @@
   </div>
 </template>
 
-<script setup name="TransportOrder" lang="ts">
-import { listTransportOrder, getTransportOrder, delTransportOrder, addTransportOrder, updateTransportOrder, assignOrder, startTransport, completeOrder, cancelOrder } from '@/api/opentcs/transportOrder';
-import { TransportOrderVO, TransportOrderQuery, TransportOrderForm } from '@/api/opentcs/transportOrder/types';
+<script setup name="Order" lang="ts">
+import { listOrder, getOrder, delOrder, addOrder, updateOrder, assignOrder, startTransport, completeOrder, cancelOrder } from '@/api/opentcs/order';
+import { OrderVO, OrderQuery, OrderForm } from '@/api/opentcs/order/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 
-const transportOrderList = ref<TransportOrderVO[]>([]);
+const orderList = ref<OrderVO[]>([]);
 const buttonLoading = ref(false);
 const loading = ref(true);
 const showSearch = ref(true);
@@ -216,7 +216,7 @@ const multiple = ref(true);
 const total = ref(0);
 
 const queryFormRef = ref<ElFormInstance>();
-const transportOrderFormRef = ref<ElFormInstance>();
+const orderFormRef = ref<ElFormInstance>();
 const assignFormRef = ref<ElFormInstance>();
 
 const dialog = reactive<DialogOption>({
@@ -235,7 +235,7 @@ const assignForm = ref({
   vehicleId: undefined as string | number | undefined
 });
 
-const initFormData: TransportOrderForm = {
+const initFormData: OrderForm = {
   id: undefined,
   orderNo: undefined,
   name: undefined,
@@ -248,7 +248,7 @@ const initFormData: TransportOrderForm = {
   plannedEndTime: undefined,
   description: undefined
 };
-const data = reactive<PageData<TransportOrderForm, TransportOrderQuery>>({
+const data = reactive<PageData<OrderForm, OrderQuery>>({
   form: { ...initFormData },
   queryParams: {
     pageNum: 1,
@@ -273,8 +273,8 @@ const { queryParams, form, rules } = toRefs(data);
 /** 查询运输订单列表 */
 const getList = async () => {
   loading.value = true;
-  const res = await listTransportOrder(queryParams.value);
-  transportOrderList.value = res.rows;
+  const res = await listOrder(queryParams.value);
+  orderList.value = res.rows;
   total.value = res.total;
   loading.value = false;
 };
@@ -288,7 +288,7 @@ const cancel = () => {
 /** 表单重置 */
 const reset = () => {
   form.value = { ...initFormData };
-  transportOrderFormRef.value?.resetFields();
+  orderFormRef.value?.resetFields();
 };
 
 /** 搜索按钮操作 */
@@ -304,7 +304,7 @@ const resetQuery = () => {
 };
 
 /** 多选框选中数据 */
-const handleSelectionChange = (selection: TransportOrderVO[]) => {
+const handleSelectionChange = (selection: OrderVO[]) => {
   ids.value = selection.map((item) => item.id);
   single.value = selection.length != 1;
   multiple.value = !selection.length;
@@ -318,10 +318,10 @@ const handleAdd = () => {
 };
 
 /** 修改按钮操作 */
-const handleUpdate = async (row?: TransportOrderVO) => {
+const handleUpdate = async (row?: OrderVO) => {
   reset();
   const _id = row?.id || ids.value[0];
-  const res = await getTransportOrder(_id);
+  const res = await getOrder(_id);
   Object.assign(form.value, res.data);
   dialog.visible = true;
   dialog.title = '修改运输订单';
@@ -329,13 +329,13 @@ const handleUpdate = async (row?: TransportOrderVO) => {
 
 /** 提交按钮 */
 const submitForm = () => {
-  transportOrderFormRef.value?.validate(async (valid: boolean) => {
+  orderFormRef.value?.validate(async (valid: boolean) => {
     if (valid) {
       buttonLoading.value = true;
       if (form.value.id) {
-        await updateTransportOrder(form.value).finally(() => (buttonLoading.value = false));
+        await updateOrder(form.value).finally(() => (buttonLoading.value = false));
       } else {
-        await addTransportOrder(form.value).finally(() => (buttonLoading.value = false));
+        await addOrder(form.value).finally(() => (buttonLoading.value = false));
       }
       proxy?.$modal.msgSuccess('操作成功');
       dialog.visible = false;
@@ -345,16 +345,16 @@ const submitForm = () => {
 };
 
 /** 删除按钮操作 */
-const handleDelete = async (row?: TransportOrderVO) => {
+const handleDelete = async (row?: OrderVO) => {
   const _ids = row?.id || ids.value;
   await proxy?.$modal.confirm('是否确认删除运输订单编号为"' + _ids + '"的数据项？').finally(() => (loading.value = false));
-  await delTransportOrder(_ids);
+  await delOrder(_ids);
   proxy?.$modal.msgSuccess('删除成功');
   await getList();
 };
 
 /** 分配车辆按钮操作 */
-const handleAssign = (row?: TransportOrderVO) => {
+const handleAssign = (row?: OrderVO) => {
   const _id = row?.id || ids.value[0];
   assignForm.value = {
     orderId: _id,
@@ -381,7 +381,7 @@ const submitAssign = async () => {
 };
 
 /** 开始运输按钮操作 */
-const handleStart = async (row?: TransportOrderVO) => {
+const handleStart = async (row?: OrderVO) => {
   const _id = row?.id || ids.value[0];
   try {
     await proxy?.$modal.confirm('确认要开始运输该订单吗？');
@@ -397,7 +397,7 @@ const handleStart = async (row?: TransportOrderVO) => {
 };
 
 /** 完成订单按钮操作 */
-const handleComplete = async (row?: TransportOrderVO) => {
+const handleComplete = async (row?: OrderVO) => {
   const _id = row?.id || ids.value[0];
   try {
     await proxy?.$modal.confirm('确认要完成该订单吗？');
@@ -413,7 +413,7 @@ const handleComplete = async (row?: TransportOrderVO) => {
 };
 
 /** 取消订单按钮操作 */
-const handleCancel = async (row?: TransportOrderVO) => {
+const handleCancel = async (row?: OrderVO) => {
   const _id = row?.id || ids.value[0];
   try {
     await proxy?.$modal.confirm('确认要取消该订单吗？');

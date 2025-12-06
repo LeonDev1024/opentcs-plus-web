@@ -1,4 +1,4 @@
-export interface TransportOrderVO {
+export interface OrderVO {
   /**
    * id
    */
@@ -85,7 +85,7 @@ export interface TransportOrderVO {
   createTime?: string;
 }
 
-export interface TransportOrderForm extends BaseEntity {
+export interface OrderForm extends BaseEntity {
   /**
    * id
    */
@@ -142,7 +142,7 @@ export interface TransportOrderForm extends BaseEntity {
   description?: string;
 }
 
-export interface TransportOrderQuery extends PageQuery {
+export interface OrderQuery extends PageQuery {
   /**
    * 订单编号
    */
@@ -178,4 +178,9 @@ export interface TransportOrderQuery extends PageQuery {
    */
   priority?: string;
 }
+
+// 兼容旧命名
+export type TransportOrderVO = OrderVO;
+export type TransportOrderForm = OrderForm;
+export type TransportOrderQuery = OrderQuery;
 
