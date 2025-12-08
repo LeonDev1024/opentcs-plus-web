@@ -6,14 +6,6 @@
           <el-form-item label="车辆类型名称" prop="name">
             <el-input v-model="queryParams.name" placeholder="请输入车辆类型名称" clearable @keyup.enter="handleQuery" />
           </el-form-item>
-          <el-form-item label="车辆类型编码" prop="code">
-            <el-input v-model="queryParams.code" placeholder="请输入车辆类型编码" clearable @keyup.enter="handleQuery" />
-          </el-form-item>
-          <el-form-item label="状态" prop="status">
-            <el-select v-model="queryParams.status" placeholder="状态" clearable>
-              <el-option v-for="dict in sys_normal_disable" :key="dict.value" :label="dict.label" :value="dict.value" />
-            </el-select>
-          </el-form-item>
           <el-form-item>
             <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
             <el-button icon="Refresh" @click="resetQuery">重置</el-button>
@@ -44,13 +36,47 @@
 
       <el-table v-loading="loading" :data="typeList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column label="id" align="center" prop="id" />
-        <el-table-column label="车辆类型名称" align="center" prop="name" />
-        <el-table-column label="车辆类型编码" align="center" prop="code" />
-        <el-table-column label="描述" align="center" prop="description" show-overflow-tooltip />
-        <el-table-column key="status" label="状态" align="center">
+        <el-table-column label="车辆类型名称" align="center" prop="name" min-width="150" />
+        <el-table-column label="尺寸(长×宽×高)" align="center" min-width="150">
           <template #default="scope">
-            <el-switch v-model="scope.row.status" active-value="0" inactive-value="1" @change="handleStatusChange(scope.row)"></el-switch>
+            <span v-if="scope.row.length && scope.row.width && scope.row.height">
+              {{ scope.row.length }}×{{ scope.row.width }}×{{ scope.row.height }}m
+            </span>
+            <span v-else style="color: #909399;">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="最大速度" align="center" prop="maxVelocity" width="100">
+          <template #default="scope">
+            <span v-if="scope.row.maxVelocity">{{ scope.row.maxVelocity }} m/s</span>
+            <span v-else style="color: #909399;">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="最大倒车速度" align="center" prop="maxReverseVelocity" width="120">
+          <template #default="scope">
+            <span v-if="scope.row.maxReverseVelocity">{{ scope.row.maxReverseVelocity }} m/s</span>
+            <span v-else style="color: #909399;">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="能量等级" align="center" prop="energyLevel" width="100">
+          <template #default="scope">
+            <span v-if="scope.row.energyLevel !== null && scope.row.energyLevel !== undefined">{{ scope.row.energyLevel }}</span>
+            <span v-else style="color: #909399;">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="允许的订单类型" align="center" prop="allowedOrders" min-width="150" show-overflow-tooltip>
+          <template #default="scope">
+            <el-tag v-for="(order, index) in getOrdersList(scope.row.allowedOrders)" :key="index" size="small" style="margin-right: 4px;">
+              {{ order }}
+            </el-tag>
+            <span v-if="!scope.row.allowedOrders || scope.row.allowedOrders.length === 0" style="color: #909399;">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="允许的外设操作" align="center" prop="allowedPeripheralOperations" min-width="150" show-overflow-tooltip>
+          <template #default="scope">
+            <el-tag v-for="(op, index) in getOperationsList(scope.row.allowedPeripheralOperations)" :key="index" size="small" type="info" style="margin-right: 4px;">
+              {{ op }}
+            </el-tag>
+            <span v-if="!scope.row.allowedPeripheralOperations || scope.row.allowedPeripheralOperations.length === 0" style="color: #909399;">-</span>
           </template>
         </el-table-column>
         <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
@@ -69,23 +95,85 @@
       <pagination v-show="total > 0" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" :total="total" @pagination="getList" />
     </el-card>
     <!-- 添加或修改车辆类型对话框 -->
-    <el-dialog v-model="dialog.visible" :title="dialog.title" width="500px" append-to-body>
-      <el-form ref="typeFormRef" :model="form" :rules="rules" label-width="120px">
-        <el-form-item label="车辆类型名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入车辆类型名称" />
+    <el-dialog v-model="dialog.visible" :title="dialog.title" width="700px" append-to-body>
+      <el-form ref="typeFormRef" :model="form" :rules="rules" label-width="140px">
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="车辆类型名称" prop="name">
+              <el-input v-model="form.name" placeholder="请输入车辆类型名称" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        
+        <el-divider content-position="left">尺寸信息</el-divider>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="长度(m)" prop="length">
+              <el-input-number v-model="form.length" :precision="4" :step="0.1" :min="0" :controls="true" style="width: 100%;" placeholder="长度" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="宽度(m)" prop="width">
+              <el-input-number v-model="form.width" :precision="4" :step="0.1" :min="0" :controls="true" style="width: 100%;" placeholder="宽度" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="高度(m)" prop="height">
+              <el-input-number v-model="form.height" :precision="4" :step="0.1" :min="0" :controls="true" style="width: 100%;" placeholder="高度" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-divider content-position="left">速度信息</el-divider>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="最大速度(m/s)" prop="maxVelocity">
+              <el-input-number v-model="form.maxVelocity" :precision="4" :step="0.1" :min="0" :controls="true" style="width: 100%;" placeholder="最大速度" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="最大倒车速度(m/s)" prop="maxReverseVelocity">
+              <el-input-number v-model="form.maxReverseVelocity" :precision="4" :step="0.1" :min="0" :controls="true" style="width: 100%;" placeholder="最大倒车速度" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="能量等级" prop="energyLevel">
+              <el-input-number v-model="form.energyLevel" :precision="4" :step="0.1" :min="0" :controls="true" style="width: 100%;" placeholder="能量等级" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-divider content-position="left">操作权限</el-divider>
+        <el-form-item label="允许的订单类型" prop="allowedOrders">
+          <el-select v-model="form.allowedOrdersList" multiple placeholder="请选择允许的订单类型" style="width: 100%;">
+            <el-option label="TRANSPORT" value="TRANSPORT" />
+            <el-option label="CHARGE" value="CHARGE" />
+            <el-option label="PARK" value="PARK" />
+            <el-option label="MOVE" value="MOVE" />
+          </el-select>
+          <div class="form-tip">选择该车辆类型支持的订单类型</div>
         </el-form-item>
-        <el-form-item label="车辆类型编码" prop="code">
-          <el-input v-model="form.code" placeholder="请输入车辆类型编码" />
+        <el-form-item label="允许的外设操作" prop="allowedPeripheralOperations">
+          <el-select v-model="form.allowedPeripheralOperationsList" multiple placeholder="请选择允许的外设操作" style="width: 100%;">
+            <el-option label="LIFT_UP" value="LIFT_UP" />
+            <el-option label="LIFT_DOWN" value="LIFT_DOWN" />
+            <el-option label="CONVEYOR_START" value="CONVEYOR_START" />
+            <el-option label="CONVEYOR_STOP" value="CONVEYOR_STOP" />
+            <el-option label="LIGHT_ON" value="LIGHT_ON" />
+            <el-option label="LIGHT_OFF" value="LIGHT_OFF" />
+          </el-select>
+          <div class="form-tip">选择该车辆类型支持的外设操作</div>
         </el-form-item>
-        <el-form-item label="描述" prop="description">
-          <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" />
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-radio-group v-model="form.status">
-            <el-radio v-for="dict in sys_normal_disable" :key="dict.value" :value="dict.value">
-              {{ dict.label }}
-            </el-radio>
-          </el-radio-group>
+
+        <el-divider content-position="left">扩展属性</el-divider>
+        <el-form-item label="其他参数" prop="properties">
+          <el-input v-model="form.propertiesText" type="textarea" :rows="4" placeholder='请输入JSON格式的其他参数，如：{"key": "value"}' />
+          <div class="form-tip">扩展属性，JSON格式字符串</div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -103,7 +191,6 @@ import { listType, getType, delType, addType, updateType } from '@/api/opentcs/v
 import { TypeVO, TypeQuery, TypeForm } from '@/api/opentcs/vehicle/type/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
-const { sys_normal_disable } = toRefs<any>(proxy?.useDict('sys_normal_disable'));
 
 const typeList = ref<TypeVO[]>([]);
 const buttonLoading = ref(false);
@@ -122,24 +209,60 @@ const dialog = reactive<DialogOption>({
   title: ''
 });
 
-const initFormData: TypeForm = {
+// 将订单类型数组转换为显示数组
+const getOrdersList = (orders?: string[]): string[] => {
+  if (!orders || !Array.isArray(orders)) return [];
+  return orders.filter((order: string) => order);
+};
+
+// 将操作数组转换为显示数组
+const getOperationsList = (operations?: string[]): string[] => {
+  if (!operations || !Array.isArray(operations)) return [];
+  return operations.filter((op: string) => op);
+};
+
+const initFormData = {
   id: undefined,
   name: undefined,
-  code: undefined,
-  description: undefined,
-  status: '0'
+  length: null as number | null,
+  width: null as number | null,
+  height: null as number | null,
+  maxVelocity: null as number | null,
+  maxReverseVelocity: null as number | null,
+  energyLevel: null as number | null,
+  allowedOrders: undefined,
+  allowedPeripheralOperations: undefined,
+  properties: undefined,
+  allowedOrdersList: [] as string[],
+  allowedPeripheralOperationsList: [] as string[],
+  propertiesText: ''
 };
-const data = reactive<PageData<TypeForm, TypeQuery>>({
+
+const data = reactive<PageData<any, TypeQuery>>({
   form: { ...initFormData },
   queryParams: {
     pageNum: 1,
     pageSize: 10,
-    name: undefined,
-    code: undefined,
-    status: undefined
+    name: undefined
   },
   rules: {
-    name: [{ required: true, message: '车辆类型名称不能为空', trigger: 'blur' }]
+    name: [{ required: true, message: '车辆类型名称不能为空', trigger: 'blur' }],
+    length: [
+      { required: true, message: '长度不能为空', trigger: 'blur' },
+      { type: 'number', message: '长度必须为数字', trigger: 'blur' }
+    ],
+    width: [
+      { required: true, message: '宽度不能为空', trigger: 'blur' },
+      { type: 'number', message: '宽度必须为数字', trigger: 'blur' }
+    ],
+    height: [
+      { required: true, message: '高度不能为空', trigger: 'blur' },
+      { type: 'number', message: '高度必须为数字', trigger: 'blur' }
+    ],
+    maxVelocity: [
+      { required: true, message: '最大速度不能为空', trigger: 'blur' },
+      { type: 'number', message: '最大速度必须为数字', trigger: 'blur' }
+    ]
   }
 });
 
@@ -162,7 +285,20 @@ const cancel = () => {
 
 /** 表单重置 */
 const reset = () => {
-  form.value = { ...initFormData };
+  form.value.id = initFormData.id;
+  form.value.name = initFormData.name;
+  form.value.length = initFormData.length;
+  form.value.width = initFormData.width;
+  form.value.height = initFormData.height;
+  form.value.maxVelocity = initFormData.maxVelocity;
+  form.value.maxReverseVelocity = initFormData.maxReverseVelocity;
+  form.value.energyLevel = initFormData.energyLevel;
+  form.value.allowedOrders = initFormData.allowedOrders;
+  form.value.allowedPeripheralOperations = initFormData.allowedPeripheralOperations;
+  form.value.properties = initFormData.properties;
+  form.value.allowedOrdersList = [];
+  form.value.allowedPeripheralOperationsList = [];
+  form.value.propertiesText = '';
   typeFormRef.value?.resetFields();
 };
 
@@ -197,7 +333,35 @@ const handleUpdate = async (row?: TypeVO) => {
   reset();
   const _id = row?.id || ids.value[0];
   const res = await getType(_id);
-  Object.assign(form.value, res.data);
+  const data = res.data;
+  
+  // 解析数据到表单
+  form.value.id = data.id;
+  form.value.name = data.name;
+  form.value.length = data.length;
+  form.value.width = data.width;
+  form.value.height = data.height;
+  form.value.maxVelocity = data.maxVelocity;
+  form.value.maxReverseVelocity = data.maxReverseVelocity;
+  form.value.energyLevel = data.energyLevel;
+  
+  // 解析 allowedOrders（数组格式）
+  form.value.allowedOrdersList = data.allowedOrders && Array.isArray(data.allowedOrders) 
+    ? [...data.allowedOrders] 
+    : [];
+  
+  // 解析 allowedPeripheralOperations（数组格式）
+  form.value.allowedPeripheralOperationsList = data.allowedPeripheralOperations && Array.isArray(data.allowedPeripheralOperations)
+    ? [...data.allowedPeripheralOperations]
+    : [];
+  
+  // 解析properties（JSON对象）
+  if (data.properties && typeof data.properties === 'object') {
+    form.value.propertiesText = JSON.stringify(data.properties, null, 2);
+  } else {
+    form.value.propertiesText = '';
+  }
+  
   dialog.visible = true;
   dialog.title = '修改车辆类型';
 };
@@ -207,14 +371,53 @@ const submitForm = () => {
   typeFormRef.value?.validate(async (valid: boolean) => {
     if (valid) {
       buttonLoading.value = true;
-      if (form.value.id) {
-        await updateType(form.value).finally(() => (buttonLoading.value = false));
-      } else {
-        await addType(form.value).finally(() => (buttonLoading.value = false));
+      
+      // 构建提交数据
+      const submitData: TypeForm = {
+        id: form.value.id,
+        name: form.value.name,
+        length: form.value.length ?? undefined,
+        width: form.value.width ?? undefined,
+        height: form.value.height ?? undefined,
+        maxVelocity: form.value.maxVelocity ?? undefined,
+        maxReverseVelocity: form.value.maxReverseVelocity ?? undefined,
+        energyLevel: form.value.energyLevel ?? undefined,
+        // 将选中的订单类型转换为数组格式
+        allowedOrders: form.value.allowedOrdersList && form.value.allowedOrdersList.length > 0 
+          ? form.value.allowedOrdersList 
+          : undefined,
+        // 将选中的外设操作转换为数组格式
+        allowedPeripheralOperations: form.value.allowedPeripheralOperationsList && form.value.allowedPeripheralOperationsList.length > 0
+          ? form.value.allowedPeripheralOperationsList
+          : undefined
+      };
+      
+      // 处理properties（JSON对象）
+      if (form.value.propertiesText && form.value.propertiesText.trim()) {
+        try {
+          const parsedProps = JSON.parse(form.value.propertiesText);
+          if (typeof parsedProps === 'object' && parsedProps !== null) {
+            submitData.properties = parsedProps;
+          }
+        } catch (e) {
+          proxy?.$modal.msgError('扩展属性JSON格式错误，请检查后重试');
+          buttonLoading.value = false;
+          return;
+        }
       }
-      proxy?.$modal.msgSuccess('操作成功');
-      dialog.visible = false;
-      await getList();
+      
+      try {
+        if (form.value.id) {
+          await updateType(submitData);
+        } else {
+          await addType(submitData);
+        }
+        proxy?.$modal.msgSuccess('操作成功');
+        dialog.visible = false;
+        await getList();
+      } finally {
+        buttonLoading.value = false;
+      }
     }
   });
 };
@@ -228,20 +431,17 @@ const handleDelete = async (row?: TypeVO) => {
   await getList();
 };
 
-/** 状态修改  */
-const handleStatusChange = async (row: TypeVO) => {
-  const text = row.status === '0' ? '启用' : '停用';
-  try {
-    await proxy?.$modal.confirm('确认要"' + text + '"吗?');
-    await updateType({ id: row.id, status: row.status });
-    proxy?.$modal.msgSuccess(text + '成功');
-  } catch (err) {
-    row.status = row.status === '0' ? '1' : '0';
-  }
-};
-
 onMounted(() => {
   getList();
 });
 </script>
+
+<style scoped lang="scss">
+.form-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+</style>
 

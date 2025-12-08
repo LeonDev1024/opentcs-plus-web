@@ -9,7 +9,7 @@ import { VehicleVO, VehicleForm, VehicleQuery } from '@/api/opentcs/vehicle/type
  */
 export const listVehicle = (query?: VehicleQuery): AxiosPromise<VehicleVO[]> => {
   return request({
-    url: '/opentcs/vehicle/list',
+    url: '/vehicle/list',
     method: 'get',
     params: query
   });
@@ -21,7 +21,7 @@ export const listVehicle = (query?: VehicleQuery): AxiosPromise<VehicleVO[]> => 
  */
 export const getVehicle = (id: string | number): AxiosPromise<VehicleVO> => {
   return request({
-    url: '/opentcs/vehicle/' + id,
+    url: '/vehicle/' + id,
     method: 'get'
   });
 };
@@ -44,7 +44,7 @@ export const addVehicle = (data: VehicleForm) => {
  */
 export const updateVehicle = (data: VehicleForm) => {
   return request({
-    url: '/opentcs/vehicle',
+    url: '/vehicle/edit',
     method: 'put',
     data: data
   });

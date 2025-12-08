@@ -9,7 +9,7 @@ import { TypeVO, TypeForm, TypeQuery } from '@/api/opentcs/vehicle/type/types';
  */
 export const listType = (query?: TypeQuery): AxiosPromise<TypeVO[]> => {
   return request({
-    url: '/opentcs/vehicleType/list',
+    url: '/vehicle/type/list',
     method: 'get',
     params: query
   });
@@ -21,7 +21,7 @@ export const listType = (query?: TypeQuery): AxiosPromise<TypeVO[]> => {
  */
 export const getType = (id: string | number): AxiosPromise<TypeVO> => {
   return request({
-    url: '/opentcs/vehicleType/' + id,
+    url: '/vehicle/type/' + id,
     method: 'get'
   });
 };
@@ -32,7 +32,7 @@ export const getType = (id: string | number): AxiosPromise<TypeVO> => {
  */
 export const addType = (data: TypeForm) => {
   return request({
-    url: '/opentcs/vehicleType',
+    url: '/vehicle/type/add',
     method: 'post',
     data: data
   });
@@ -44,7 +44,7 @@ export const addType = (data: TypeForm) => {
  */
 export const updateType = (data: TypeForm) => {
   return request({
-    url: '/opentcs/vehicleType',
+    url: '/vehicle/type/edit',
     method: 'put',
     data: data
   });
@@ -56,7 +56,7 @@ export const updateType = (data: TypeForm) => {
  */
 export const delType = (id: string | number | Array<string | number>) => {
   return request({
-    url: '/opentcs/vehicleType/' + id,
+    url: '/vehicle/type/' + id,
     method: 'delete'
   });
 };
