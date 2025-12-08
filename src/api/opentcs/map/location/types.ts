@@ -69,8 +69,3 @@ export interface LocationQuery extends PageQuery {
   name?: string;
 }
 
-// 兼容旧命名
-export type LocationTypeVO = LocationVO;
-export type LocationTypeForm = LocationForm;
-export type LocationTypeQuery = LocationQuery;
-

@@ -1,4 +1,4 @@
-export interface ModelVO {
+export interface TypeVO {
   /**
    * id
    */
@@ -30,7 +30,7 @@ export interface ModelVO {
   createTime?: string;
 }
 
-export interface ModelForm extends BaseEntity {
+export interface TypeForm extends BaseEntity {
   /**
    * id
    */
@@ -57,7 +57,7 @@ export interface ModelForm extends BaseEntity {
   status?: string;
 }
 
-export interface ModelQuery extends PageQuery {
+export interface TypeQuery extends PageQuery {
   /**
    * 车辆类型名称
    */
@@ -73,9 +73,4 @@ export interface ModelQuery extends PageQuery {
    */
   status?: string;
 }
-
-// 兼容旧命名
-export type VehicleTypeVO = ModelVO;
-export type VehicleTypeForm = ModelForm;
-export type VehicleTypeQuery = ModelQuery;
 

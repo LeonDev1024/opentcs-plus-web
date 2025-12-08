@@ -179,8 +179,3 @@ export interface OrderQuery extends PageQuery {
   priority?: string;
 }
 
-// 兼容旧命名
-export type TransportOrderVO = OrderVO;
-export type TransportOrderForm = OrderForm;
-export type TransportOrderQuery = OrderQuery;
-

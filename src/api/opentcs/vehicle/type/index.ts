@@ -1,13 +1,13 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { ModelVO, ModelForm, ModelQuery, VehicleTypeVO, VehicleTypeForm, VehicleTypeQuery } from '@/api/opentcs/vehicle/model/types';
+import { TypeVO, TypeForm, TypeQuery } from '@/api/opentcs/vehicle/type/types';
 
 /**
  * 查询车辆类型列表
  * @param query
  * @returns {*}
  */
-export const listModel = (query?: ModelQuery): AxiosPromise<ModelVO[]> => {
+export const listType = (query?: TypeQuery): AxiosPromise<TypeVO[]> => {
   return request({
     url: '/opentcs/vehicleType/list',
     method: 'get',
@@ -19,7 +19,7 @@ export const listModel = (query?: ModelQuery): AxiosPromise<ModelVO[]> => {
  * 查询车辆类型详细
  * @param id
  */
-export const getModel = (id: string | number): AxiosPromise<ModelVO> => {
+export const getType = (id: string | number): AxiosPromise<TypeVO> => {
   return request({
     url: '/opentcs/vehicleType/' + id,
     method: 'get'
@@ -30,7 +30,7 @@ export const getModel = (id: string | number): AxiosPromise<ModelVO> => {
  * 新增车辆类型
  * @param data
  */
-export const addModel = (data: ModelForm) => {
+export const addType = (data: TypeForm) => {
   return request({
     url: '/opentcs/vehicleType',
     method: 'post',
@@ -42,7 +42,7 @@ export const addModel = (data: ModelForm) => {
  * 修改车辆类型
  * @param data
  */
-export const updateModel = (data: ModelForm) => {
+export const updateType = (data: TypeForm) => {
   return request({
     url: '/opentcs/vehicleType',
     method: 'put',
@@ -54,17 +54,10 @@ export const updateModel = (data: ModelForm) => {
  * 删除车辆类型
  * @param id
  */
-export const delModel = (id: string | number | Array<string | number>) => {
+export const delType = (id: string | number | Array<string | number>) => {
   return request({
     url: '/opentcs/vehicleType/' + id,
     method: 'delete'
   });
 };
-
-// 兼容旧命名
-export const listVehicleType = listModel;
-export const getVehicleType = getModel;
-export const addVehicleType = addModel;
-export const updateVehicleType = updateModel;
-export const delVehicleType = delModel;
 

@@ -1,6 +1,6 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { LocationVO, LocationForm, LocationQuery, LocationTypeVO, LocationTypeForm, LocationTypeQuery } from '@/api/opentcs/map/location/types';
+import { LocationVO, LocationForm, LocationQuery } from '@/api/opentcs/map/location/types';
 
 /**
  * 查询位置类型列表
@@ -60,11 +60,4 @@ export const delLocation = (id: string | number | Array<string | number>) => {
     method: 'delete'
   });
 };
-
-// 兼容旧命名
-export const listLocationType = listLocation;
-export const getLocationType = getLocation;
-export const addLocationType = addLocation;
-export const updateLocationType = updateLocation;
-export const delLocationType = delLocation;
 

@@ -72,8 +72,3 @@ export interface MapQuery extends PageQuery {
   status?: string;
 }
 
-// 兼容旧命名
-export type MapModelVO = MapVO;
-export type MapModelForm = MapForm;
-export type MapModelQuery = MapQuery;
-

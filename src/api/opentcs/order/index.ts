@@ -1,6 +1,6 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { OrderVO, OrderForm, OrderQuery, TransportOrderVO, TransportOrderForm, TransportOrderQuery } from '@/api/opentcs/order/types';
+import { OrderVO, OrderForm, OrderQuery } from '@/api/opentcs/order/types';
 
 /**
  * 查询运输订单列表
@@ -60,13 +60,6 @@ export const delOrder = (id: string | number | Array<string | number>) => {
     method: 'delete'
   });
 };
-
-// 兼容旧命名
-export const listTransportOrder = listOrder;
-export const getTransportOrder = getOrder;
-export const addTransportOrder = addOrder;
-export const updateTransportOrder = updateOrder;
-export const delTransportOrder = delOrder;
 
 /**
  * 分配订单到车辆

@@ -1,6 +1,6 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { MapVO, MapForm, MapQuery, MapModelVO, MapModelForm, MapModelQuery } from '@/api/opentcs/map/types';
+import { MapVO, MapForm, MapQuery } from '@/api/opentcs/map/types';
 
 // 查询地图模型列表
 export function listMap(query?: MapQuery): AxiosPromise<MapVO[]> {
@@ -57,13 +57,6 @@ export const delMap = (id: string | number | Array<string | number>) => {
   });
 };
 
-// 兼容旧命名
-export const listMapModel = listMap;
-export const getMapModel = getMap;
-export const addMapModel = addMap;
-export const updateMapModel = updateMap;
-export const delMapModel = delMap;
-
 /**
  * 加载地图模型
  * @param id
@@ -74,9 +67,6 @@ export const loadMap = (id: string | number) => {
     method: 'post'
   });
 };
-
-// 兼容旧命名
-export const loadMapModel = loadMap;
 
 /**
  * 保存地图编辑器数据（保存到文件）
