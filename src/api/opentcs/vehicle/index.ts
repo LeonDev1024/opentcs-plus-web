@@ -1,13 +1,13 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { VehicleVO, VehicleForm, VehicleQuery } from '@/api/opentcs/vehicle/types';
+import { VehicleVO, VehicleForm, VehicleQuery, PageResult } from '@/api/opentcs/vehicle/types';
 
 /**
  * 查询车辆列表
  * @param query
  * @returns {*}
  */
-export const listVehicle = (query?: VehicleQuery): AxiosPromise<VehicleVO[]> => {
+export const listVehicle = (query?: VehicleQuery): AxiosPromise<PageResult<VehicleVO>> => {
   return request({
     url: '/vehicle/list',
     method: 'get',
@@ -32,7 +32,7 @@ export const getVehicle = (id: string | number): AxiosPromise<VehicleVO> => {
  */
 export const addVehicle = (data: VehicleForm) => {
   return request({
-    url: '/opentcs/vehicle',
+    url: '/vehicle/create',
     method: 'post',
     data: data
   });
@@ -44,7 +44,7 @@ export const addVehicle = (data: VehicleForm) => {
  */
 export const updateVehicle = (data: VehicleForm) => {
   return request({
-    url: '/vehicle/edit',
+    url: '/vehicle/update',
     method: 'put',
     data: data
   });
@@ -56,7 +56,7 @@ export const updateVehicle = (data: VehicleForm) => {
  */
 export const delVehicle = (id: string | number | Array<string | number>) => {
   return request({
-    url: '/opentcs/vehicle/' + id,
+    url: '/vehicle/delete/' + id,
     method: 'delete'
   });
 };

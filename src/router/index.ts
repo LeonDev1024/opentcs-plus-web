@@ -110,6 +110,19 @@ export const constantRoutes: RouteRecordRaw[] = [
         meta: { title: '位置类型管理', icon: 'location' }
       }
     ]
+  },
+  {
+    path: '/opentcs/simulation',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/opentcs/simulation/index.vue'),
+        name: 'Simulation',
+        meta: { title: '仿真模块', icon: 'model' }
+      }
+    ]
   }
 ];
 

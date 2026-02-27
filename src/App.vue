@@ -5,6 +5,7 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted, nextTick } from 'vue';
 import { useSettingsStore } from '@/store/modules/settings';
 import { handleThemeStyle } from '@/utils/theme';
 import { useAppStore } from '@/store/modules/app';

@@ -1,0 +1,1 @@
+import{a9 as n}from"./index-B9WM9B43.js";function t(e){return n({url:"/monitor/online/list",method:"get",params:e})}function r(e){return n({url:"/monitor/online/"+e,method:"delete"})}function i(){return n({url:"/monitor/online",method:"get"})}function l(e){return n({url:"/monitor/online/myself/"+e,method:"delete"})}export{l as d,r as f,i as g,t as l};

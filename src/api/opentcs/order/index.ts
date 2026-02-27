@@ -9,7 +9,7 @@ import { OrderVO, OrderForm, OrderQuery } from '@/api/opentcs/order/types';
  */
 export const listOrder = (query?: OrderQuery): AxiosPromise<OrderVO[]> => {
   return request({
-    url: '/opentcs/transportOrder/list',
+    url: '/transport-order/list',
     method: 'get',
     params: query
   });
@@ -21,7 +21,7 @@ export const listOrder = (query?: OrderQuery): AxiosPromise<OrderVO[]> => {
  */
 export const getOrder = (id: string | number): AxiosPromise<OrderVO> => {
   return request({
-    url: '/opentcs/transportOrder/' + id,
+    url: '/transport-order/' + id,
     method: 'get'
   });
 };
@@ -32,7 +32,7 @@ export const getOrder = (id: string | number): AxiosPromise<OrderVO> => {
  */
 export const addOrder = (data: OrderForm) => {
   return request({
-    url: '/opentcs/transportOrder',
+    url: '/transport-order',
     method: 'post',
     data: data
   });
@@ -44,7 +44,7 @@ export const addOrder = (data: OrderForm) => {
  */
 export const updateOrder = (data: OrderForm) => {
   return request({
-    url: '/opentcs/transportOrder',
+    url: '/transport-order',
     method: 'put',
     data: data
   });
@@ -56,7 +56,7 @@ export const updateOrder = (data: OrderForm) => {
  */
 export const delOrder = (id: string | number | Array<string | number>) => {
   return request({
-    url: '/opentcs/transportOrder/' + id,
+    url: '/transport-order/' + id,
     method: 'delete'
   });
 };
@@ -68,34 +68,11 @@ export const delOrder = (id: string | number | Array<string | number>) => {
  */
 export const assignOrder = (id: string | number, vehicleId: string | number) => {
   return request({
-    url: '/opentcs/transportOrder/assign',
+    url: '/transport-order/assign/' + id,
     method: 'post',
-    data: {
-      id,
+    params: {
       vehicleId
     }
-  });
-};
-
-/**
- * 开始运输
- * @param id 订单ID
- */
-export const startTransport = (id: string | number) => {
-  return request({
-    url: '/opentcs/transportOrder/start/' + id,
-    method: 'post'
-  });
-};
-
-/**
- * 完成订单
- * @param id 订单ID
- */
-export const completeOrder = (id: string | number) => {
-  return request({
-    url: '/opentcs/transportOrder/complete/' + id,
-    method: 'post'
   });
 };
 
@@ -105,7 +82,7 @@ export const completeOrder = (id: string | number) => {
  */
 export const cancelOrder = (id: string | number) => {
   return request({
-    url: '/opentcs/transportOrder/cancel/' + id,
+    url: '/transport-order/cancel/' + id,
     method: 'post'
   });
 };

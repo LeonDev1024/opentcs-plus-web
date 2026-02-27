@@ -46,25 +46,31 @@ export const usePermissionStore = defineStore('permission', () => {
     sidebarRouters.value = routes;
   };
   const generateRoutes = async (): Promise<RouteRecordRaw[]> => {
-    const res = await getRouters();
-    const { data } = res;
-    const sdata = JSON.parse(JSON.stringify(data));
-    const rdata = JSON.parse(JSON.stringify(data));
-    const defaultData = JSON.parse(JSON.stringify(data));
-    const sidebarRoutes = filterAsyncRouter(sdata);
-    const rewriteRoutes = filterAsyncRouter(rdata, undefined, true);
-    const defaultRoutes = filterAsyncRouter(defaultData);
-    const asyncRoutes = filterDynamicRoutes(dynamicRoutes);
-    asyncRoutes.forEach((route) => {
-      router.addRoute(route);
-    });
-    setRoutes(rewriteRoutes);
-    setSidebarRouters(constantRoutes.concat(sidebarRoutes));
-    setDefaultRoutes(sidebarRoutes);
-    setTopbarRoutes(defaultRoutes);
-    // 路由name重复检查
-    duplicateRouteChecker(asyncRoutes, sidebarRoutes);
-    return new Promise<RouteRecordRaw[]>((resolve) => resolve(rewriteRoutes));
+    try {
+      const res = await getRouters();
+      const { data } = res;
+      const sdata = JSON.parse(JSON.stringify(data));
+      const rdata = JSON.parse(JSON.stringify(data));
+      const defaultData = JSON.parse(JSON.stringify(data));
+      const sidebarRoutes = filterAsyncRouter(sdata);
+      const rewriteRoutes = filterAsyncRouter(rdata, undefined, true);
+      const defaultRoutes = filterAsyncRouter(defaultData);
+      const asyncRoutes = filterDynamicRoutes(dynamicRoutes);
+      asyncRoutes.forEach((route) => {
+        router.addRoute(route);
+      });
+      setRoutes(rewriteRoutes);
+      setSidebarRouters(constantRoutes.concat(sidebarRoutes));
+      setDefaultRoutes(sidebarRoutes);
+      setTopbarRoutes(defaultRoutes);
+      // 路由name重复检查
+      duplicateRouteChecker(asyncRoutes, sidebarRoutes);
+      return new Promise<RouteRecordRaw[]>((resolve) => resolve(rewriteRoutes));
+    } catch (error) {
+      console.error('Failed to generate routes:', error);
+      // 返回空路由，避免页面崩溃
+      return new Promise<RouteRecordRaw[]>((resolve) => resolve([]));
+    }
   };
 
   /**

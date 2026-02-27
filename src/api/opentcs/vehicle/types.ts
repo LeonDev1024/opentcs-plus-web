@@ -10,9 +10,9 @@ export interface VehicleVO {
   name: string;
 
   /**
-   * 车辆编码
+   * 车辆VIN码
    */
-  code?: string;
+  vinCode?: string;
 
   /**
    * 车辆类型ID
@@ -25,14 +25,9 @@ export interface VehicleVO {
   vehicleTypeName?: string;
 
   /**
-   * 车牌号
+   * 车辆状态：UNKNOWN, UNAVAILABLE, IDLE, CHARGING, WORKING, ERROR
    */
-  licensePlate?: string;
-
-  /**
-   * 车辆状态（0空闲 1工作中 2维护中）
-   */
-  status: string;
+  state: string;
 
   /**
    * 当前位置ID
@@ -55,6 +50,28 @@ export interface VehicleVO {
   createTime?: string;
 }
 
+/**
+ * 分页响应结构
+ */
+export interface PageResult<T> {
+  /**
+   * 总记录数
+   */
+  total: number;
+  /**
+   * 分页数据
+   */
+  rows: T[];
+  /**
+   * 状态码
+   */
+  code: number;
+  /**
+   * 消息
+   */
+  msg: string;
+}
+
 export interface VehicleForm extends BaseEntity {
   /**
    * id
@@ -67,9 +84,9 @@ export interface VehicleForm extends BaseEntity {
   name?: string;
 
   /**
-   * 车辆编码
+   * 车辆VIN码
    */
-  code?: string;
+  vinCode?: string;
 
   /**
    * 车辆类型ID
@@ -77,14 +94,9 @@ export interface VehicleForm extends BaseEntity {
   vehicleTypeId?: string | number;
 
   /**
-   * 车牌号
+   * 车辆状态：UNKNOWN, UNAVAILABLE, IDLE, CHARGING, WORKING, ERROR
    */
-  licensePlate?: string;
-
-  /**
-   * 车辆状态（0空闲 1工作中 2维护中）
-   */
-  status?: string;
+  state?: string;
 
   /**
    * 当前位置ID
@@ -104,9 +116,9 @@ export interface VehicleQuery extends PageQuery {
   name?: string;
 
   /**
-   * 车辆编码
+   * 车辆VIN码
    */
-  code?: string;
+  vinCode?: string;
 
   /**
    * 车辆类型ID
@@ -114,13 +126,8 @@ export interface VehicleQuery extends PageQuery {
   vehicleTypeId?: string | number;
 
   /**
-   * 车牌号
+   * 车辆状态：UNKNOWN, UNAVAILABLE, IDLE, CHARGING, WORKING, ERROR
    */
-  licensePlate?: string;
-
-  /**
-   * 车辆状态（0空闲 1工作中 2维护中）
-   */
-  status?: string;
+  state?: string;
 }
 

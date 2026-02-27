@@ -6,11 +6,8 @@
           <el-form-item label="订单编号" prop="orderNo">
             <el-input v-model="queryParams.orderNo" placeholder="请输入订单编号" clearable @keyup.enter="handleQuery" />
           </el-form-item>
-          <el-form-item label="订单名称" prop="name">
-            <el-input v-model="queryParams.name" placeholder="请输入订单名称" clearable @keyup.enter="handleQuery" />
-          </el-form-item>
-          <el-form-item label="车辆" prop="vehicleId">
-            <el-input-number v-model="queryParams.vehicleId" placeholder="请输入车辆ID" clearable style="width: 200px" />
+          <el-form-item label="车辆VIN码" prop="vehicleVin">
+            <el-input v-model="queryParams.vehicleVin" placeholder="请输入车辆VIN码" clearable @keyup.enter="handleQuery" />
           </el-form-item>
           <el-form-item label="订单状态" prop="status">
             <el-select v-model="queryParams.status" placeholder="订单状态" clearable>
@@ -19,13 +16,6 @@
               <el-option label="运输中" value="2" />
               <el-option label="已完成" value="3" />
               <el-option label="已取消" value="4" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="优先级" prop="priority">
-            <el-select v-model="queryParams.priority" placeholder="优先级" clearable>
-              <el-option label="低" value="0" />
-              <el-option label="中" value="1" />
-              <el-option label="高" value="2" />
             </el-select>
           </el-form-item>
           <el-form-item>
@@ -78,7 +68,6 @@
 
       <el-table v-loading="loading" :data="orderList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column label="id" align="center" prop="id" />
         <el-table-column label="订单编号" align="center" prop="orderNo" width="180" />
         <el-table-column label="订单名称" align="center" prop="name" />
         <el-table-column label="车辆" align="center" prop="vehicleName" />
@@ -201,7 +190,7 @@
 </template>
 
 <script setup name="Order" lang="ts">
-import { listOrder, getOrder, delOrder, addOrder, updateOrder, assignOrder, startTransport, completeOrder, cancelOrder } from '@/api/opentcs/order';
+import { listOrder, getOrder, delOrder, addOrder, updateOrder, assignOrder, cancelOrder } from '@/api/opentcs/order';
 import { OrderVO, OrderQuery, OrderForm } from '@/api/opentcs/order/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
@@ -254,12 +243,8 @@ const data = reactive<PageData<OrderForm, OrderQuery>>({
     pageNum: 1,
     pageSize: 10,
     orderNo: undefined,
-    name: undefined,
-    vehicleId: undefined,
-    startLocationId: undefined,
-    targetLocationId: undefined,
-    status: undefined,
-    priority: undefined
+    vehicleVin: undefined,
+    status: undefined
   },
   rules: {
     orderNo: [{ required: true, message: '订单编号不能为空', trigger: 'blur' }],
@@ -382,34 +367,12 @@ const submitAssign = async () => {
 
 /** 开始运输按钮操作 */
 const handleStart = async (row?: OrderVO) => {
-  const _id = row?.id || ids.value[0];
-  try {
-    await proxy?.$modal.confirm('确认要开始运输该订单吗？');
-    loading.value = true;
-    await startTransport(_id);
-    proxy?.$modal.msgSuccess('开始运输成功');
-    await getList();
-  } catch (error) {
-    console.error('开始运输失败:', error);
-  } finally {
-    loading.value = false;
-  }
+  proxy?.$modal.msgInfo('开始运输功能暂未实现');
 };
 
 /** 完成订单按钮操作 */
 const handleComplete = async (row?: OrderVO) => {
-  const _id = row?.id || ids.value[0];
-  try {
-    await proxy?.$modal.confirm('确认要完成该订单吗？');
-    loading.value = true;
-    await completeOrder(_id);
-    proxy?.$modal.msgSuccess('完成订单成功');
-    await getList();
-  } catch (error) {
-    console.error('完成订单失败:', error);
-  } finally {
-    loading.value = false;
-  }
+  proxy?.$modal.msgInfo('完成订单功能暂未实现');
 };
 
 /** 取消订单按钮操作 */

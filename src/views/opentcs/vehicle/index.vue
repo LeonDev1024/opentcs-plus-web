@@ -6,20 +6,21 @@
           <el-form-item label="车辆名称" prop="name">
             <el-input v-model="queryParams.name" placeholder="请输入车辆名称" clearable @keyup.enter="handleQuery" />
           </el-form-item>
-          <el-form-item label="车辆编码" prop="code">
-            <el-input v-model="queryParams.code" placeholder="请输入车辆编码" clearable @keyup.enter="handleQuery" />
-          </el-form-item>
-          <el-form-item label="车牌号" prop="licensePlate">
-            <el-input v-model="queryParams.licensePlate" placeholder="请输入车牌号" clearable @keyup.enter="handleQuery" />
+          <el-form-item label="车辆VIN码" prop="vinCode">
+            <el-input v-model="queryParams.vinCode" placeholder="请输入车辆VIN码" clearable @keyup.enter="handleQuery" />
           </el-form-item>
           <el-form-item label="车辆类型" prop="vehicleTypeId">
-            <el-input-number v-model="queryParams.vehicleTypeId" placeholder="请输入车辆类型ID" clearable style="width: 200px" />
+            <el-select v-model="queryParams.vehicleTypeId" placeholder="请选择车辆类型" clearable style="width: 200px">
+              <el-option v-for="type in vehicleTypes" :key="type.id" :label="type.name" :value="type.id" />
+            </el-select>
           </el-form-item>
-          <el-form-item label="车辆状态" prop="status">
-            <el-select v-model="queryParams.status" placeholder="车辆状态" clearable>
-              <el-option label="空闲" value="0" />
-              <el-option label="工作中" value="1" />
-              <el-option label="维护中" value="2" />
+          <el-form-item label="车辆状态" prop="state">
+            <el-select v-model="queryParams.state" placeholder="车辆状态" clearable>
+              <el-option label="空闲" value="IDLE" />
+              <el-option label="工作中" value="WORKING" />
+              <el-option label="维护中" value="UNAVAILABLE" />
+              <el-option label="充电中" value="CHARGING" />
+              <el-option label="错误" value="ERROR" />
             </el-select>
           </el-form-item>
           <el-form-item>
@@ -52,16 +53,17 @@
 
       <el-table v-loading="loading" :data="vehicleList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column label="id" align="center" prop="id" />
         <el-table-column label="车辆名称" align="center" prop="name" />
-        <el-table-column label="车辆编码" align="center" prop="code" />
-        <el-table-column label="车牌号" align="center" prop="licensePlate" />
+        <el-table-column label="车辆VIN码" align="center" prop="vinCode" />
         <el-table-column label="车辆类型" align="center" prop="vehicleTypeName" />
-        <el-table-column label="车辆状态" align="center" prop="status">
+        <el-table-column label="车辆状态" align="center" prop="state">
           <template #default="scope">
-            <el-tag v-if="scope.row.status === '0'" type="success">空闲</el-tag>
-            <el-tag v-else-if="scope.row.status === '1'" type="warning">工作中</el-tag>
-            <el-tag v-else-if="scope.row.status === '2'" type="danger">维护中</el-tag>
+            <el-tag v-if="scope.row.state === 'IDLE'" type="success">空闲</el-tag>
+            <el-tag v-else-if="scope.row.state === 'WORKING' || scope.row.state === 'EXECUTING' || scope.row.state === 'MOVING'" type="warning">工作中</el-tag>
+            <el-tag v-else-if="scope.row.state === 'UNAVAILABLE'" type="danger">维护中</el-tag>
+            <el-tag v-else-if="scope.row.state === 'CHARGING'" type="info">充电中</el-tag>
+            <el-tag v-else-if="scope.row.state === 'ERROR'" type="danger">错误</el-tag>
+            <el-tag v-else type="info">未知</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="当前位置" align="center" prop="currentLocationName" />
@@ -87,24 +89,20 @@
         <el-form-item label="车辆名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入车辆名称" />
         </el-form-item>
-        <el-form-item label="车辆编码" prop="code">
-          <el-input v-model="form.code" placeholder="请输入车辆编码" />
+        <el-form-item label="车辆VIN码" prop="vinCode">
+          <el-input v-model="form.vinCode" placeholder="请输入车辆VIN码" />
         </el-form-item>
-        <el-form-item label="车牌号" prop="licensePlate">
-          <el-input v-model="form.licensePlate" placeholder="请输入车牌号" />
+        <el-form-item label="车辆类型" prop="vehicleTypeId">
+          <el-select v-model="form.vehicleTypeId" placeholder="请选择车辆类型" style="width: 100%">
+            <el-option v-for="type in vehicleTypes" :key="type.id" :label="type.name" :value="type.id" />
+          </el-select>
         </el-form-item>
-        <el-form-item label="车辆类型ID" prop="vehicleTypeId">
-          <el-input-number v-model="form.vehicleTypeId" placeholder="请输入车辆类型ID" style="width: 100%" />
-        </el-form-item>
-        <el-form-item label="车辆状态" prop="status">
-          <el-radio-group v-model="form.status">
-            <el-radio value="0">空闲</el-radio>
-            <el-radio value="1">工作中</el-radio>
-            <el-radio value="2">维护中</el-radio>
+        <el-form-item label="车辆状态" prop="state">
+          <el-radio-group v-model="form.state">
+            <el-radio value="IDLE">空闲</el-radio>
+            <el-radio value="WORKING">工作中</el-radio>
+            <el-radio value="UNAVAILABLE">维护中</el-radio>
           </el-radio-group>
-        </el-form-item>
-        <el-form-item label="当前位置ID" prop="currentLocationId">
-          <el-input-number v-model="form.currentLocationId" placeholder="请输入当前位置ID" style="width: 100%" />
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" />
@@ -122,11 +120,13 @@
 
 <script setup name="Vehicle" lang="ts">
 import { listVehicle, getVehicle, delVehicle, addVehicle, updateVehicle } from '@/api/opentcs/vehicle';
+import { listType } from '@/api/opentcs/vehicle/type';
 import { VehicleVO, VehicleQuery, VehicleForm } from '@/api/opentcs/vehicle/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 
 const vehicleList = ref<VehicleVO[]>([]);
+const vehicleTypes = ref<any[]>([]);
 const buttonLoading = ref(false);
 const loading = ref(true);
 const showSearch = ref(true);
@@ -146,11 +146,9 @@ const dialog = reactive<DialogOption>({
 const initFormData: VehicleForm = {
   id: undefined,
   name: undefined,
-  code: undefined,
+  vinCode: undefined,
   vehicleTypeId: undefined,
-  licensePlate: undefined,
-  status: '0',
-  currentLocationId: undefined,
+  state: 'IDLE',
   description: undefined
 };
 const data = reactive<PageData<VehicleForm, VehicleQuery>>({
@@ -159,10 +157,9 @@ const data = reactive<PageData<VehicleForm, VehicleQuery>>({
     pageNum: 1,
     pageSize: 10,
     name: undefined,
-    code: undefined,
-    vehicleTypeId: undefined,
-    licensePlate: undefined,
-    status: undefined
+    vinCode: undefined,
+    vehicleTypeId: null as number | null,
+    state: undefined
   },
   rules: {
     name: [{ required: true, message: '车辆名称不能为空', trigger: 'blur' }]
@@ -171,13 +168,27 @@ const data = reactive<PageData<VehicleForm, VehicleQuery>>({
 
 const { queryParams, form, rules } = toRefs(data);
 
+/** 查询车辆类型列表 */
+const getVehicleTypes = async () => {
+  const res = await listType({ pageNum: 1, pageSize: 100 });
+  vehicleTypes.value = res.rows;
+};
+
 /** 查询车辆列表 */
 const getList = async () => {
   loading.value = true;
-  const res = await listVehicle(queryParams.value);
-  vehicleList.value = res.rows;
-  total.value = res.total;
-  loading.value = false;
+  try {
+    const res = await listVehicle(queryParams.value);
+    console.log('Vehicle list response:', res);
+    vehicleList.value = res.rows;
+    total.value = res.total;
+  } catch (error) {
+    console.error('Error fetching vehicle list:', error);
+    vehicleList.value = [];
+    total.value = 0;
+  } finally {
+    loading.value = false;
+  }
 };
 
 /** 取消按钮 */
@@ -254,7 +265,8 @@ const handleDelete = async (row?: VehicleVO) => {
   await getList();
 };
 
-onMounted(() => {
+onMounted(async () => {
+  await getVehicleTypes();
   getList();
 });
 </script>

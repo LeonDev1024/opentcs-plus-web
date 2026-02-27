@@ -1,0 +1,1 @@
+const a="data:image/svg+xml,%3csvg%20xmlns='http://www.w3.org/2000/svg'%20class='ionicon'%20viewBox='0%200%20512%20512'%3e%3cpath%20d='M321.94%2098L158.82%20237.78a24%2024%200%20000%2036.44L321.94%20414c15.57%2013.34%2039.62%202.28%2039.62-18.22v-279.6c0-20.5-24.05-31.56-39.62-18.18z'/%3e%3c/svg%3e";export{a as default};
