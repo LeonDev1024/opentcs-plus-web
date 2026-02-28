@@ -1,3 +1,4 @@
+@use './design-system.scss' as *;
 @use './variables.module.scss' as *;
 @use './mixin.scss';
 @use './transition.scss';
@@ -5,31 +6,34 @@
 @use './sidebar.scss';
 @use './btn.scss';
 @use './ruoyi.scss';
+@use './business.scss';
 @use 'animate.css';
 
-body {
-  height: 100%;
+* {
   margin: 0;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  font-family:
-    Helvetica Neue,
-    Helvetica,
-    PingFang SC,
-    Hiragino Sans GB,
-    Microsoft YaHei,
-    Arial,
-    sans-serif;
-}
-
-label {
-  font-weight: 700;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 html {
   height: 100%;
-  box-sizing: border-box;
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  height: 100%;
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height-normal);
+  color: var(--text-primary);
+  background-color: var(--bg-secondary);
+}
+
+label {
+  font-weight: var(--font-weight-medium);
 }
 
 html.dark .svg-icon,
@@ -135,24 +139,25 @@ aside {
   }
 }
 
-//main-container全局样式
+// main-container全局样式
 .app-container {
-  padding: 20px;
+  padding: var(--spacing-6);
 }
 
 // search面板样式
 .panel,
 .search {
-  margin-bottom: 0.75rem;
-  border-radius: 0.25rem;
-  border: 1px solid var(--el-border-color-light);
-  background-color: var(--el-bg-color-overlay);
-  padding: 0.75rem;
-  transition: all ease 0.3s;
+  margin-bottom: var(--spacing-3);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-default);
+  background-color: var(--bg-primary);
+  padding: var(--spacing-4);
+  transition: var(--transition-all);
+  box-shadow: var(--shadow-xs);
 
   &:hover {
-    box-shadow: 0 2px 12px #0000001a;
-    transition: all ease 0.3s;
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-dark);
   }
 }
 

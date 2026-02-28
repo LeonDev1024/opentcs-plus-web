@@ -52,37 +52,53 @@ const sideTheme = computed(() => settingsStore.sideTheme);
 .sidebar-logo-container {
   position: relative;
   width: 100%;
-  height: 50px;
-  line-height: 50px;
-  background: #2b2f3a;
-  text-align: center;
+  height: var(--navbar-height);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
   & .sidebar-logo-link {
     height: 100%;
     width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-3);
+    text-decoration: none;
+    transition: var(--transition-all);
+
+    &:hover {
+      transform: scale(1.02);
+    }
 
     & .sidebar-logo {
       width: 32px;
       height: 32px;
-      vertical-align: middle;
-      margin-right: 12px;
+      transition: var(--transition-transform);
+
+      &:hover {
+        transform: rotate(360deg);
+      }
     }
 
     & .sidebar-title {
-      display: inline-block;
       margin: 0;
       color: #fff;
-      font-weight: 600;
-      line-height: 50px;
-      font-size: 14px;
+      font-weight: var(--font-weight-bold);
+      font-size: var(--font-size-lg);
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       font-family:
         Avenir,
         Helvetica Neue,
         Arial,
         Helvetica,
         sans-serif;
-      vertical-align: middle;
     }
   }
 

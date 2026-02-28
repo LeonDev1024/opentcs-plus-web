@@ -1,10 +1,12 @@
 <template>
   <div class="navbar">
-    <hamburger id="hamburger-container" :is-active="appStore.sidebar.opened" class="hamburger-container" @toggle-click="toggleSideBar" />
-    <breadcrumb v-if="!settingsStore.topNav" id="breadcrumb-container" class="breadcrumb-container" />
-    <top-nav v-if="settingsStore.topNav" id="topmenu-container" class="topmenu-container" />
+    <div class="navbar-left">
+      <hamburger id="hamburger-container" :is-active="appStore.sidebar.opened" class="hamburger-container" @toggle-click="toggleSideBar" />
+      <breadcrumb v-if="!settingsStore.topNav" id="breadcrumb-container" class="breadcrumb-container" />
+      <top-nav v-if="settingsStore.topNav" id="topmenu-container" class="topmenu-container" />
+    </div>
 
-    <div class="right-menu flex align-center">
+    <div class="right-menu">
       <template v-if="appStore.device !== 'mobile'">
         <el-select
           v-if="userId === 1 && tenantEnabled"
@@ -29,11 +31,11 @@
         </el-tooltip> -->
         <!-- 消息 -->
         <el-tooltip :content="proxy.$t('navbar.message')" effect="dark" placement="bottom">
-          <div>
+          <div class="right-menu-item hover-effect">
             <el-popover placement="bottom" trigger="click" transition="el-zoom-in-top" :width="300" :persistent="false">
               <template #reference>
                 <el-badge :value="newNotice > 0 ? newNotice : ''" :max="99">
-                  <div class="right-menu-item hover-effect" style="display: block"><svg-icon icon-class="message" /></div>
+                  <svg-icon icon-class="message" />
                 </el-badge>
               </template>
               <template #default>
@@ -45,12 +47,14 @@
 
 
         <el-tooltip :content="proxy.$t('navbar.document')" effect="dark" placement="bottom">
-          <ruo-yi-doc id="ruoyi-doc" class="right-menu-item hover-effect" />
+          <div class="right-menu-item hover-effect">
+            <ruo-yi-doc id="ruoyi-doc" />
+          </div>
         </el-tooltip>
 
       </template>
-      <div class="avatar-container">
-        <el-dropdown class="right-menu-item hover-effect" trigger="click" @command="handleCommand">
+      <div class="right-menu-item hover-effect avatar-item">
+        <el-dropdown trigger="click" @command="handleCommand">
           <div class="avatar-wrapper">
             <img :src="userStore.avatar" class="user-avatar" />
             <el-icon><caret-bottom /></el-icon>
@@ -189,11 +193,13 @@ watch(
 
 <style lang="scss" scoped>
 :deep(.el-select .el-input__wrapper) {
-  height: 30px;
+  height: 32px;
+  border-radius: var(--radius-md);
 }
 
 :deep(.el-badge__content.is-fixed) {
-  top: 12px;
+  top: 10px;
+  right: 8px;
 }
 
 .flex {
@@ -205,91 +211,213 @@ watch(
 }
 
 .navbar {
-  height: 50px;
+  height: var(--navbar-height);
   overflow: hidden;
   position: relative;
-  //background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(10px);
+  transition: var(--transition-all);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  .navbar-left {
+    display: flex;
+    align-items: center;
+    height: 100%;
+  }
 
   .hamburger-container {
-    line-height: 46px;
     height: 100%;
-    float: left;
     cursor: pointer;
-    transition: background 0.3s;
-    -webkit-tap-highlight-color: transparent;
+    transition: var(--transition-all);
+    padding: 0 var(--spacing-3);
+    border-radius: var(--radius-md);
+    margin: var(--spacing-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
 
     &:hover {
-      background: rgba(0, 0, 0, 0.025);
+      background: var(--bg-secondary);
+      transform: scale(1.05);
+    }
+    
+    &:active {
+      transform: scale(0.95);
     }
   }
 
   .breadcrumb-container {
-    float: left;
+    padding: 0 var(--spacing-3);
+    height: 100%;
+    display: flex;
+    align-items: center;
   }
 
   .topmenu-container {
-    position: absolute;
-    left: 50px;
+    height: 100%;
+    display: flex;
+    align-items: center;
   }
 
   .errLog-container {
-    display: inline-block;
-    vertical-align: top;
+    display: flex;
+    align-items: center;
   }
 
   .right-menu {
-    float: right;
     height: 100%;
-    line-height: 50px;
     display: flex;
+    align-items: center;
+    gap: var(--spacing-1);
 
     &:focus {
       outline: none;
     }
 
     .right-menu-item {
-      display: inline-block;
-      padding: 0 8px;
-      height: 100%;
-      font-size: 18px;
-      color: #5a5e66;
-      vertical-align: text-bottom;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 var(--spacing-3);
+      height: 40px;
+      font-size: 20px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: var(--transition-all);
+      border-radius: var(--radius-md);
+      position: relative;
 
       &.hover-effect {
-        cursor: pointer;
-        transition: background 0.3s;
-
         &:hover {
-          background: rgba(0, 0, 0, 0.025);
+          background: var(--bg-secondary);
+          color: var(--primary-500);
+          transform: translateY(-1px);
         }
+        
+        &:active {
+          transform: translateY(0);
+        }
+      }
+      
+      .svg-icon {
+        transition: var(--transition-transform);
+      }
+      
+      &:hover .svg-icon {
+        transform: scale(1.1);
       }
     }
 
-    .avatar-container {
-      margin-right: 40px;
+    .avatar-item {
+      margin-right: var(--spacing-6);
 
       .avatar-wrapper {
-        margin-top: 5px;
         position: relative;
+        display: flex;
+        align-items: center;
+        gap: var(--spacing-2);
+        padding: var(--spacing-1);
+        border-radius: var(--radius-lg);
+        transition: var(--transition-all);
+        cursor: pointer;
 
-        .user-avatar {
-          cursor: pointer;
-          width: 40px;
-          height: 40px;
-          border-radius: 10px;
-          margin-top: 10px;
+        &:hover {
+          background: var(--bg-secondary);
         }
 
-        i {
-          cursor: pointer;
-          position: absolute;
-          right: -20px;
-          top: 25px;
-          font-size: 12px;
+        .user-avatar {
+          width: 36px;
+          height: 36px;
+          border-radius: var(--radius-lg);
+          border: 2px solid var(--border-default);
+          transition: var(--transition-all);
+          object-fit: cover;
+          
+          &:hover {
+            border-color: var(--primary-500);
+            transform: scale(1.05);
+          }
+        }
+
+        .el-icon {
+          font-size: 14px;
+          color: var(--text-tertiary);
+          transition: var(--transition-transform);
+        }
+        
+        &:hover .el-icon {
+          transform: rotate(180deg);
         }
       }
     }
+  }
+}
+
+// 下拉菜单优化
+:deep(.el-dropdown-menu) {
+  padding: var(--spacing-2);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-dropdown);
+  border: 1px solid var(--border-light);
+  background: var(--bg-primary);
+  
+  .el-dropdown-menu__item {
+    border-radius: var(--radius-md);
+    padding: var(--spacing-2) var(--spacing-4);
+    margin: var(--spacing-1) 0;
+    transition: var(--transition-all);
+    
+    &:hover {
+      background: var(--bg-secondary);
+      color: var(--primary-500);
+      transform: translateX(4px);
+    }
+  }
+  
+  .el-dropdown-menu__item--divided {
+    border-top: 1px solid var(--border-light);
+    margin-top: var(--spacing-2);
+    padding-top: var(--spacing-2);
+  }
+}
+
+// 消息徽章优化
+:deep(.el-badge) {
+  .el-badge__content {
+    background-color: var(--danger-500);
+    border: 2px solid var(--bg-primary);
+    font-weight: var(--font-weight-semibold);
+    font-size: 11px;
+    height: 18px;
+    line-height: 14px;
+    padding: 0 5px;
+  }
+}
+
+// 租户选择器优化
+:deep(.el-select) {
+  .el-input__wrapper {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-default);
+    transition: var(--transition-all);
+    
+    &:hover {
+      border-color: var(--primary-500);
+      background: var(--bg-primary);
+    }
+    
+    &.is-focus {
+      border-color: var(--primary-500);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+  }
+  
+  .el-input__inner {
+    font-weight: var(--font-weight-medium);
   }
 }
 </style>
