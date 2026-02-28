@@ -104,7 +104,7 @@ const sideTheme = computed(() => settingsStore.sideTheme);
       margin: 0 !important;
       color: #fff !important;
       font-weight: var(--font-weight-bold) !important;
-      font-size: 16px !important;
+      font-size: 14px !important;
       letter-spacing: 0.3px !important;
       white-space: nowrap !important;
       overflow: hidden !important;

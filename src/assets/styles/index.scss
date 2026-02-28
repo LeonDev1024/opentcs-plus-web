@@ -147,17 +147,61 @@ aside {
 // search面板样式
 .panel,
 .search {
-  margin-bottom: var(--spacing-3);
+  margin-top: var(--spacing-5);
+  margin-bottom: var(--spacing-5);
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-default);
   background-color: var(--bg-primary);
-  padding: var(--spacing-4);
+  padding: var(--spacing-5);
   transition: var(--transition-all);
   box-shadow: var(--shadow-xs);
 
   &:hover {
     box-shadow: var(--shadow-md);
     border-color: var(--border-dark);
+  }
+
+  // 调整表单项间距和对齐
+  .el-form {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .el-form-item {
+    margin-bottom: var(--spacing-4);
+    margin-right: var(--spacing-4);
+    align-items: center;
+    margin-bottom: 0;
+    
+    &:last-child {
+      margin-bottom: 0;
+      margin-right: 0;
+    }
+    
+    // 确保表单项内部对齐
+    .el-form-item__content {
+      align-items: center;
+    }
+    
+    // 确保输入框和下拉框高度一致
+    .el-input__inner,
+    .el-select .el-input__inner {
+      height: 32px;
+      line-height: 32px;
+    }
+  }
+  
+  // 调整按钮样式和间距
+  .el-button {
+    height: 32px;
+    line-height: 32px;
+    padding: 0 15px;
+    margin-right: var(--spacing-2);
+    
+    &:last-child {
+      margin-right: 0;
+    }
   }
 }
 
