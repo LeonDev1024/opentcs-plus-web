@@ -1,6 +1,6 @@
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- 深色矩形背景 -->
-  <rect x="0" y="0" width="32" height="32" rx="4" fill="#1f2d3d"/>
+  <!-- 深色圆形背景 -->
+  <circle cx="16" cy="16" r="16" fill="#1f2d3d"/>
   
   <!-- 室内交通控制路线 - 网格化路径规划 -->
   

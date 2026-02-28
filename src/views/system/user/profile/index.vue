@@ -1,7 +1,7 @@
 <template>
   <div class="p-2">
     <el-row :gutter="20">
-      <el-col :span="6" :xs="24">
+      <el-col :span="8" :xs="24">
         <el-card class="box-card">
           <template #header>
             <div class="clearfix">
@@ -41,7 +41,7 @@
           </div>
         </el-card>
       </el-col>
-      <el-col :span="18" :xs="24">
+      <el-col :span="16" :xs="24">
         <el-card>
           <template #header>
             <div class="clearfix">
@@ -120,3 +120,46 @@ onMounted(() => {
   getOnlines();
 });
 </script>
+
+<style scoped>
+/* 调整整体容器间距 */
+.p-2 {
+  padding: 24px;
+}
+
+/* 调整卡片间距 */
+.box-card {
+  margin-bottom: 24px;
+}
+
+/* 调整个人信息卡片内边距 */
+.box-card .text-center {
+  margin: 20px 0;
+}
+
+/* 调整列表项间距 */
+.list-group {
+  margin-top: 20px;
+}
+
+.list-group-item {
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.list-group-item:hover {
+  background-color: #f5f7fa;
+}
+
+/* 调整右侧卡片内边距 */
+.el-card {
+  padding: 20px;
+}
+
+/* 调整标签页内容间距 */
+.el-tabs {
+  margin-top: 16px;
+}
+</style>

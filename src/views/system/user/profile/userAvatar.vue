@@ -61,6 +61,7 @@ import { VueCropper } from 'vue-cropper';
 import { uploadAvatar } from '@/api/system/user';
 import { useUserStore } from '@/store/modules/user';
 import { UploadRawFile } from 'element-plus';
+import { ref, reactive, getCurrentInstance } from 'vue';
 
 interface Options {
   img: string | any; // 裁剪图片的地址
@@ -160,6 +161,14 @@ const closeDialog = () => {
   position: relative;
   display: inline-block;
   height: 120px;
+}
+
+.img-circle {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
 .user-info-head:hover:after {
