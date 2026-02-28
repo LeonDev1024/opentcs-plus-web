@@ -166,7 +166,13 @@ onMounted(() => {
   overflow-x: hidden;
 
   .overview-card {
+    min-height: 200px;
+    height: auto;
     transition: all 0.3s ease;
+    border-radius: var(--radius-lg);
+    :deep(.el-card__body) {
+      padding: 16px;
+    }
     &:hover {
       transform: translateY(-5px);
       box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
@@ -177,34 +183,67 @@ onMounted(() => {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-light);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-base);
   }
   
   .overview-content {
-    padding: 10px 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
   }
   
   .status-title {
     font-size: 14px;
-    color: #909399;
-    margin-bottom: 8px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
   }
   
   .status-value {
     font-size: 24px;
-    font-weight: 500;
-    color: #303133;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
   }
   
   .stats-row {
     display: flex;
     justify-content: space-around;
-    margin-top: 15px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-light);
   }
   
   .stat-item {
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 4px;
+    span {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+  }
+  
+  :deep(.el-statistic) {
+    .el-statistic__head {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+    .el-statistic__content {
+      font-size: 24px;
+      font-weight: var(--font-weight-semibold);
+      color: var(--text-primary);
+    }
+  }
+  
+  :deep(.el-tag) {
+    font-size: 12px;
+    padding: 0 8px;
+    height: 22px;
+    line-height: 20px;
   }
 }
 </style>

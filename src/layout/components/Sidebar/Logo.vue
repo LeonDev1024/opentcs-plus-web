@@ -7,15 +7,14 @@
     <transition :enter-active-class="proxy?.animate.logoAnimate.enter" mode="out-in">
       <router-link v-if="collapse" key="collapse" class="sidebar-logo-link" to="/">
         <img v-if="logo" :src="logo" class="sidebar-logo" />
-        <h1 v-else class="sidebar-title" :style="{ color: sideTheme === 'theme-dark' ? variables.logoTitleColor : variables.logoLightTitleColor }">
-          {{ title }}
-        </h1>
       </router-link>
       <router-link v-else key="expand" class="sidebar-logo-link" to="/">
-        <img v-if="logo" :src="logo" class="sidebar-logo" />
-        <h1 class="sidebar-title" :style="{ color: sideTheme === 'theme-dark' ? variables.logoTitleColor : variables.logoLightTitleColor }">
-          {{ title }}
-        </h1>
+        <div class="logo-content">
+          <img v-if="logo" :src="logo" class="sidebar-logo" />
+          <h1 class="sidebar-title" :style="{ color: sideTheme === 'theme-dark' ? variables.logoTitleColor : variables.logoLightTitleColor }">
+            {{ title }}
+          </h1>
+        </div>
       </router-link>
     </transition>
   </div>
@@ -49,62 +48,81 @@ const sideTheme = computed(() => settingsStore.sideTheme);
   opacity: 0;
 }
 
+/* 侧边栏Logo容器样式 */
 .sidebar-logo-container {
-  position: relative;
-  width: 100%;
-  height: var(--navbar-height);
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: relative !important;
+  width: 100% !important;
+  height: var(--navbar-height) !important;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-sizing: border-box !important;
 
-  & .sidebar-logo-link {
-    height: 100%;
-    width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-3);
-    text-decoration: none;
-    transition: var(--transition-all);
+  /* Logo链接样式 */
+  .sidebar-logo-link {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    padding: 0 12px !important;
+    text-decoration: none !important;
+    transition: var(--transition-all) !important;
+    height: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
 
     &:hover {
-      transform: scale(1.02);
+      transform: scale(1.02) !important;
     }
 
-    & .sidebar-logo {
-      width: 32px;
-      height: 32px;
-      transition: var(--transition-transform);
+    /* Logo内容容器 */
+    .logo-content {
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+      white-space: nowrap !important;
+    }
+
+    /* Logo图片 */
+    .sidebar-logo {
+      width: 28px !important;
+      height: 28px !important;
+      flex-shrink: 0 !important;
+      transition: var(--transition-transform) !important;
 
       &:hover {
-        transform: rotate(360deg);
+        transform: rotate(360deg) !important;
       }
     }
 
-    & .sidebar-title {
-      margin: 0;
-      color: #fff;
-      font-weight: var(--font-weight-bold);
-      font-size: var(--font-size-lg);
-      letter-spacing: 0.5px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    /* Logo标题 */
+    .sidebar-title {
+      margin: 0 !important;
+      color: #fff !important;
+      font-weight: var(--font-weight-bold) !important;
+      font-size: 16px !important;
+      letter-spacing: 0.3px !important;
+      white-space: nowrap !important;
+      overflow: hidden !important;
+      text-overflow: ellipsis !important;
+      line-height: 1 !important;
       font-family:
         Avenir,
         Helvetica Neue,
         Arial,
         Helvetica,
-        sans-serif;
+        sans-serif !important;
     }
   }
 
+  /* 折叠状态 */
   &.collapse {
     .sidebar-logo {
-      margin-right: 0px;
+      margin-right: 0px !important;
     }
   }
 }
