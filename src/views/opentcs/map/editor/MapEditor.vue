@@ -197,6 +197,34 @@
           </el-tooltip>
         </el-button-group>
         <el-divider direction="vertical" />
+        <el-button-group>
+          <el-tooltip content="批量删除" :show-after="50" placement="bottom">
+            <el-button
+              size="small"
+              icon="Delete"
+              :disabled="!hasSelection"
+              @click="handleBatchDelete"
+            />
+          </el-tooltip>
+        </el-button-group>
+        <el-divider direction="vertical" />
+        <el-button-group>
+          <el-tooltip content="导出地图" :show-after="50" placement="bottom">
+            <el-button
+              size="small"
+              icon="Download"
+              @click="handleExportMap"
+            />
+          </el-tooltip>
+          <el-tooltip content="导入地图" :show-after="50" placement="bottom">
+            <el-button
+              size="small"
+              icon="Upload"
+              @click="handleImportMap"
+            />
+          </el-tooltip>
+        </el-button-group>
+        <el-divider direction="vertical" />
         <span class="zoom-level">{{ Math.round(canvasState.scale * 100) }}%</span>
         <el-button-group size="small">
           <el-tooltip content="放大" :show-after="50" placement="bottom">
@@ -249,23 +277,29 @@
             </el-icon>
           </el-button>
         </el-tooltip>
-        <el-tooltip :content="isHeaderCollapsed ? '展开导航栏' : '折叠导航栏'" :show-after="50" placement="bottom">
+        <el-tooltip :content="isRightPanelCollapsed ? '展开属性面板' : '收起属性面板'" :show-after="50" placement="bottom">
           <el-button
             class="collapse-toggle"
             size="small"
-            @click="toggleHeaderCollapse"
+            @click="toggleRightPanelCollapse"
           >
             <el-icon>
-              <component :is="isHeaderCollapsed ? 'CaretBottom' : 'CaretTop'" />
+              <component :is="isRightPanelCollapsed ? 'CaretLeft' : 'CaretRight'" />
             </el-icon>
           </el-button>
+        </el-tooltip>
+        <el-tooltip content="自动切换工具" :show-after="50" placement="bottom">
+          <el-switch
+            v-model="autoSwitchTool"
+            size="small"
+          />
         </el-tooltip>
       </div>
     </div>
     
     <!-- 主内容区 -->
     <div class="editor-content">
-      <!-- 左侧面板：视图、属性、图层 -->
+      <!-- 左侧面板：视图、图层 -->
       <div 
         v-show="!isLeftPanelCollapsed"
         class="left-panels" 
@@ -295,7 +329,7 @@
         </div>
       </div>
       
-      <!-- 可拖拽的分隔条 -->
+      <!-- 左侧可拖拽的分隔条 -->
       <div 
         v-show="!isLeftPanelCollapsed"
         class="panel-resizer" 
@@ -306,8 +340,25 @@
       <!-- 中间：画布区域 -->
       <div class="canvas-area">
         <div class="canvas-wrapper">
-          <MapCanvas ref="mapCanvasRef" @point-double-click="handlePointDoubleClick" />
+          <MapCanvas ref="mapCanvasRef" @point-double-click="handlePointDoubleClick" :auto-switch-tool="autoSwitchTool" />
         </div>
+      </div>
+      
+      <!-- 右侧可拖拽的分隔条 -->
+      <div 
+        v-show="!isRightPanelCollapsed"
+        class="panel-resizer panel-resizer-right" 
+        @mousedown="handleRightResizeStart"
+        :class="{ 'resizing': isRightResizing }"
+      ></div>
+      
+      <!-- 右侧面板：属性 -->
+      <div 
+        v-show="!isRightPanelCollapsed"
+        class="right-panel" 
+        :style="{ width: rightPanelWidth + 'px' }"
+      >
+        <PropertyPanel />
       </div>
     </div>
     
@@ -337,6 +388,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import MapCanvas from './components/MapCanvas.vue';
 import LayerPanel from './components/LayerPanel.vue';
 import ComponentsPanel from './components/ComponentsPanel.vue';
+import PropertyPanel from './components/PropertyPanel.vue';
 import PointEditDialog from './components/PointEditDialog.vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import { ToolMode } from '@/types/mapEditor';
@@ -366,14 +418,17 @@ const mousePosition = ref({ x: 0, y: 0 });
 const showPointEditDialog = ref(false);
 const currentEditPoint = ref<MapPoint | null>(null);
 
-// 顶部导航折叠状态
-const isHeaderCollapsed = ref(false);
-
 // 左侧面板收起状态
 const isLeftPanelCollapsed = ref(false);
 
+// 右侧面板收起状态
+const isRightPanelCollapsed = ref(false);
+
 // 图层面板折叠状态
 const isLayerPanelCollapsed = ref(false);
+
+// 工具模式记忆状态
+const autoSwitchTool = ref(true);
 
 // 左侧面板宽度
 const LEFT_PANEL_MIN_WIDTH = 200;
@@ -381,10 +436,19 @@ const LEFT_PANEL_MAX_WIDTH = 600;
 const LEFT_PANEL_DEFAULT_WIDTH = 280;
 const LEFT_PANEL_WIDTH_KEY = 'map-editor-left-panel-width';
 
+// 右侧面板宽度
+const RIGHT_PANEL_MIN_WIDTH = 200;
+const RIGHT_PANEL_MAX_WIDTH = 400;
+const RIGHT_PANEL_DEFAULT_WIDTH = 280;
+const RIGHT_PANEL_WIDTH_KEY = 'map-editor-right-panel-width';
+
 const leftPanelWidth = ref(LEFT_PANEL_DEFAULT_WIDTH);
+const rightPanelWidth = ref(RIGHT_PANEL_DEFAULT_WIDTH);
 const isResizing = ref(false);
+const isRightResizing = ref(false);
 const resizeStartX = ref(0);
 const resizeStartWidth = ref(0);
+const resizeStartRightWidth = ref(0);
 
 // 从 store 获取状态
 const currentTool = computed(() => mapEditorStore.currentTool);
@@ -393,6 +457,7 @@ const canRedo = computed(() => mapEditorStore.canRedo);
 const loading = computed(() => mapEditorStore.loading);
 const isDirty = computed(() => mapEditorStore.isDirty);
 const canvasState = computed(() => mapEditorStore.canvasState);
+const hasSelection = computed(() => mapEditorStore.selection.selectedIds.size > 0);
 
 type PathConnectionType = 'direct' | 'orthogonal' | 'curve';
 
@@ -425,6 +490,13 @@ const setTool = (tool: ToolMode) => {
   };
   
   ElMessage.success(`已切换到${toolNames[tool]}`);
+};
+
+// 自动切换工具
+const autoSwitchToSelect = () => {
+  if (autoSwitchTool.value) {
+    mapEditorStore.setTool(ToolMode.SELECT);
+  }
 };
 
 const getPointTypeIconClass = (type: string) => {
@@ -471,35 +543,20 @@ const handlePathDropdownVisible = (visible: boolean) => {
   }
 };
 
-// 顶部导航折叠
-const applyHeaderCollapseState = () => {
-  const appWrapper = document.querySelector('.app-wrapper') || document.body;
-  if (!appWrapper) return;
-  if (isHeaderCollapsed.value) {
-    appWrapper.classList.add('map-editor-header-collapsed');
-  } else {
-    appWrapper.classList.remove('map-editor-header-collapsed');
-  }
-};
-
-const toggleHeaderCollapse = () => {
-  isHeaderCollapsed.value = !isHeaderCollapsed.value;
-  applyHeaderCollapseState();
-};
-
 // 左侧面板收起/展开
 const toggleLeftPanelCollapse = () => {
   isLeftPanelCollapsed.value = !isLeftPanelCollapsed.value;
+};
+
+// 右侧面板收起/展开
+const toggleRightPanelCollapse = () => {
+  isRightPanelCollapsed.value = !isRightPanelCollapsed.value;
 };
 
 // 图层面板折叠/展开
 const toggleLayerPanelCollapse = () => {
   isLayerPanelCollapsed.value = !isLayerPanelCollapsed.value;
 };
-
-watch(isHeaderCollapsed, () => {
-  nextTick(() => applyHeaderCollapseState());
-});
 
 // 撤销/重做
 const undo = () => {
@@ -616,7 +673,7 @@ watch(() => mapCanvasRef.value, (canvas) => {
   }
 }, { immediate: true });
 
-// 拖拽调整面板宽度
+// 拖拽调整左侧面板宽度
 const handleResizeStart = (e: MouseEvent) => {
   isResizing.value = true;
   resizeStartX.value = e.clientX;
@@ -656,6 +713,46 @@ const handleResizeEnd = () => {
   localStorage.setItem(LEFT_PANEL_WIDTH_KEY, leftPanelWidth.value.toString());
 };
 
+// 拖拽调整右侧面板宽度
+const handleRightResizeStart = (e: MouseEvent) => {
+  isRightResizing.value = true;
+  resizeStartX.value = e.clientX;
+  resizeStartRightWidth.value = rightPanelWidth.value;
+  
+  document.addEventListener('mousemove', handleRightResizeMove);
+  document.addEventListener('mouseup', handleRightResizeEnd);
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  
+  e.preventDefault();
+};
+
+const handleRightResizeMove = (e: MouseEvent) => {
+  if (!isRightResizing.value) return;
+  
+  const deltaX = e.clientX - resizeStartX.value;
+  const newWidth = resizeStartRightWidth.value - deltaX;
+  
+  // 限制宽度范围
+  rightPanelWidth.value = Math.max(
+    RIGHT_PANEL_MIN_WIDTH,
+    Math.min(RIGHT_PANEL_MAX_WIDTH, newWidth)
+  );
+};
+
+const handleRightResizeEnd = () => {
+  if (!isRightResizing.value) return;
+  
+  isRightResizing.value = false;
+  document.removeEventListener('mousemove', handleRightResizeMove);
+  document.removeEventListener('mouseup', handleRightResizeEnd);
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  
+  // 保存宽度到 localStorage
+  localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, rightPanelWidth.value.toString());
+};
+
 // 初始化网格大小为20（固定值）
 onMounted(async () => {
   // 从 localStorage 加载面板宽度
@@ -664,6 +761,15 @@ onMounted(async () => {
     const width = parseInt(savedWidth, 10);
     if (width >= LEFT_PANEL_MIN_WIDTH && width <= LEFT_PANEL_MAX_WIDTH) {
       leftPanelWidth.value = width;
+    }
+  }
+  
+  // 从 localStorage 加载右侧面板宽度
+  const savedRightWidth = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
+  if (savedRightWidth) {
+    const width = parseInt(savedRightWidth, 10);
+    if (width >= RIGHT_PANEL_MIN_WIDTH && width <= RIGHT_PANEL_MAX_WIDTH) {
+      rightPanelWidth.value = width;
     }
   }
   
@@ -691,7 +797,6 @@ onMounted(async () => {
   
   // 注册键盘事件
   window.addEventListener('keydown', handleKeyDown);
-  applyHeaderCollapseState();
   
   // 确保网格大小为20（MapCanvas组件默认就是20，这里确保一下）
   nextTick(() => {
@@ -738,9 +843,152 @@ const handlePointDoubleClick = (point: MapPoint) => {
   showPointEditDialog.value = true;
 };
 
-// 点更新后的回调
+// 处理点更新后的回调
 const handlePointUpdated = () => {
   // 刷新视图
+};
+
+// 批量删除选中元素
+const handleBatchDelete = async () => {
+  const selectedIds = mapEditorStore.selection.selectedIds;
+  const selectedType = mapEditorStore.selection.selectedType;
+  
+  if (selectedIds.size === 0) {
+    return;
+  }
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedIds.size} 个元素吗？`,
+      '确认删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    );
+    
+    // 根据选中的类型删除元素
+    if (selectedType === 'point') {
+      selectedIds.forEach(id => mapEditorStore.deletePoint(id));
+    } else if (selectedType === 'path') {
+      selectedIds.forEach(id => mapEditorStore.deletePath(id));
+    } else if (selectedType === 'location') {
+      selectedIds.forEach(id => mapEditorStore.deleteLocation(id));
+    }
+    
+    // 清除选择
+    mapEditorStore.clearSelection();
+    
+    ElMessage.success(`成功删除 ${selectedIds.size} 个元素`);
+  } catch (error) {
+    // 用户取消删除
+  }
+};
+
+// 导出地图
+const handleExportMap = () => {
+  if (!mapEditorStore.mapData) {
+    ElMessage.warning('没有可导出的地图数据');
+    return;
+  }
+  
+  // 创建导出数据
+  const exportData = {
+    ...mapEditorStore.mapData,
+    exportTime: new Date().toISOString()
+  };
+  
+  // 转换为JSON字符串
+  const jsonString = JSON.stringify(exportData, null, 2);
+  
+  // 创建Blob对象
+  const blob = new Blob([jsonString], { type: 'application/json' });
+  
+  // 创建下载链接
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${mapEditorStore.mapData.mapInfo.name || 'map'}_${Date.now()}.json`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  
+  ElMessage.success('地图导出成功');
+};
+
+// 导入地图
+const handleImportMap = () => {
+  // 创建文件输入元素
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  
+  input.onchange = async (e) => {
+    const target = e.target as HTMLInputElement;
+    if (!target.files || target.files.length === 0) {
+      return;
+    }
+    
+    const file = target.files[0];
+    const reader = new FileReader();
+    
+    reader.onload = async (event) => {
+      try {
+        const content = event.target?.result as string;
+        const importData = JSON.parse(content);
+        
+        // 确认导入
+        await ElMessageBox.confirm(
+          `确定要导入地图 "${importData.mapInfo?.name || '未知'}" 吗？这将覆盖当前地图数据。`,
+          '确认导入',
+          {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning'
+          }
+        );
+        
+        // 重置编辑器
+        mapEditorStore.reset();
+        
+        // 加载导入的数据
+        mapEditorStore.mapData = importData;
+        mapEditorStore.layerGroups = importData.layerGroups || [];
+        mapEditorStore.layers = importData.layers || [];
+        mapEditorStore.points = importData.elements?.points || [];
+        mapEditorStore.paths = importData.elements?.paths || [];
+        mapEditorStore.locations = importData.elements?.locations || [];
+        
+        // 更新画布状态
+        if (importData.mapInfo) {
+          mapEditorStore.updateCanvasState({
+            width: importData.mapInfo.width || 1920,
+            height: importData.mapInfo.height || 1080,
+            scale: importData.mapInfo.scale || 1,
+            offsetX: importData.mapInfo.offsetX || 0,
+            offsetY: importData.mapInfo.offsetY || 0
+          });
+        }
+        
+        // 设置激活图层
+        if (mapEditorStore.layers.length > 0) {
+          mapEditorStore.setActiveLayer(mapEditorStore.layers[0].id);
+        }
+        
+        ElMessage.success('地图导入成功');
+      } catch (error: any) {
+        if (error.message !== 'cancel') {
+          ElMessage.error('导入失败：' + error.message);
+        }
+      }
+    };
+    
+    reader.readAsText(file);
+  };
+  
+  input.click();
 };
 
 // 键盘快捷键
@@ -785,12 +1033,14 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .map-editor {
-  width: 100%;
+  width: 100vw;
   height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: #f5f7fa;
+  margin: 0 !important;
+  padding: 0 !important;
   
   // 顶部菜单栏
   .menu-bar {
@@ -1116,6 +1366,11 @@ onUnmounted(() => {
       }
     }
     
+    // 右侧分隔条
+    .panel-resizer-right {
+      order: 3;
+    }
+    
     // 画布区域
     .canvas-area {
       flex: 1;
@@ -1138,6 +1393,17 @@ onUnmounted(() => {
         }
       }
     }
+    
+    // 右侧面板
+    .right-panel {
+      background: #fff;
+      border-left: 1px solid #e4e7ed;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+      order: 4;
+    }
   }
   
   // 底部状态栏
@@ -1159,17 +1425,5 @@ onUnmounted(() => {
   }
 }
 
-:global(.map-editor-header-collapsed .fixed-header),
-:global(.map-editor-header-collapsed .navbar),
-:global(.map-editor-header-collapsed .tags-view-container) {
-  display: none;
-}
 
-:global(.map-editor-header-collapsed .fixed-header + .app-main) {
-  padding-top: 0 !important;
-}
-
-:global(.map-editor-header-collapsed .app-main) {
-  min-height: 100vh;
-}
 </style>

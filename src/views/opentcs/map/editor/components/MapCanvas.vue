@@ -157,6 +157,18 @@
           :key="`dashed-link-preview-${dashedLinkDragState.startLocation.id}`"
           :config="tempDashedLinkPreview"
         />
+        <!-- 框选矩形 -->
+        <v-rect
+          v-if="isBoxSelecting"
+          :config="boxSelectConfig"
+        />
+        <!-- 操作手柄 -->
+        <template v-for="handle in resizeHandles" :key="handle.id">
+          <v-circle
+            :config="getHandleConfig(handle)"
+            @mousedown="handleResizeStart(handle, $event)"
+          />
+        </template>
       </v-layer>
     </v-stage>
   </div>
@@ -176,10 +188,18 @@ import { snapPoint } from '@/utils/mapEditor/snap';
 
 const mapEditorStore = useMapEditorStore();
 
+// 定义属性
+const props = defineProps<{
+  autoSwitchTool?: boolean;
+}>();
+
 // 定义事件
 const emit = defineEmits<{
   'point-double-click': [point: MapPoint];
 }>();
+
+// 获取自动切换工具的状态
+const shouldAutoSwitchTool = computed(() => props.autoSwitchTool ?? true);
 
 type PathConnectionType = 'direct' | 'orthogonal' | 'curve';
 
@@ -380,15 +400,15 @@ const getPointVisualMeta = (point: MapPoint): PointVisualMeta => {
   };
   
   if (point.type === POINT_TYPE.PARK) {
-    base.fill = point.editorProps.color || '#409eff';
-    base.stroke = point.editorProps.strokeColor || '#1d6fd6';
+    base.fill = point.editorProps.color || '#52c41a'; // 绿色
+    base.stroke = point.editorProps.strokeColor || '#237804';
     base.strokeWidth = 1.6;
     base.radius = point.editorProps.radius || 7;
     base.glyph = 'P';
     base.glyphColor = point.editorProps.textColor || '#ffffff';
   } else if (point.type === POINT_TYPE.HALT) {
-    base.fill = point.editorProps.color || '#8c8c8c';
-    base.stroke = point.editorProps.strokeColor || '#d9d9d9';
+    base.fill = point.editorProps.color || '#1890ff'; // 蓝色
+    base.stroke = point.editorProps.strokeColor || '#096dd9';
     base.radius = point.editorProps.radius || 5;
     base.strokeWidth = 1.4;
   }
@@ -657,6 +677,21 @@ const hoveredLocationId = ref<string | null>(null);
 const isDragging = ref(false);
 const dragStartPos = ref({ x: 0, y: 0 });
 
+// 框选状态
+const isBoxSelecting = ref(false);
+const boxSelectStart = ref({ x: 0, y: 0 });
+const boxSelectEnd = ref({ x: 0, y: 0 });
+
+// 空格键状态
+const isSpacePressed = ref(false);
+
+// 操作手柄状态
+const resizeHandles = ref<Array<{ id: string; x: number; y: number; type: string }>>([]);
+const isResizing = ref(false);
+const resizeStartPos = ref({ x: 0, y: 0 });
+const resizeElementId = ref<string | null>(null);
+const resizeHandleType = ref<string | null>(null);
+
 // 判断点是否被连线
 const isPointConnected = (point: MapPoint): boolean => {
   return mapEditorStore.paths.some(path => {
@@ -817,7 +852,7 @@ const createConnectionBetweenPoints = (start: MapPoint, end: MapPoint) => {
       pathType: connectionType === 'curve' ? 'curve' : 'line'
     },
     editorProps: {
-      strokeColor: '#73c0ff',
+      strokeColor: '#fa8c16', // 橙色
       strokeWidth: 2,
       lineStyle: 'solid',
       arrowVisible: true,
@@ -981,6 +1016,26 @@ const tempDashedLinkPreview = computed(() => {
     strokeWidth: 1.5,
     lineCap: 'round',
     lineJoin: 'round',
+    dash: [5, 5],
+    listening: false
+  };
+});
+
+// 框选矩形配置
+const boxSelectConfig = computed(() => {
+  const x = Math.min(boxSelectStart.value.x, boxSelectEnd.value.x);
+  const y = Math.min(boxSelectStart.value.y, boxSelectEnd.value.y);
+  const width = Math.abs(boxSelectEnd.value.x - boxSelectStart.value.x);
+  const height = Math.abs(boxSelectEnd.value.y - boxSelectStart.value.y);
+  
+  return {
+    x,
+    y,
+    width,
+    height,
+    fill: 'rgba(64, 158, 255, 0.2)',
+    stroke: '#409eff',
+    strokeWidth: 1,
     dash: [5, 5],
     listening: false
   };
@@ -1199,7 +1254,7 @@ const handleMouseDown = (e: any) => {
   mousePosition.value = { x, y };
   
   // 根据工具模式处理
-  if (currentTool.value === ToolMode.PAN) {
+  if (currentTool.value === ToolMode.PAN || isSpacePressed.value) {
     isDragging.value = true;
     dragStartPos.value = { x: pointerPos.x, y: pointerPos.y };
     stage.container().style.cursor = 'grabbing';
@@ -1224,7 +1279,7 @@ const handleMouseDown = (e: any) => {
     requestAnimationFrame(() => {
       setTimeout(() => {
         // 再次检查工具状态，确保仍然是绘制点模式
-        if (mapEditorStore.currentTool === ToolMode.POINT) {
+        if (mapEditorStore.currentTool === ToolMode.POINT && shouldAutoSwitchTool.value) {
           mapEditorStore.setTool(ToolMode.SELECT);
         }
       }, 50);
@@ -1271,7 +1326,7 @@ const handleMouseDown = (e: any) => {
     // 绘制完成后切换回选择工具（使用和绘制点完全相同的逻辑）
     requestAnimationFrame(() => {
       setTimeout(() => {
-        if (mapEditorStore.currentTool === ToolMode.LOCATION) {
+        if (mapEditorStore.currentTool === ToolMode.LOCATION && shouldAutoSwitchTool.value) {
           mapEditorStore.setTool(ToolMode.SELECT);
         }
       }, 50);
@@ -1305,6 +1360,15 @@ const handleMouseDown = (e: any) => {
     } else {
       // 点击空白处，清除预览
       cancelPathDrag(stage);
+    }
+  } else if (currentTool.value === ToolMode.SELECT) {
+    // 选择工具模式下，点击空白处开始框选
+    if (e.target === stage) {
+      isBoxSelecting.value = true;
+      boxSelectStart.value = { x, y };
+      boxSelectEnd.value = { x, y };
+      stage.container().style.cursor = 'crosshair';
+      e.evt.preventDefault();
     }
   } else if (e.target === stage) {
     // 点击空白处且不在路径工具模式，如果有残留预览也清除
@@ -1344,6 +1408,11 @@ const handleMouseMove = (e: any) => {
     
     // 更新起始位置
     dragStartPos.value = { x: currentPos.x, y: currentPos.y };
+  }
+  
+  // 框选模式
+  if (isBoxSelecting.value) {
+    boxSelectEnd.value = { x, y };
   }
   
   // 绘制位置预览
@@ -1400,6 +1469,33 @@ const handleMouseMove = (e: any) => {
   }
 };
 
+// 判断点是否在框选区域内
+const isPointInBox = (point: { x: number; y: number }, boxStart: { x: number; y: number }, boxEnd: { x: number; y: number }) => {
+  const minX = Math.min(boxStart.x, boxEnd.x);
+  const maxX = Math.max(boxStart.x, boxEnd.x);
+  const minY = Math.min(boxStart.y, boxEnd.y);
+  const maxY = Math.max(boxStart.y, boxEnd.y);
+  
+  return point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY;
+};
+
+// 判断位置是否在框选区域内
+const isLocationInBox = (location: MapLocation, boxStart: { x: number; y: number }, boxEnd: { x: number; y: number }) => {
+  const centroid = getLocationCentroid(location);
+  return isPointInBox(centroid, boxStart, boxEnd);
+};
+
+// 判断路径是否在框选区域内
+const isPathInBox = (path: MapPath, boxStart: { x: number; y: number }, boxEnd: { x: number; y: number }) => {
+  // 检查路径的所有控制点
+  for (const cp of path.geometry.controlPoints) {
+    if (isPointInBox(cp, boxStart, boxEnd)) {
+      return true;
+    }
+  }
+  return false;
+};
+
 const handleMouseUp = (e: any) => {
   const stage = e.target?.getStage();
   
@@ -1447,6 +1543,50 @@ const handleMouseUp = (e: any) => {
     }
   }
 
+  // 框选模式结束
+  if (isBoxSelecting.value) {
+    isBoxSelecting.value = false;
+    
+    // 计算框选区域
+    const boxStart = boxSelectStart.value;
+    const boxEnd = boxSelectEnd.value;
+    
+    // 计算框选区域的大小
+    const width = Math.abs(boxEnd.x - boxStart.x);
+    const height = Math.abs(boxEnd.y - boxStart.y);
+    
+    // 如果框选区域太小，不进行选择
+    if (width > 5 && height > 5) {
+      // 清除现有选择
+      mapEditorStore.clearSelection();
+      
+      // 查找框选区域内的点
+      for (const point of visiblePoints.value) {
+        if (isPointInBox(point, boxStart, boxEnd)) {
+          mapEditorStore.selectElement(point.id, 'point', true);
+        }
+      }
+      
+      // 查找框选区域内的位置
+      for (const location of visibleLocations.value) {
+        if (isLocationInBox(location, boxStart, boxEnd)) {
+          mapEditorStore.selectElement(location.id, 'location', true);
+        }
+      }
+      
+      // 查找框选区域内的路径
+      for (const path of visiblePaths.value) {
+        if (isPathInBox(path, boxStart, boxEnd)) {
+          mapEditorStore.selectElement(path.id, 'path', true);
+        }
+      }
+    }
+    
+    if (stage) {
+      stage.container().style.cursor = 'default';
+    }
+  }
+
   // 处理路径工具模式 - 鼠标松开时处理路径创建
   if (pathDragState.startPoint) {
     const startPoint = pathDragState.startPoint; // 保存引用，因为后面会清除
@@ -1480,7 +1620,7 @@ const handleMouseUp = (e: any) => {
       
       requestAnimationFrame(() => {
         setTimeout(() => {
-          if (mapEditorStore.currentTool === ToolMode.PATH) {
+          if (mapEditorStore.currentTool === ToolMode.PATH && shouldAutoSwitchTool.value) {
             mapEditorStore.setTool(ToolMode.SELECT);
           }
         }, 50);
@@ -1510,7 +1650,7 @@ const handleMouseUp = (e: any) => {
         // 绘制完成后切换回选择工具（使用和绘制点完全相同的逻辑）
         requestAnimationFrame(() => {
           setTimeout(() => {
-            if (mapEditorStore.currentTool === ToolMode.DASHED_LINK) {
+            if (mapEditorStore.currentTool === ToolMode.DASHED_LINK && shouldAutoSwitchTool.value) {
               mapEditorStore.setTool(ToolMode.SELECT);
             }
           }, 50);
@@ -1537,6 +1677,204 @@ const handleMouseUp = (e: any) => {
     }
   }
 };
+
+// 获取操作手柄配置
+const getHandleConfig = (handle: { x: number; y: number; type: string }) => {
+  return {
+    x: handle.x,
+    y: handle.y,
+    radius: 6,
+    fill: '#409eff',
+    stroke: '#ffffff',
+    strokeWidth: 2,
+    draggable: false,
+    listening: true,
+    hitStrokeWidth: 10
+  };
+};
+
+// 更新操作手柄
+const updateResizeHandles = () => {
+  const selectedIds = mapEditorStore.selection.selectedIds;
+  const selectedType = mapEditorStore.selection.selectedType;
+  
+  // 清除现有手柄
+  resizeHandles.value = [];
+  
+  // 只处理单个选中元素
+  if (selectedIds.size !== 1) {
+    return;
+  }
+  
+  const id = Array.from(selectedIds)[0];
+  
+  if (selectedType === 'point') {
+    const point = mapEditorStore.points.find(p => p.id === id);
+    if (point) {
+      // 为点添加旋转手柄
+      const radius = point.editorProps.radius || 5;
+      resizeHandles.value = [
+        {
+          id: `${id}_rotate`,
+          x: point.x + radius * 2,
+          y: point.y - radius * 2,
+          type: 'rotate'
+        }
+      ];
+    }
+  } else if (selectedType === 'location') {
+    const location = mapEditorStore.locations.find(l => l.id === id);
+    if (location) {
+      const centroid = getLocationCentroid(location);
+      // 为位置添加调整大小的手柄
+      const size = 40; // 业务位置的默认大小
+      const half = size / 2;
+      resizeHandles.value = [
+        {
+          id: `${id}_nw`,
+          x: centroid.x - half,
+          y: centroid.y - half,
+          type: 'nw'
+        },
+        {
+          id: `${id}_ne`,
+          x: centroid.x + half,
+          y: centroid.y - half,
+          type: 'ne'
+        },
+        {
+          id: `${id}_sw`,
+          x: centroid.x - half,
+          y: centroid.y + half,
+          type: 'sw'
+        },
+        {
+          id: `${id}_se`,
+          x: centroid.x + half,
+          y: centroid.y + half,
+          type: 'se'
+        },
+        {
+          id: `${id}_rotate`,
+          x: centroid.x + half + 15,
+          y: centroid.y - half - 15,
+          type: 'rotate'
+        }
+      ];
+    }
+  }
+};
+
+// 处理调整大小开始
+const handleResizeStart = (handle: { id: string; type: string }, e: any) => {
+  const stage = e.target.getStage();
+  if (!stage) return;
+  
+  const pointerPos = stage.getPointerPosition();
+  if (!pointerPos) return;
+  
+  resizeStartPos.value = { x: pointerPos.x, y: pointerPos.y };
+  resizeElementId.value = handle.id.split('_')[0];
+  resizeHandleType.value = handle.type;
+  isResizing.value = true;
+  
+  // 阻止事件冒泡
+  e.evt.preventDefault();
+  e.evt.stopPropagation();
+  
+  // 添加鼠标移动和抬起事件监听
+  document.addEventListener('mousemove', handleResizeMove);
+  document.addEventListener('mouseup', handleResizeEnd);
+};
+
+// 处理调整大小移动
+const handleResizeMove = (e: MouseEvent) => {
+  if (!isResizing.value || !resizeElementId.value || !resizeHandleType.value) {
+    return;
+  }
+  
+  const stage = getKonvaNode(stageRef.value);
+  if (!stage) return;
+  
+  const pointerPos = stage.getPointerPosition();
+  if (!pointerPos) return;
+  
+  const dx = pointerPos.x - resizeStartPos.value.x;
+  const dy = pointerPos.y - resizeStartPos.value.y;
+  
+  // 根据元素类型和手柄类型进行调整
+  const selectedType = mapEditorStore.selection.selectedType;
+  
+  if (selectedType === 'location') {
+    const location = mapEditorStore.locations.find(l => l.id === resizeElementId.value);
+    if (location) {
+      const centroid = getLocationCentroid(location);
+      let newVertices = [...location.geometry.vertices];
+      
+      // 根据手柄类型调整大小
+      switch (resizeHandleType.value) {
+        case 'nw':
+          // 调整左上角
+          newVertices[0] = { ...newVertices[0], x: centroid.x - (centroid.x - newVertices[0].x) - dx, y: centroid.y - (centroid.y - newVertices[0].y) - dy };
+          newVertices[3] = { ...newVertices[3], x: centroid.x - (centroid.x - newVertices[3].x) - dx, y: centroid.y + (newVertices[3].y - centroid.y) + dy };
+          newVertices[1] = { ...newVertices[1], x: centroid.x + (newVertices[1].x - centroid.x) + dx, y: centroid.y - (centroid.y - newVertices[1].y) - dy };
+          newVertices[2] = { ...newVertices[2], x: centroid.x + (newVertices[2].x - centroid.x) + dx, y: centroid.y + (newVertices[2].y - centroid.y) + dy };
+          break;
+        case 'ne':
+          // 调整右上角
+          newVertices[0] = { ...newVertices[0], x: centroid.x - (centroid.x - newVertices[0].x) + dx, y: centroid.y - (centroid.y - newVertices[0].y) - dy };
+          newVertices[3] = { ...newVertices[3], x: centroid.x - (centroid.x - newVertices[3].x) + dx, y: centroid.y + (newVertices[3].y - centroid.y) + dy };
+          newVertices[1] = { ...newVertices[1], x: centroid.x + (newVertices[1].x - centroid.x) - dx, y: centroid.y - (centroid.y - newVertices[1].y) - dy };
+          newVertices[2] = { ...newVertices[2], x: centroid.x + (newVertices[2].x - centroid.x) - dx, y: centroid.y + (newVertices[2].y - centroid.y) + dy };
+          break;
+        case 'sw':
+          // 调整左下角
+          newVertices[0] = { ...newVertices[0], x: centroid.x - (centroid.x - newVertices[0].x) - dx, y: centroid.y - (centroid.y - newVertices[0].y) + dy };
+          newVertices[3] = { ...newVertices[3], x: centroid.x - (centroid.x - newVertices[3].x) - dx, y: centroid.y + (newVertices[3].y - centroid.y) - dy };
+          newVertices[1] = { ...newVertices[1], x: centroid.x + (newVertices[1].x - centroid.x) + dx, y: centroid.y - (centroid.y - newVertices[1].y) + dy };
+          newVertices[2] = { ...newVertices[2], x: centroid.x + (newVertices[2].x - centroid.x) + dx, y: centroid.y + (newVertices[2].y - centroid.y) - dy };
+          break;
+        case 'se':
+          // 调整右下角
+          newVertices[0] = { ...newVertices[0], x: centroid.x - (centroid.x - newVertices[0].x) + dx, y: centroid.y - (centroid.y - newVertices[0].y) + dy };
+          newVertices[3] = { ...newVertices[3], x: centroid.x - (centroid.x - newVertices[3].x) + dx, y: centroid.y + (newVertices[3].y - centroid.y) - dy };
+          newVertices[1] = { ...newVertices[1], x: centroid.x + (newVertices[1].x - centroid.x) - dx, y: centroid.y - (centroid.y - newVertices[1].y) + dy };
+          newVertices[2] = { ...newVertices[2], x: centroid.x + (newVertices[2].x - centroid.x) - dx, y: centroid.y + (newVertices[2].y - centroid.y) - dy };
+          break;
+      }
+      
+      // 更新位置
+      mapEditorStore.updateLocation(resizeElementId.value, {
+        geometry: {
+          ...location.geometry,
+          vertices: newVertices
+        }
+      });
+      
+      // 更新操作手柄
+      updateResizeHandles();
+      
+      // 更新起始位置
+      resizeStartPos.value = { x: pointerPos.x, y: pointerPos.y };
+    }
+  }
+};
+
+// 处理调整大小结束
+const handleResizeEnd = () => {
+  isResizing.value = false;
+  resizeElementId.value = null;
+  resizeHandleType.value = null;
+  
+  // 移除事件监听
+  document.removeEventListener('mousemove', handleResizeMove);
+  document.removeEventListener('mouseup', handleResizeEnd);
+};
+
+// 监听选择变化，更新操作手柄
+watch(() => mapEditorStore.selection, () => {
+  updateResizeHandles();
+}, { deep: true });
 
 // 完成位置绘制
 const completeLocationDrawing = () => {
@@ -1584,7 +1922,7 @@ const completeLocationDrawing = () => {
     
     requestAnimationFrame(() => {
       setTimeout(() => {
-        if (mapEditorStore.currentTool === ToolMode.RULE_REGION) {
+        if (mapEditorStore.currentTool === ToolMode.RULE_REGION && shouldAutoSwitchTool.value) {
           mapEditorStore.setTool(ToolMode.SELECT);
         }
       }, 50);
@@ -2144,6 +2482,22 @@ const handleKeyDown = (e: KeyboardEvent) => {
       cancelDashedLinkDrag();
       ElMessage.info('已取消虚线起点');
     }
+  } else if (e.code === 'Space') {
+    isSpacePressed.value = true;
+    const stage = getKonvaNode(stageRef.value);
+    if (stage && stage.container) {
+      stage.container().style.cursor = 'grab';
+    }
+  }
+};
+
+const handleKeyUp = (e: KeyboardEvent) => {
+  if (e.code === 'Space') {
+    isSpacePressed.value = false;
+    const stage = getKonvaNode(stageRef.value);
+    if (stage && stage.container) {
+      stage.container().style.cursor = 'default';
+    }
   }
 };
 
@@ -2202,11 +2556,13 @@ onMounted(() => {
   
   // 注册键盘事件
   window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('keyup', handleKeyUp);
 });
 
 onUnmounted(() => {
   // 移除键盘事件
   window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('keyup', handleKeyUp);
   
   // 断开尺寸监听
   if (resizeObserver) {

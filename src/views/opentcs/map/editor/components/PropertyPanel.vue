@@ -1,58 +1,100 @@
 <template>
   <div class="property-panel">
     <div class="panel-header">
-      <h3>{{ selectedType ? getTypeLabel(selectedType) : (selectedElements.length === 0 ? 'Layout' : '属性') }}</h3>
+      <span class="panel-title">属性</span>
     </div>
-    
     <div class="panel-content">
-      <div v-if="selectedElements.length === 0" class="property-table">
-        <el-table
-          :data="modelPropertyData"
-          border
-          size="small"
-          :show-header="true"
-          style="width: 100%"
-        >
-          <el-table-column prop="attribute" label="属性" width="140" />
-          <el-table-column prop="value" label="值">
-            <template #default="{ row }">
-              <span class="value-text">{{ row.value }}</span>
-            </template>
-          </el-table-column>
-        </el-table>
+      <!-- 无选择状态 -->
+      <div v-if="!selectedElement" class="no-selection">
+        <el-empty description="请选择一个元素" />
       </div>
       
-      <div v-else-if="selectedElements.length === 1" class="property-table">
-        <el-table
-          :data="propertyData"
-          border
-          size="small"
-          :show-header="true"
-          style="width: 100%"
-        >
-          <el-table-column prop="attribute" label="属性" width="140" />
-          <el-table-column prop="value" label="值">
-            <template #default="{ row }">
-              <span class="value-text">{{ row.value }}</span>
-            </template>
-          </el-table-column>
-        </el-table>
+      <!-- 点属性编辑 -->
+      <div v-else-if="selectedElement.type === 'point'" class="point-properties">
+        <el-form label-position="top" size="small">
+          <el-form-item label="基本属性">
+            <el-input v-model="pointForm.name" placeholder="名称" />
+            <el-input v-model="pointForm.code" placeholder="编码" />
+            <el-select v-model="pointForm.type" placeholder="类型">
+              <el-option label="临时停车点" value="Halt point" />
+              <el-option label="长时间停车点" value="Park point" />
+            </el-select>
+            <el-input v-model="pointForm.description" placeholder="描述" type="textarea" />
+          </el-form-item>
+          
+          <el-form-item label="位置">
+            <div class="coordinate-inputs">
+              <el-input-number v-model="pointForm.x" placeholder="X" :step="1" />
+              <el-input-number v-model="pointForm.y" placeholder="Y" :step="1" />
+            </div>
+          </el-form-item>
+          
+          <el-form-item label="样式">
+            <el-color-picker v-model="pointForm.editorProps.color" show-alpha />
+            <el-color-picker v-model="pointForm.editorProps.strokeColor" show-alpha />
+            <el-input-number v-model="pointForm.editorProps.radius" placeholder="半径" :min="1" :max="50" :step="1" />
+            <el-switch v-model="pointForm.editorProps.labelVisible" label="显示标签" />
+          </el-form-item>
+          
+          <el-form-item>
+            <el-button type="primary" size="small" @click="updatePoint">保存</el-button>
+          </el-form-item>
+        </el-form>
       </div>
       
-      <div v-else class="multi-select">
-        <el-alert
-          title="已选择多个元素"
-          :description="`已选择 ${selectedElements.length} 个元素`"
-          type="info"
-          :closable="false"
-        />
-        <el-button
-          type="danger"
-          style="margin-top: 16px; width: 100%"
-          @click="handleDeleteSelected"
-        >
-          删除选中元素
-        </el-button>
+      <!-- 路径属性编辑 -->
+      <div v-else-if="selectedElement.type === 'path'" class="path-properties">
+        <el-form label-position="top" size="small">
+          <el-form-item label="基本属性">
+            <el-input v-model="pathForm.name" placeholder="名称" />
+            <el-input v-model="pathForm.code" placeholder="编码" />
+            <el-select v-model="pathForm.type" placeholder="类型">
+              <el-option label="直接连线" value="direct" />
+              <el-option label="直角连线" value="orthogonal" />
+              <el-option label="圆角连线" value="curve" />
+            </el-select>
+            <el-input v-model="pathForm.description" placeholder="描述" type="textarea" />
+          </el-form-item>
+          
+          <el-form-item label="样式">
+            <el-color-picker v-model="pathForm.editorProps.strokeColor" show-alpha />
+            <el-input-number v-model="pathForm.editorProps.strokeWidth" placeholder="线宽" :min="1" :max="10" :step="0.5" />
+            <el-select v-model="pathForm.editorProps.lineStyle" placeholder="线型">
+              <el-option label="实线" value="solid" />
+              <el-option label="虚线" value="dashed" />
+              <el-option label="点线" value="dotted" />
+            </el-select>
+            <el-switch v-model="pathForm.editorProps.arrowVisible" label="显示箭头" />
+            <el-switch v-model="pathForm.editorProps.labelVisible" label="显示标签" />
+          </el-form-item>
+          
+          <el-form-item>
+            <el-button type="primary" size="small" @click="updatePath">保存</el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+      
+      <!-- 位置属性编辑 -->
+      <div v-else-if="selectedElement.type === 'location'" class="location-properties">
+        <el-form label-position="top" size="small">
+          <el-form-item label="基本属性">
+            <el-input v-model="locationForm.name" placeholder="名称" />
+            <el-input v-model="locationForm.code" placeholder="编码" />
+            <el-input v-model="locationForm.description" placeholder="描述" type="textarea" />
+          </el-form-item>
+          
+          <el-form-item label="样式">
+            <el-color-picker v-model="locationForm.editorProps.fillColor" show-alpha />
+            <el-input-number v-model="locationForm.editorProps.fillOpacity" placeholder="填充透明度" :min="0" :max="1" :step="0.1" />
+            <el-color-picker v-model="locationForm.editorProps.strokeColor" show-alpha />
+            <el-input-number v-model="locationForm.editorProps.strokeWidth" placeholder="线宽" :min="1" :max="10" :step="0.5" />
+            <el-switch v-model="locationForm.editorProps.labelVisible" label="显示标签" />
+          </el-form-item>
+          
+          <el-form-item>
+            <el-button type="primary" size="small" @click="updateLocation">保存</el-button>
+          </el-form-item>
+        </el-form>
       </div>
     </div>
   </div>
@@ -60,216 +102,190 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
 
 const mapEditorStore = useMapEditorStore();
 
-const selectedElements = computed(() => mapEditorStore.selectedElements);
-const selectedType = computed(() => mapEditorStore.selection.selectedType);
+// 选中的元素
+const selectedElement = computed(() => {
+  const selectedIds = mapEditorStore.selection.selectedIds;
+  const selectedType = mapEditorStore.selection.selectedType;
+  
+  if (!selectedType || selectedIds.size !== 1) {
+    return null;
+  }
+  
+  const id = Array.from(selectedIds)[0];
+  
+  if (selectedType === 'point') {
+    return mapEditorStore.points.find(p => p.id === id) as MapPoint & { type: 'point' };
+  } else if (selectedType === 'path') {
+    return mapEditorStore.paths.find(p => p.id === id) as MapPath & { type: 'path' };
+  } else if (selectedType === 'location') {
+    return mapEditorStore.locations.find(l => l.id === id) as MapLocation & { type: 'location' };
+  }
+  
+  return null;
+});
 
-const getTypeLabel = (type: string) => {
-  const labels: Record<string, string> = {
-    point: '点',
-    path: '路径',
-    location: '位置'
-  };
-  return labels[type] || '属性';
+// 点表单数据
+const pointForm = ref<MapPoint>({
+  id: '',
+  layerId: '',
+  name: '',
+  x: 0,
+  y: 0,
+  status: '0',
+  editorProps: {
+    radius: 5,
+    color: '#8c8c8c',
+    strokeColor: '#d9d9d9',
+    labelVisible: true
+  }
+});
+
+// 路径表单数据
+const pathForm = ref<MapPath>({
+  id: '',
+  layerId: '',
+  name: '',
+  status: '0',
+  geometry: {
+    controlPoints: [],
+    pathType: 'line'
+  },
+  editorProps: {
+    strokeColor: '#73c0ff',
+    strokeWidth: 2,
+    lineStyle: 'solid',
+    arrowVisible: true,
+    labelVisible: true
+  }
+});
+
+// 位置表单数据
+const locationForm = ref<MapLocation>({
+  id: '',
+  layerId: '',
+  name: '',
+  status: '0',
+  geometry: {
+    vertices: [],
+    closed: true
+  },
+  editorProps: {
+    fillColor: '#ffffff',
+    fillOpacity: 1,
+    strokeColor: '#000000',
+    strokeWidth: 2,
+    labelVisible: true
+  }
+});
+
+// 监听选中元素变化，更新表单数据
+watch(selectedElement, (newElement) => {
+  if (!newElement) return;
+  
+  if (newElement.type === 'point') {
+    pointForm.value = { ...newElement };
+  } else if (newElement.type === 'path') {
+    pathForm.value = { ...newElement };
+  } else if (newElement.type === 'location') {
+    locationForm.value = { ...newElement };
+  }
+}, { deep: true });
+
+// 更新点属性
+const updatePoint = () => {
+  if (selectedElement.value?.type === 'point') {
+    mapEditorStore.updatePoint(selectedElement.value.id, pointForm.value);
+  }
 };
 
-// 模型属性数据（当没有选中元素时显示）
-const modelPropertyData = computed(() => {
-  const data: Array<{ attribute: string; value: string }> = [];
-  const mapInfo = mapEditorStore.mapData?.mapInfo;
-  
-  if (mapInfo) {
-    // Name
-    data.push({ 
-      attribute: 'Name', 
-      value: mapInfo.name || '新地图' 
-    });
-    
-    // Scale of x-axis
-    data.push({ 
-      attribute: 'Scale of x-axis', 
-      value: `${mapInfo.scaleX || 50.0} mm` 
-    });
-    
-    // Scale of y-axis
-    data.push({ 
-      attribute: 'Scale of y-axis', 
-      value: `${mapInfo.scaleY || 50.0} mm` 
-    });
-    
-    // Layers - 显示默认图层名称
-    const defaultLayer = mapEditorStore.layers.find(l => l.name === 'Default layer');
-    data.push({ 
-      attribute: 'Layers', 
-      value: defaultLayer ? defaultLayer.name : (mapEditorStore.layers[0]?.name || 'Default layer')
-    });
-    
-    // Layer groups - 显示默认图层组名称
-    const defaultLayerGroup = mapEditorStore.layerGroups.find(g => g.name === 'Default layer group');
-    data.push({ 
-      attribute: 'Layer groups', 
-      value: defaultLayerGroup ? defaultLayerGroup.name : (mapEditorStore.layerGroups[0]?.name || 'Default layer group')
-    });
+// 更新路径属性
+const updatePath = () => {
+  if (selectedElement.value?.type === 'path') {
+    mapEditorStore.updatePath(selectedElement.value.id, pathForm.value);
   }
-  
-  return data;
-});
+};
 
-const propertyData = computed(() => {
-  if (selectedElements.value.length !== 1) {
-    return [];
-  }
-  
-  const element = selectedElements.value[0];
-  const data: Array<{ attribute: string; value: string }> = [];
-  
-  if (selectedType.value === 'point') {
-    const point = element as MapPoint;
-    data.push({ attribute: '名称', value: point.name || '' });
-    data.push({ attribute: '编码', value: point.code || '' });
-    data.push({ attribute: 'X坐标', value: `${point.x.toFixed(1)} mm` });
-    data.push({ attribute: 'Y坐标', value: `${point.y.toFixed(1)} mm` });
-    data.push({ attribute: 'Z坐标', value: point.z ? `${point.z.toFixed(1)} mm` : 'NaN mm' });
-    data.push({ attribute: '角度', value: 'NaN deg' });
-    data.push({ attribute: '类型', value: point.type || 'Halt point' });
-    data.push({ attribute: '半径', value: `${point.editorProps.radius} px` });
-    data.push({ attribute: '颜色', value: point.editorProps.color || '#1890ff' });
-    data.push({ attribute: '状态', value: point.status || '0' });
-    if (point.description) {
-      data.push({ attribute: '描述', value: point.description });
-    }
-  } else if (selectedType.value === 'path') {
-    const path = element as MapPath;
-    data.push({ attribute: '名称', value: path.name || '' });
-    data.push({ attribute: '编码', value: path.code || '' });
-    data.push({ attribute: '长度', value: path.length ? `${path.length.toFixed(2)} mm` : 'NaN mm' });
-    data.push({ attribute: '类型', value: path.type || 'Line' });
-    data.push({ attribute: '线条颜色', value: path.editorProps.strokeColor || '#52c41a' });
-    data.push({ attribute: '线条宽度', value: `${path.editorProps.strokeWidth} px` });
-    data.push({ attribute: '线条样式', value: path.editorProps.lineStyle || 'solid' });
-    data.push({ attribute: '状态', value: path.status || '0' });
-    if (path.description) {
-      data.push({ attribute: '描述', value: path.description });
-    }
-  } else if (selectedType.value === 'location') {
-    const location = element as MapLocation;
-    data.push({ attribute: '名称', value: location.name || '' });
-    data.push({ attribute: '编码', value: location.code || '' });
-    data.push({ attribute: '位置类型', value: location.locationTypeId ? String(location.locationTypeId) : 'NaN' });
-    data.push({ attribute: '区块ID', value: location.blockId ? String(location.blockId) : 'NaN' });
-    data.push({ attribute: 'X坐标', value: location.x ? `${location.x.toFixed(1)} mm` : 'NaN mm' });
-    data.push({ attribute: 'Y坐标', value: location.y ? `${location.y.toFixed(1)} mm` : 'NaN mm' });
-    data.push({ attribute: 'Z坐标', value: location.z ? `${location.z.toFixed(1)} mm` : 'NaN mm' });
-    data.push({ attribute: '填充颜色', value: location.editorProps.fillColor || '#1890ff' });
-    data.push({ attribute: '填充透明度', value: String(location.editorProps.fillOpacity || 0.3) });
-    data.push({ attribute: '边框颜色', value: location.editorProps.strokeColor || '#1890ff' });
-    data.push({ attribute: '边框宽度', value: `${location.editorProps.strokeWidth} px` });
-    data.push({ attribute: '状态', value: location.status || '0' });
-    if (location.description) {
-      data.push({ attribute: '描述', value: location.description });
-    }
-  }
-  
-  return data;
-});
-
-// 删除选中元素
-const handleDeleteSelected = async () => {
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedElements.value.length} 个元素吗？`,
-      '提示',
-      { type: 'warning' }
-    );
-    
-    selectedElements.value.forEach(element => {
-      if (selectedType.value === 'point') {
-        mapEditorStore.deletePoint(element.id);
-      } else if (selectedType.value === 'path') {
-        mapEditorStore.deletePath(element.id);
-      } else if (selectedType.value === 'location') {
-        mapEditorStore.deleteLocation(element.id);
-      }
-    });
-    
-    mapEditorStore.clearSelection();
-    ElMessage.success('删除成功');
-  } catch (error) {
-    // 用户取消
+// 更新位置属性
+const updateLocation = () => {
+  if (selectedElement.value?.type === 'location') {
+    mapEditorStore.updateLocation(selectedElement.value.id, locationForm.value);
   }
 };
 </script>
 
 <style scoped lang="scss">
 .property-panel {
+  width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
+  background: #fff;
   
   .panel-header {
-    padding: 8px 12px;
-    border-bottom: 1px solid #e4e7ed;
+    height: 30px;
+    padding: 0 12px;
     background: #fff;
+    border-bottom: 1px solid #e4e7ed;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
     
-    h3 {
-      margin: 0;
+    .panel-title {
       font-size: 12px;
-      font-weight: 400;
-      color: #909399;
+      color: #606266;
+      line-height: 1;
+      font-weight: 500;
     }
   }
   
   .panel-content {
     flex: 1;
     overflow-y: auto;
-    padding: 8px;
+    padding: 12px;
     
-    .empty-state {
+    .no-selection {
+      height: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
-      height: 100%;
     }
     
-    .property-table {
-      :deep(.el-table) {
-        font-size: 12px;
-        
-        .el-table__header {
-          th {
-            background: #f5f7fa;
-            color: #606266;
-            font-weight: 500;
-            padding: 8px 0;
-          }
-        }
-        
-        .el-table__body {
-          td {
-            padding: 6px 0;
-            
-            .value-text {
-              color: #409eff;
-              cursor: pointer;
-              
-              &:hover {
-                text-decoration: underline;
-              }
-            }
-          }
-        }
+    .coordinate-inputs {
+      display: flex;
+      gap: 8px;
+      
+      .el-input-number {
+        flex: 1;
       }
     }
     
-    .multi-select {
-      padding: 16px 0;
+    .el-form-item {
+      margin-bottom: 16px;
+      
+      .el-form-item__label {
+        font-size: 12px;
+        color: #606266;
+        margin-bottom: 4px;
+      }
+      
+      .el-input,
+      .el-select,
+      .el-input-number,
+      .el-color-picker,
+      .el-switch {
+        width: 100%;
+        margin-bottom: 8px;
+      }
+      
+      .el-textarea {
+        width: 100%;
+      }
     }
   }
 }
 </style>
-
