@@ -83,8 +83,9 @@
             :config="getPathArrowConfig(path)"
             @click="handlePathClick(path, $event)"
           />
-          <!-- 路径控制点（仅在选中时显示） -->
+          <!-- 路径控制点（仅在路径被选中时显示） -->
           <v-circle
+            v-if="mapEditorStore.selection.selectedIds.has(path.id)"
             v-for="(cp, index) in path.geometry.controlPoints"
             :key="`${path.id}-cp-${index}`"
             :config="getPathControlPointConfig(path, cp, index)"
@@ -1708,25 +1709,15 @@ const updateResizeHandles = () => {
   
   const id = Array.from(selectedIds)[0];
   
+  // 点的旋转手柄已移除，不再显示
   if (selectedType === 'point') {
-    const point = mapEditorStore.points.find(p => p.id === id);
-    if (point) {
-      // 为点添加旋转手柄
-      const radius = point.editorProps.radius || 5;
-      resizeHandles.value = [
-        {
-          id: `${id}_rotate`,
-          x: point.x + radius * 2,
-          y: point.y - radius * 2,
-          type: 'rotate'
-        }
-      ];
-    }
+    // 不显示任何手柄
+    return;
   } else if (selectedType === 'location') {
     const location = mapEditorStore.locations.find(l => l.id === id);
     if (location) {
       const centroid = getLocationCentroid(location);
-      // 为位置添加调整大小的手柄
+      // 为位置添加调整大小的手柄（移除旋转手柄）
       const size = 40; // 业务位置的默认大小
       const half = size / 2;
       resizeHandles.value = [
@@ -1753,12 +1744,6 @@ const updateResizeHandles = () => {
           x: centroid.x + half,
           y: centroid.y + half,
           type: 'se'
-        },
-        {
-          id: `${id}_rotate`,
-          x: centroid.x + half + 15,
-          y: centroid.y - half - 15,
-          type: 'rotate'
         }
       ];
     }
@@ -2020,11 +2005,16 @@ const handlePointClick = (point: MapPoint, e: any) => {
     }
   }
   
+  // 如果不是 PATH 工具模式，清除路径预览状态（避免残留的预览点显示）
+  if (currentTool.value !== ToolMode.PATH) {
+    cancelPathDrag(e.target.getStage());
+  }
+  
   if (currentTool.value === ToolMode.PATH) {
     return;
   }
   
-  // 延迟处理单击，如果250ms内有双击则取消单击
+  // 延迟处理单击，如果 250ms 内有双击则取消单击
   if (clickTimer) {
     clearTimeout(clickTimer);
     clickTimer = null;
@@ -2118,12 +2108,17 @@ const handleLocationClick = (location: MapLocation, e: any) => {
       const x = (pointerPos.x - canvasState.value.offsetX) / canvasState.value.scale;
       const y = (pointerPos.y - canvasState.value.offsetY) / canvasState.value.scale;
       const distance = Math.hypot(x - centroid.x, y - centroid.y);
-      // 如果点击在中心点附近（半径10像素内），不处理，让中心点处理
+      // 如果点击在中心点附近（半径 10 像素内），不处理，让中心点处理
       if (distance <= 10) {
         return;
       }
     }
     return;
+  }
+  
+  // 如果不是 PATH 工具模式，清除路径预览状态（避免残留的预览点显示）
+  if (currentTool.value !== ToolMode.PATH) {
+    cancelPathDrag(e.target.getStage());
   }
   
   const multiSelect = e.evt.ctrlKey || e.evt.metaKey;
