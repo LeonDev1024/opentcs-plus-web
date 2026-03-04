@@ -56,17 +56,26 @@
             @dragstart="handlePointDragStart(point)"
             @dragmove="handlePointDragMove(point, $event)"
             @dragend="handlePointDragEnd(point)"
+            @contextmenu.prevent="handlePointContextMenu(point, $event)"
           />
+          <!-- 点标签 -->
+          <v-text
+            v-if="shouldShowPointLabel(point)"
+            :key="`${point.id}-label`"
+            :config="getPointLabelConfig(point)"
+          />
+          <!-- 点 Glyph（例如 P 表示停车点） -->
           <v-text
             v-if="shouldRenderPointGlyph(point)"
             :key="`${point.id}-glyph`"
             :config="getPointGlyphConfig(point)"
           />
-          <!-- 点名称标签 -->
-          <v-text
-            v-if="shouldShowPointLabel(point)"
-            :key="`${point.id}-label`"
-            :config="getPointLabelConfig(point)"
+          <!-- 点操作手柄（例如旋转） -->
+          <v-circle
+            v-for="handle in resizeHandles"
+            :key="handle.id"
+            :config="getHandleConfig(handle)"
+            @mousedown="handleResizeStart(handle, $event)"
           />
         </template>
       </v-layer>
@@ -105,6 +114,7 @@
             v-if="!isRuleRegionLocation(location)"
             :config="getLocationRectConfig(location)"
             @click="handleLocationClick(location, $event)"
+            @contextmenu.prevent="handleLocationContextMenu(location, $event)"
             @mouseover="handleLocationMouseOver(location)"
             @mouseout="handleLocationMouseOut(location, $event)"
           />
@@ -112,6 +122,7 @@
             v-else
             :config="getLocationConfig(location)"
             @click="handleLocationClick(location, $event)"
+            @contextmenu.prevent="handleLocationContextMenu(location, $event)"
           />
           <!-- 位置中心 symbol 文本（例如业务位置类型的图标），默认不显示，只有设置了 label 才显示 -->
           <v-text
@@ -172,20 +183,28 @@
         </template>
       </v-layer>
     </v-stage>
+    
+    <!-- Location 编辑对话框 -->
+    <LocationEditDialog
+      v-model:visible="locationEditDialogVisible"
+      :location-id="editingLocationId"
+      @save="handleLocationEditSave"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
-import { ElMessage } from 'element-plus';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import { ToolMode, LayerType } from '@/types/mapEditor';
 import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
 import { AddPointCommand, MovePointCommand } from '@/utils/mapEditor/command';
 import { snapPoint } from '@/utils/mapEditor/snap';
+import LocationEditDialog from './LocationEditDialog.vue';
 
 // 注册 vue-konva 组件（如果全局注册不工作，则在组件内注册）
 // 注意：vue-konva 3.x 使用 v-stage, v-layer 等组件名
+
 
 const mapEditorStore = useMapEditorStore();
 
@@ -1717,7 +1736,7 @@ const updateResizeHandles = () => {
     const location = mapEditorStore.locations.find(l => l.id === id);
     if (location) {
       const centroid = getLocationCentroid(location);
-      // 为位置添加调整大小的手柄（移除旋转手柄）
+      // 为位置添加调整大小的手柄
       const size = 40; // 业务位置的默认大小
       const half = size / 2;
       resizeHandles.value = [
@@ -1744,7 +1763,7 @@ const updateResizeHandles = () => {
           x: centroid.x + half,
           y: centroid.y + half,
           type: 'se'
-        }
+        },
       ];
     }
   }
@@ -2147,7 +2166,7 @@ const handleLocationMouseOut = (location: MapLocation, e: any) => {
         const y = (pointerPos.y - canvasState.value.offsetY) / canvasState.value.scale;
         const centroid = getLocationCentroid(location);
         const distance = Math.hypot(x - centroid.x, y - centroid.y);
-        // 如果鼠标在中心点附近（半径25像素内），不清除悬停，让中心点处理
+        // 如果鼠标在中心点附近（半径 25 像素内），不清除悬停，让中心点处理
         if (distance <= 25) {
           return;
         }
@@ -2159,6 +2178,52 @@ const handleLocationMouseOut = (location: MapLocation, e: any) => {
     }
   }
   setStageCursor('default');
+};
+
+// Location 编辑对话框相关
+const locationEditDialogVisible = ref(false);
+const editingLocationId = ref<string>('');
+
+// 处理位置右键菜单
+const handleLocationContextMenu = (location: MapLocation, e: any) => {
+  e.cancelBubble = true;
+  
+  // 阻止浏览器默认右键菜单
+  if (e.evt) {
+    e.evt.preventDefault();
+  }
+  
+  // 选中该位置
+  const multiSelect = e.evt.ctrlKey || e.evt.metaKey;
+  mapEditorStore.selectElement(location.id, 'location', multiSelect);
+  
+  // 打开编辑对话框
+  editingLocationId.value = location.id;
+  locationEditDialogVisible.value = true;
+};
+
+// 处理位置编辑保存
+const handleLocationEditSave = (location: MapLocation) => {
+  // 保存成功后可以添加一些后续处理，比如刷新画布
+  console.log('Location saved:', location);
+};
+
+// 处理点右键菜单（预留功能）
+const handlePointContextMenu = (point: MapPoint, e: any) => {
+  e.cancelBubble = true;
+  
+  // 阻止浏览器默认右键菜单
+  if (e.evt) {
+    e.evt.preventDefault();
+  }
+  
+  // 选中该点
+  const multiSelect = e.evt.ctrlKey || e.evt.metaKey;
+  mapEditorStore.selectElement(point.id, 'point', multiSelect);
+  
+  // 预留：未来可以打开点的编辑对话框
+  // editingPointId.value = point.id;
+  // pointEditDialogVisible.value = true;
 };
 
 // ==================== 路径控制点编辑 ====================

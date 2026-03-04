@@ -173,7 +173,7 @@ const rules = ref<FormRules>({
 
 // 获取位置数据
 const location = computed(() => {
-  return mapEditorStore.getLocation(props.locationId);
+  return mapEditorStore.locations.find(l => l.id === props.locationId);
 });
 
 // 监听位置数据变化，更新表单
@@ -182,11 +182,11 @@ watch(location, (newLocation) => {
     formData.value = {
       name: newLocation.name || '',
       code: newLocation.code || '',
-      locationTypeId: newLocation.locationTypeId || '',
+      locationTypeId: String(newLocation.locationTypeId || ''),
       x: newLocation.x || 0,
       y: newLocation.y || 0,
       z: newLocation.z || 0,
-      blockId: newLocation.blockId || '',
+      blockId: String(newLocation.blockId || ''),
       status: newLocation.status || '',
       fillColor: newLocation.editorProps.fillColor || '#1890ff',
       fillOpacity: newLocation.editorProps.fillOpacity || 0.3,
@@ -236,7 +236,11 @@ const handleSave = async () => {
     mapEditorStore.updateLocation(props.locationId, updates);
     
     ElMessage.success('保存成功');
-    emit('save', mapEditorStore.getLocation(props.locationId)!);
+    // 获取保存后的位置数据
+    const savedLocation = mapEditorStore.locations.find(l => l.id === props.locationId);
+    if (savedLocation) {
+      emit('save', savedLocation);
+    }
     emit('update:visible', false);
   } catch (error) {
     console.error('保存失败:', error);

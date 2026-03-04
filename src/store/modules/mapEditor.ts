@@ -483,10 +483,12 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     
     paths.value.push(newPath);
     
-    // 更新图层元素列表
-    const layer = layers.value.find(l => l.id === path.layerId);
-    if (layer) {
-      layer.elementIds.push(newPath.id);
+    // 更新图层元素列表 - 只有当图层存在时才更新
+    if (path.layerId) {
+      const layer = layers.value.find(l => l.id === path.layerId);
+      if (layer) {
+        layer.elementIds.push(newPath.id);
+      }
     }
     
     isDirty.value = true;
@@ -538,10 +540,12 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     
     locations.value.push(newLocation);
     
-    // 更新图层元素列表
-    const layer = layers.value.find(l => l.id === location.layerId);
-    if (layer) {
-      layer.elementIds.push(newLocation.id);
+    // 更新图层元素列表 - 只有当图层存在时才更新
+    if (location.layerId) {
+      const layer = layers.value.find(l => l.id === location.layerId);
+      if (layer) {
+        layer.elementIds.push(newLocation.id);
+      }
     }
     
     updateLocationCounterByName(newLocation.name);
