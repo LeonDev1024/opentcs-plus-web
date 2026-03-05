@@ -93,7 +93,7 @@
             </el-dropdown>
           </div>
           <div class="path-tool-wrapper toolbar-tool toolbar-tool-path">
-            <el-tooltip content="创建连线" :show-after="50" placement="bottom">
+            <el-tooltip content="创建连线（点↔点）" :show-after="50" placement="bottom">
               <el-button
                 :type="currentTool === 'path' ? 'primary' : 'default'"
                 size="small"
@@ -299,7 +299,7 @@
         :style="{ width: leftPanelWidth + 'px' }"
       >
         <!-- 视图面板 -->
-        <div class="panel-container">
+        <div class="panel-container view-panel-container">
           <div class="panel-header">
             <span class="canval-title">视图</span>
           </div>
@@ -308,6 +308,13 @@
           </div>
         </div>
         
+        <!-- 属性面板顶部拖拽条 -->
+        <div
+          v-show="!isPropertyPanelCollapsed"
+          class="panel-horizontal-resizer"
+          @mousedown="handlePanelResizeStart('property', $event)"
+        ></div>
+
         <!-- 属性面板 -->
         <div class="panel-container property-panel-container">
           <div class="panel-header" @click="togglePropertyPanelCollapse">
@@ -320,11 +327,12 @@
             <PropertyPanel />
           </div>
         </div>
-        <!-- 属性 / 图层 面板之间的拖拽条 -->
+        
+        <!-- 图层面板顶部拖拽条 -->
         <div
-          v-show="!isPropertyPanelCollapsed && !isLayerPanelCollapsed"
+          v-show="!isLayerPanelCollapsed"
           class="panel-horizontal-resizer"
-          @mousedown="handlePropertyLayerResizeStart"
+          @mousedown="handlePanelResizeStart('layer', $event)"
         ></div>
         
         <!-- 图层面板 -->
@@ -552,76 +560,68 @@ const togglePropertyPanelCollapse = () => {
   isPropertyPanelCollapsed.value = !isPropertyPanelCollapsed.value;
 };
 
-// 属性 / 图层 面板高度拖拽
+// 单个面板高度拖拽
 const isVerticalResizing = ref(false);
 const verticalResizeStartY = ref(0);
-const startPropertyHeight = ref(0);
-const startLayerHeight = ref(0);
+const verticalResizeTarget = ref<'property' | 'layer' | null>(null);
+const startPanelHeight = ref(0);
 
-const handlePropertyLayerResizeStart = (e: MouseEvent) => {
-  // 仅在两个面板都展开时允许拖动
-  if (isPropertyPanelCollapsed.value || isLayerPanelCollapsed.value) {
-    return;
-  }
+const handlePanelResizeStart = (target: 'property' | 'layer', e: MouseEvent) => {
+  // 未展开时不允许拖动
+  if (target === 'property' && isPropertyPanelCollapsed.value) return;
+  if (target === 'layer' && isLayerPanelCollapsed.value) return;
+
+  const selector =
+    target === 'property'
+      ? '.left-panels .property-panel-container'
+      : '.left-panels .layer-panel-container';
+  const panelEl = document.querySelector(selector) as HTMLElement | null;
+  if (!panelEl) return;
+
   isVerticalResizing.value = true;
+  verticalResizeTarget.value = target;
   verticalResizeStartY.value = e.clientY;
+  startPanelHeight.value = panelEl.getBoundingClientRect().height;
 
-  const propertyEl = document.querySelector('.left-panels .property-panel-container') as HTMLElement | null;
-  const layerEl = document.querySelector('.left-panels .layer-panel-container') as HTMLElement | null;
-
-  if (!propertyEl || !layerEl) return;
-
-  startPropertyHeight.value = propertyEl.getBoundingClientRect().height;
-  startLayerHeight.value = layerEl.getBoundingClientRect().height;
-
-  document.addEventListener('mousemove', handlePropertyLayerResizeMove);
-  document.addEventListener('mouseup', handlePropertyLayerResizeEnd);
+  document.addEventListener('mousemove', handlePanelResizeMove);
+  document.addEventListener('mouseup', handlePanelResizeEnd);
   document.body.style.cursor = 'row-resize';
   document.body.style.userSelect = 'none';
 
   e.preventDefault();
 };
 
-const handlePropertyLayerResizeMove = (e: MouseEvent) => {
-  if (!isVerticalResizing.value) return;
+const handlePanelResizeMove = (e: MouseEvent) => {
+  if (!isVerticalResizing.value || !verticalResizeTarget.value) return;
 
-  const deltaY = e.clientY - verticalResizeStartY.value;
-
-  const propertyEl = document.querySelector('.left-panels .property-panel-container') as HTMLElement | null;
-  const layerEl = document.querySelector('.left-panels .layer-panel-container') as HTMLElement | null;
-  const leftPanelsEl = document.querySelector('.left-panels') as HTMLElement | null;
-
-  if (!propertyEl || !layerEl || !leftPanelsEl) return;
+  const selector =
+    verticalResizeTarget.value === 'property'
+      ? '.left-panels .property-panel-container'
+      : '.left-panels .layer-panel-container';
+  const panelEl = document.querySelector(selector) as HTMLElement | null;
+  if (!panelEl) return;
 
   const minHeight = 80;
-  const totalAvailable =
-    leftPanelsEl.getBoundingClientRect().height -
-    (leftPanelsEl.querySelector('.panel-container') as HTMLElement)?.getBoundingClientRect().height;
+  const deltaY = e.clientY - verticalResizeStartY.value;
+  let newHeight = startPanelHeight.value + deltaY;
+  if (newHeight < minHeight) newHeight = minHeight;
 
-  let newPropertyHeight = startPropertyHeight.value + deltaY;
-  let newLayerHeight = startLayerHeight.value - deltaY;
+  panelEl.style.height = `${newHeight}px`;
 
-  if (newPropertyHeight < minHeight) {
-    newPropertyHeight = minHeight;
-    newLayerHeight = totalAvailable - minHeight;
-  } else if (newLayerHeight < minHeight) {
-    newLayerHeight = minHeight;
-    newPropertyHeight = totalAvailable - minHeight;
+  if (verticalResizeTarget.value === 'property') {
+    propertyPanelHeight.value = newHeight;
+  } else {
+    layerPanelHeight.value = newHeight;
   }
-
-  propertyPanelHeight.value = newPropertyHeight;
-  layerPanelHeight.value = newLayerHeight;
-
-  propertyEl.style.height = `${newPropertyHeight}px`;
-  layerEl.style.height = `${newLayerHeight}px`;
 };
 
-const handlePropertyLayerResizeEnd = () => {
+const handlePanelResizeEnd = () => {
   if (!isVerticalResizing.value) return;
 
   isVerticalResizing.value = false;
-  document.removeEventListener('mousemove', handlePropertyLayerResizeMove);
-  document.removeEventListener('mouseup', handlePropertyLayerResizeEnd);
+  verticalResizeTarget.value = null;
+  document.removeEventListener('mousemove', handlePanelResizeMove);
+  document.removeEventListener('mouseup', handlePanelResizeEnd);
   document.body.style.cursor = '';
   document.body.style.userSelect = '';
 
@@ -1450,12 +1450,10 @@ onUnmounted(() => {
           min-height: 150px;
         }
         
-        // 属性面板根据内容自适应，可调整高度
+        // 属性面板可调整高度（通过自定义拖拽条）
         &.property-panel-container {
           flex-shrink: 0;
-          max-height: 60%;
-          overflow: auto;
-          resize: vertical;
+          overflow: hidden;
           
           .panel-content {
             min-height: 80px;
@@ -1463,12 +1461,10 @@ onUnmounted(() => {
           }
         }
         
-        // 图层面板根据内容自适应
+        // 图层面板可调整高度（通过自定义拖拽条）
         &.layer-panel-container {
           flex-shrink: 0;
-          max-height: 60%;
-          overflow: auto;
-          resize: vertical;
+          overflow: hidden;
           
           .panel-content {
             min-height: 80px;
@@ -1553,6 +1549,29 @@ onUnmounted(() => {
         top: 0;
         bottom: 0;
         cursor: col-resize;
+      }
+    }
+
+    // 属性/图层之间的水平分隔条
+    .panel-horizontal-resizer {
+      height: 4px;
+      background: transparent;
+      cursor: row-resize;
+      position: relative;
+      z-index: 5;
+
+      &:hover {
+        background: #409eff;
+      }
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: -2px;
+        bottom: -2px;
+        cursor: row-resize;
       }
     }
     

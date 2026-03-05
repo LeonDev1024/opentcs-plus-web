@@ -106,12 +106,12 @@ export const loadMapEditorData = (mapId: string | number): Promise<any> => {
  * 导出地图模型文件（后端当前导出 PlantModel JSON）
  * @param modelId 地图模型ID
  */
-export const exportMapFile = (modelId: string | number) => {
-  return request({
+export const exportMapFile = (modelId: string | number): Promise<Blob> => {
+  return request<Blob>({
     url: `/map/model/export/${modelId}`,
     method: 'get',
     responseType: 'blob'
-  });
+  }) as unknown as Promise<Blob>;
 };
 
 /**
