@@ -218,8 +218,8 @@ const emit = defineEmits<{
   'point-double-click': [point: MapPoint];
 }>();
 
-// 获取自动切换工具的状态
-const shouldAutoSwitchTool = computed(() => props.autoSwitchTool ?? true);
+// 获取自动切换工具的状态（默认不自动切换）
+const shouldAutoSwitchTool = computed(() => props.autoSwitchTool ?? false);
 
 type PathConnectionType = 'direct' | 'orthogonal' | 'curve';
 

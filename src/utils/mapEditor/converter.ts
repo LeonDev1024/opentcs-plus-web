@@ -86,8 +86,9 @@ export class PathConverter {
       id: path.id,
       name: path.name,
       code: path.code,
-      startPointId: startPoint?.id,
-      endPointId: endPoint?.id,
+      // 优先使用显式的起止点字段，其次回退到控制点上的 id
+      startPointId: path.startPointId ?? startPoint?.id,
+      endPointId: path.endPointId ?? endPoint?.id,
       length: this.calculatePathLength(controlPoints),
       type: path.type,
       description: path.description,

@@ -430,6 +430,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     // 更新图层元素列表
     const layer = layers.value.find(l => l.id === point.layerId);
     if (layer) {
+      if (!Array.isArray(layer.elementIds)) {
+        layer.elementIds = [];
+      }
       layer.elementIds.push(newPoint.id);
     }
     
@@ -459,6 +462,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       
       // 从图层中移除
       layers.value.forEach(layer => {
+        if (!Array.isArray(layer.elementIds)) return;
         const elementIndex = layer.elementIds.indexOf(id);
         if (elementIndex !== -1) {
           layer.elementIds.splice(elementIndex, 1);
@@ -487,6 +491,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     if (path.layerId) {
       const layer = layers.value.find(l => l.id === path.layerId);
       if (layer) {
+        if (!Array.isArray(layer.elementIds)) {
+          layer.elementIds = [];
+        }
         layer.elementIds.push(newPath.id);
       }
     }
@@ -516,6 +523,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       
       // 从图层中移除
       layers.value.forEach(layer => {
+        if (!Array.isArray(layer.elementIds)) return;
         const elementIndex = layer.elementIds.indexOf(id);
         if (elementIndex !== -1) {
           layer.elementIds.splice(elementIndex, 1);
@@ -544,6 +552,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     if (location.layerId) {
       const layer = layers.value.find(l => l.id === location.layerId);
       if (layer) {
+        if (!Array.isArray(layer.elementIds)) {
+          layer.elementIds = [];
+        }
         layer.elementIds.push(newLocation.id);
       }
     }
@@ -574,6 +585,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       
       // 从图层中移除
       layers.value.forEach(layer => {
+        if (!Array.isArray(layer.elementIds)) return;
         const elementIndex = layer.elementIds.indexOf(id);
         if (elementIndex !== -1) {
           layer.elementIds.splice(elementIndex, 1);
@@ -669,7 +681,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     if (index !== -1) {
       // 删除图层中的所有元素
       const layer = layers.value[index];
-      layer.elementIds.forEach(elementId => {
+      const elementIds = Array.isArray(layer.elementIds) ? layer.elementIds : [];
+      elementIds.forEach(elementId => {
         // 根据类型删除元素
         if (points.value.find(p => p.id === elementId)) {
           deletePoint(elementId);

@@ -1,100 +1,346 @@
 <template>
   <div class="property-panel">
-    <div class="panel-header">
-      <span class="panel-title">属性</span>
-    </div>
     <div class="panel-content">
       <!-- 无选择状态 -->
       <div v-if="!selectedElement" class="no-selection">
         <el-empty description="请选择一个元素" />
       </div>
       
-      <!-- 点属性编辑 -->
-      <div v-else-if="selectedElement.type === 'point'" class="point-properties">
-        <el-form label-position="top" size="small">
-          <el-form-item label="基本属性">
-            <el-input v-model="pointForm.name" placeholder="名称" />
-            <el-input v-model="pointForm.code" placeholder="编码" />
-            <el-select v-model="pointForm.type" placeholder="类型">
-              <el-option label="临时停车点" value="Halt point" />
-              <el-option label="长时间停车点" value="Park point" />
-            </el-select>
-            <el-input v-model="pointForm.description" placeholder="描述" type="textarea" />
-          </el-form-item>
-          
-          <el-form-item label="位置">
-            <div class="coordinate-inputs">
-              <el-input-number v-model="pointForm.x" placeholder="X" :step="1" />
-              <el-input-number v-model="pointForm.y" placeholder="Y" :step="1" />
-            </div>
-          </el-form-item>
-          
-          <el-form-item label="样式">
-            <el-color-picker v-model="pointForm.editorProps.color" show-alpha />
-            <el-color-picker v-model="pointForm.editorProps.strokeColor" show-alpha />
-            <el-input-number v-model="pointForm.editorProps.radius" placeholder="半径" :min="1" :max="50" :step="1" />
-            <el-switch v-model="pointForm.editorProps.labelVisible" label="显示标签" />
-          </el-form-item>
-          
-          <el-form-item>
-            <el-button type="primary" size="small" @click="updatePoint">保存</el-button>
-          </el-form-item>
-        </el-form>
+      <!-- 点属性编辑：Key / Value 表格形式（对齐 openTCS Point 属性） -->
+      <div v-else-if="selectedType === 'point'" class="point-properties">
+        <div class="element-title">Point</div>
+        <table class="kv-table">
+          <thead>
+            <tr>
+              <th class="kv-header-key">Attribute</th>
+              <th class="kv-header-value">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="kv-key">Name</td>
+              <td class="kv-value">
+                <el-input v-model="pointForm.name" size="small" @change="updatePoint" />
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">x-position</td>
+              <td class="kv-value">
+                <el-input-number v-model="pointForm.x" size="small" :step="1" @change="updatePoint" />
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">y-position</td>
+              <td class="kv-value">
+                <el-input-number v-model="pointForm.y" size="small" :step="1" @change="updatePoint" />
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Type</td>
+              <td class="kv-value">
+                <el-select v-model="pointForm.type" size="small" placeholder="Type" @change="updatePoint">
+                  <el-option label="Halt point" value="Halt point" />
+                  <el-option label="Park point" value="Park point" />
+                </el-select>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Angle</td>
+              <td class="kv-value">
+                <span class="kv-readonly">NaN deg</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Vehicle envelopes</td>
+              <td class="kv-value">
+                <span class="kv-readonly">-</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Maximum vehicle body length</td>
+              <td class="kv-value">
+                <span class="kv-readonly">-</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Miscellaneous</td>
+              <td class="kv-value">
+                <span class="kv-readonly">-</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Label x offset</td>
+              <td class="kv-value">
+                <span class="kv-readonly">0</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Label y offset</td>
+              <td class="kv-value">
+                <span class="kv-readonly">0</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Label orientation angle</td>
+              <td class="kv-value">
+                <span class="kv-readonly">0</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Layer</td>
+              <td class="kv-value">
+                <span class="kv-readonly">{{ getLayerName(pointForm.layerId) }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       
-      <!-- 路径属性编辑 -->
-      <div v-else-if="selectedElement.type === 'path'" class="path-properties">
-        <el-form label-position="top" size="small">
-          <el-form-item label="基本属性">
-            <el-input v-model="pathForm.name" placeholder="名称" />
-            <el-input v-model="pathForm.code" placeholder="编码" />
-            <el-select v-model="pathForm.type" placeholder="类型">
-              <el-option label="直接连线" value="direct" />
-              <el-option label="直角连线" value="orthogonal" />
-              <el-option label="圆角连线" value="curve" />
-            </el-select>
-            <el-input v-model="pathForm.description" placeholder="描述" type="textarea" />
-          </el-form-item>
-          
-          <el-form-item label="样式">
-            <el-color-picker v-model="pathForm.editorProps.strokeColor" show-alpha />
-            <el-input-number v-model="pathForm.editorProps.strokeWidth" placeholder="线宽" :min="1" :max="10" :step="0.5" />
-            <el-select v-model="pathForm.editorProps.lineStyle" placeholder="线型">
-              <el-option label="实线" value="solid" />
-              <el-option label="虚线" value="dashed" />
-              <el-option label="点线" value="dotted" />
-            </el-select>
-            <el-switch v-model="pathForm.editorProps.arrowVisible" label="显示箭头" />
-            <el-switch v-model="pathForm.editorProps.labelVisible" label="显示标签" />
-          </el-form-item>
-          
-          <el-form-item>
-            <el-button type="primary" size="small" @click="updatePath">保存</el-button>
-          </el-form-item>
-        </el-form>
+      <!-- Link 属性编辑：Key / Value 表格形式（对齐 openTCS Link 属性） -->
+      <div v-else-if="selectedType === 'path' && isCurrentPathLink" class="path-properties">
+        <div class="element-title">Link</div>
+        <table class="kv-table">
+          <thead>
+            <tr>
+              <th class="kv-header-key">Attribute</th>
+              <th class="kv-header-value">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="kv-key">Name</td>
+              <td class="kv-value">
+                <el-input v-model="pathForm.name" size="small" @change="updatePath" />
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Actions</td>
+              <td class="kv-value">
+                <span class="kv-readonly">-</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Start component</td>
+              <td class="kv-value">
+                <span class="kv-readonly">{{ getComponentName(pathForm.startPointId) }}</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">End component</td>
+              <td class="kv-value">
+                <span class="kv-readonly">{{ getComponentName(pathForm.endPointId) }}</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Layer</td>
+              <td class="kv-value">
+                <span class="kv-readonly">{{ getLayerName(pathForm.layerId) }}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       
-      <!-- 位置属性编辑 -->
-      <div v-else-if="selectedElement.type === 'location'" class="location-properties">
-        <el-form label-position="top" size="small">
-          <el-form-item label="基本属性">
-            <el-input v-model="locationForm.name" placeholder="名称" />
-            <el-input v-model="locationForm.code" placeholder="编码" />
-            <el-input v-model="locationForm.description" placeholder="描述" type="textarea" />
-          </el-form-item>
-          
-          <el-form-item label="样式">
-            <el-color-picker v-model="locationForm.editorProps.fillColor" show-alpha />
-            <el-input-number v-model="locationForm.editorProps.fillOpacity" placeholder="填充透明度" :min="0" :max="1" :step="0.1" />
-            <el-color-picker v-model="locationForm.editorProps.strokeColor" show-alpha />
-            <el-input-number v-model="locationForm.editorProps.strokeWidth" placeholder="线宽" :min="1" :max="10" :step="0.5" />
-            <el-switch v-model="locationForm.editorProps.labelVisible" label="显示标签" />
-          </el-form-item>
-          
-          <el-form-item>
-            <el-button type="primary" size="small" @click="updateLocation">保存</el-button>
-          </el-form-item>
-        </el-form>
+      <!-- Path 属性编辑：Key / Value 表格形式（对齐 openTCS Path 属性） -->
+      <div v-else-if="selectedType === 'path'" class="path-properties">
+        <div class="element-title">Path</div>
+        <table class="kv-table">
+          <thead>
+            <tr>
+              <th class="kv-header-key">Attribute</th>
+              <th class="kv-header-value">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="kv-key">Name</td>
+              <td class="kv-value">
+                <el-input v-model="pathForm.name" size="small" @change="updatePath" />
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Length</td>
+              <td class="kv-value">
+                <span class="kv-readonly">{{ formatPathLength(pathForm) }}</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Maximum velocity</td>
+              <td class="kv-value">
+                <span class="kv-readonly">0.0 mm/s</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Maximum reverse velocity</td>
+              <td class="kv-value">
+                <span class="kv-readonly">0.0 mm/s</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Path connection type</td>
+              <td class="kv-value">
+                <el-select v-model="pathForm.type" size="small" placeholder="Path connection type" @change="updatePath">
+                  <el-option label="Direct" value="direct" />
+                  <el-option label="Orthogonal" value="orthogonal" />
+                  <el-option label="Curve" value="curve" />
+                </el-select>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Path control points</td>
+              <td class="kv-value">
+                <span class="kv-readonly">{{ pathForm.geometry.controlPoints.length }}</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Start component</td>
+              <td class="kv-value">
+                <span class="kv-readonly">{{ getPointName(pathForm.startPointId) }}</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">End component</td>
+              <td class="kv-value">
+                <span class="kv-readonly">{{ getPointName(pathForm.endPointId) }}</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Layer</td>
+              <td class="kv-value">
+                <span class="kv-readonly">{{ getLayerName(pathForm.layerId) }}</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Locked</td>
+              <td class="kv-value">
+                <span class="kv-readonly">false</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Peripheral operations</td>
+              <td class="kv-value">
+                <span class="kv-readonly">-</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Vehicle envelopes</td>
+              <td class="kv-value">
+                <span class="kv-readonly">-</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Miscellaneous</td>
+              <td class="kv-value">
+                <span class="kv-readonly">-</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Location 属性编辑：Key / Value 表格形式（对齐 openTCS Location 属性） -->
+      <div v-else-if="selectedType === 'location'" class="location-properties">
+        <div class="element-title">Location</div>
+        <table class="kv-table">
+          <thead>
+            <tr>
+              <th class="kv-header-key">Attribute</th>
+              <th class="kv-header-value">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="kv-key">Name</td>
+              <td class="kv-value">
+                <el-input v-model="locationForm.name" size="small" @change="updateLocation" />
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">x-Position</td>
+              <td class="kv-value">
+                <span class="kv-readonly">{{ formatLocationX(locationForm) }}</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">y-Position</td>
+              <td class="kv-value">
+                <span class="kv-readonly">{{ formatLocationY(locationForm) }}</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Type</td>
+              <td class="kv-value">
+                <span class="kv-readonly">{{ formatLocationType(locationForm) }}</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Locked</td>
+              <td class="kv-value">
+                <span class="kv-readonly">false</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Symbol</td>
+              <td class="kv-value">
+                <span class="kv-readonly">DEFAULT</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Label x offset</td>
+              <td class="kv-value">
+                <span class="kv-readonly">0</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Label y offset</td>
+              <td class="kv-value">
+                <span class="kv-readonly">0</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Label orientation angle</td>
+              <td class="kv-value">
+                <span class="kv-readonly">0</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Layer</td>
+              <td class="kv-value">
+                <span class="kv-readonly">{{ getLayerName(locationForm.layerId) }}</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Reservation token</td>
+              <td class="kv-value">
+                <span class="kv-readonly">-</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Peripheral state</td>
+              <td class="kv-value">
+                <span class="kv-readonly">-</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Processing state</td>
+              <td class="kv-value">
+                <span class="kv-readonly">-</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Peripheral job</td>
+              <td class="kv-value">
+                <span class="kv-readonly">-</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Miscellaneous</td>
+              <td class="kv-value">
+                <span class="kv-readonly">-</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -107,23 +353,46 @@ import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
 
 const mapEditorStore = useMapEditorStore();
 
-// 选中的元素
-const selectedElement = computed(() => {
+const getLayerName = (layerId: string) => {
+  if (!layerId) return '';
+  const layer = mapEditorStore.layers.find(l => l.id === layerId);
+  return layer?.name || '';
+};
+
+const getPointName = (pointId: string | number | undefined) => {
+  if (pointId === undefined || pointId === null) return '';
+  const normalizedId = String(pointId);
+  const point = mapEditorStore.points.find(p => String(p.id) === normalizedId);
+  return point?.name || normalizedId;
+};
+
+const getComponentName = (id: string | number | undefined) => {
+  if (id === undefined || id === null) return '';
+  const normalizedId = String(id);
+  const point = mapEditorStore.points.find(p => String(p.id) === normalizedId);
+  if (point) return point.name || normalizedId;
+  const location = mapEditorStore.locations.find(l => String(l.id) === normalizedId);
+  return location?.name || normalizedId;
+};
+
+// 选中类型
+const selectedType = computed(() => mapEditorStore.selection.selectedType);
+
+// 选中的元素（单选时）
+const selectedElement = computed<MapPoint | MapPath | MapLocation | null>(() => {
   const selectedIds = mapEditorStore.selection.selectedIds;
-  const selectedType = mapEditorStore.selection.selectedType;
-  
-  if (!selectedType || selectedIds.size !== 1) {
+  if (!selectedType.value || selectedIds.size !== 1) {
     return null;
   }
   
   const id = Array.from(selectedIds)[0];
   
-  if (selectedType === 'point') {
-    return mapEditorStore.points.find(p => p.id === id) as MapPoint & { type: 'point' };
-  } else if (selectedType === 'path') {
-    return mapEditorStore.paths.find(p => p.id === id) as MapPath & { type: 'path' };
-  } else if (selectedType === 'location') {
-    return mapEditorStore.locations.find(l => l.id === id) as MapLocation & { type: 'location' };
+  if (selectedType.value === 'point') {
+    return mapEditorStore.points.find(p => p.id === id) || null;
+  } else if (selectedType.value === 'path') {
+    return mapEditorStore.paths.find(p => p.id === id) || null;
+  } else if (selectedType.value === 'location') {
+    return mapEditorStore.locations.find(l => l.id === id) || null;
   }
   
   return null;
@@ -183,37 +452,101 @@ const locationForm = ref<MapLocation>({
   }
 });
 
-// 监听选中元素变化，更新表单数据
+// 选中元素变化时同步表单
 watch(selectedElement, (newElement) => {
-  if (!newElement) return;
-  
-  if (newElement.type === 'point') {
-    pointForm.value = { ...newElement };
-  } else if (newElement.type === 'path') {
-    pathForm.value = { ...newElement };
-  } else if (newElement.type === 'location') {
-    locationForm.value = { ...newElement };
-  }
-}, { deep: true });
+  if (!newElement || !selectedType.value) return;
 
-// 更新点属性
+  if (selectedType.value === 'point') {
+    pointForm.value = { ...(newElement as MapPoint) };
+  } else if (selectedType.value === 'path') {
+    pathForm.value = { ...(newElement as MapPath) };
+  } else if (selectedType.value === 'location') {
+    locationForm.value = { ...(newElement as MapLocation) };
+  }
+});
+
+// 按需回写到 store（由表格控件的 @change 触发）
 const updatePoint = () => {
-  if (selectedElement.value?.type === 'point') {
-    mapEditorStore.updatePoint(selectedElement.value.id, pointForm.value);
+  if (selectedType.value === 'point' && selectedElement.value) {
+    mapEditorStore.updatePoint((selectedElement.value as MapPoint).id, pointForm.value);
   }
 };
 
+// 计算路径长度（简单使用控制点距离之和）
+const formatPathLength = (path: MapPath) => {
+  const cps = path.geometry.controlPoints;
+  if (!cps || cps.length < 2) return '0.0 mm';
+  let len = 0;
+  for (let i = 0; i < cps.length - 1; i++) {
+    const p1 = cps[i];
+    const p2 = cps[i + 1];
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    len += Math.sqrt(dx * dx + dy * dy);
+  }
+  return `${len.toFixed(1)} mm`;
+};
+
+// 计算 Location 中心点
+const getLocationCenter = (loc: MapLocation) => {
+  const vertices = loc.geometry?.vertices || [];
+  if (vertices.length === 0) {
+    return {
+      x: loc.x ?? 0,
+      y: loc.y ?? 0
+    };
+  }
+  let sumX = 0;
+  let sumY = 0;
+  vertices.forEach(v => {
+    sumX += v.x;
+    sumY += v.y;
+  });
+  return {
+    x: sumX / vertices.length,
+    y: sumY / vertices.length
+  };
+};
+
+const formatLocationX = (loc: MapLocation) => {
+  const center = getLocationCenter(loc);
+  return `${center.x.toFixed(1)} mm`;
+};
+
+const formatLocationY = (loc: MapLocation) => {
+  const center = getLocationCenter(loc);
+  return `${center.y.toFixed(1)} mm`;
+};
+
+const formatLocationType = (loc: MapLocation) => {
+  if (loc.description) return loc.description;
+  if (loc.locationTypeId !== undefined && loc.locationTypeId !== null) {
+    return String(loc.locationTypeId);
+  }
+  return '';
+};
+
+// 判断当前选中路径是否为 Link（根据图层组名称或名称前缀）
+const isCurrentPathLink = computed(() => {
+  if (selectedType.value !== 'path') return false;
+  const layer = mapEditorStore.layers.find(l => l.id === pathForm.value.layerId);
+  if (!layer) return false;
+  const group = mapEditorStore.layerGroups.find(g => g.id === layer.layerGroupId);
+  if (group && group.name === 'Links') return true;
+  return !!pathForm.value.name && pathForm.value.name.startsWith('Link');
+});
+
 // 更新路径属性
 const updatePath = () => {
-  if (selectedElement.value?.type === 'path') {
-    mapEditorStore.updatePath(selectedElement.value.id, pathForm.value);
+  if (selectedType.value === 'path' && selectedElement.value) {
+    mapEditorStore.updatePath((selectedElement.value as MapPath).id, pathForm.value);
   }
 };
 
 // 更新位置属性
 const updateLocation = () => {
-  if (selectedElement.value?.type === 'location') {
-    mapEditorStore.updateLocation(selectedElement.value.id, locationForm.value);
+  if (selectedType.value === 'location' && selectedElement.value) {
+    mapEditorStore.updateLocation((selectedElement.value as MapLocation).id, locationForm.value);
   }
 };
 </script>
@@ -246,7 +579,8 @@ const updateLocation = () => {
   .panel-content {
     flex: 1;
     overflow-y: auto;
-    padding: 12px;
+    /* 去掉左侧内边距，使表格贴边左对齐 */
+    padding: 12px 12px 12px 0;
     
     .no-selection {
       height: 100%;
@@ -254,14 +588,64 @@ const updateLocation = () => {
       align-items: center;
       justify-content: center;
     }
-    
-    .coordinate-inputs {
-      display: flex;
-      gap: 8px;
-      
-      .el-input-number {
-        flex: 1;
+
+    .kv-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin: 0;
+
+      .kv-header-key,
+      .kv-header-value {
+        padding: 4px 8px;
+        background: #ebeef5;
+        color: #606266;
+        border: 1px solid #dcdfe6;
+        font-weight: 500;
+        text-align: left;
       }
+
+      .kv-key {
+        width: 50%;
+        padding: 4px 8px;
+        background: #f5f7fa;
+        color: #606266;
+        border: 1px solid #ebeef5;
+        white-space: nowrap;
+      }
+
+      .kv-value {
+        padding: 4px 8px;
+        border: 1px solid #ebeef5;
+
+        :deep(.el-input),
+        :deep(.el-input-number),
+        :deep(.el-select) {
+          width: 100%;
+        }
+      }
+
+      .kv-readonly {
+        color: #303133;
+      }
+    }
+
+    .kv-actions {
+      margin-top: 8px;
+      text-align: right;
+    }
+
+    .element-title {
+      font-size: 12px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: #303133;
+    }
+
+    .element-legend {
+      margin-top: 12px;
+      font-size: 12px;
+      color: #909399;
     }
     
     .el-form-item {

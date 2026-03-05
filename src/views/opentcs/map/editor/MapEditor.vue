@@ -208,22 +208,26 @@
           </el-tooltip>
         </el-button-group>
         <el-divider direction="vertical" />
-        <el-button-group>
-          <el-tooltip content="导出地图" :show-after="50" placement="bottom">
-            <el-button
-              size="small"
-              icon="Download"
-              @click="handleExportMap"
-            />
-          </el-tooltip>
-          <el-tooltip content="导入地图" :show-after="50" placement="bottom">
-            <el-button
-              size="small"
-              icon="Upload"
-              @click="handleImportMap"
-            />
-          </el-tooltip>
-        </el-button-group>
+        <div class="export-import-group">
+          <el-dropdown @command="handleExportCommand" trigger="click">
+            <el-button size="small" icon="Download" />
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="editor">导出编辑器 JSON</el-dropdown-item>
+                <el-dropdown-item command="model">导出 openTCS 模型</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-dropdown @command="handleImportCommand" trigger="click">
+            <el-button size="small" icon="Upload" />
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="editor">导入编辑器 JSON</el-dropdown-item>
+                <el-dropdown-item command="model">导入 openTCS 模型</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
         <el-divider direction="vertical" />
         <span class="zoom-level">{{ Math.round(canvasState.scale * 100) }}%</span>
         <el-button-group size="small">
@@ -277,17 +281,6 @@
             </el-icon>
           </el-button>
         </el-tooltip>
-        <el-tooltip :content="isRightPanelCollapsed ? '展开属性面板' : '收起属性面板'" :show-after="50" placement="bottom">
-          <el-button
-            class="collapse-toggle"
-            size="small"
-            @click="toggleRightPanelCollapse"
-          >
-            <el-icon>
-              <component :is="isRightPanelCollapsed ? 'CaretLeft' : 'CaretRight'" />
-            </el-icon>
-          </el-button>
-        </el-tooltip>
         <el-tooltip content="自动切换工具" :show-after="50" placement="bottom">
           <el-switch
             v-model="autoSwitchTool"
@@ -299,7 +292,7 @@
     
     <!-- 主内容区 -->
     <div class="editor-content">
-      <!-- 左侧面板：视图、图层 -->
+      <!-- 左侧面板：视图、属性 -->
       <div 
         v-show="!isLeftPanelCollapsed"
         class="left-panels" 
@@ -315,8 +308,27 @@
           </div>
         </div>
         
+        <!-- 属性面板 -->
+        <div class="panel-container property-panel-container">
+          <div class="panel-header" @click="togglePropertyPanelCollapse">
+            <span class="canvas-title">属性</span>
+            <el-icon class="collapse-icon" :class="{ 'collapsed': isPropertyPanelCollapsed }">
+              <ArrowDown />
+            </el-icon>
+          </div>
+          <div v-show="!isPropertyPanelCollapsed" class="panel-content">
+            <PropertyPanel />
+          </div>
+        </div>
+        <!-- 属性 / 图层 面板之间的拖拽条 -->
+        <div
+          v-show="!isPropertyPanelCollapsed && !isLayerPanelCollapsed"
+          class="panel-horizontal-resizer"
+          @mousedown="handlePropertyLayerResizeStart"
+        ></div>
+        
         <!-- 图层面板 -->
-        <div class="panel-container">
+        <div class="panel-container layer-panel-container">
           <div class="panel-header" @click="toggleLayerPanelCollapse">
             <span class="canvas-title">图层</span>
             <el-icon class="collapse-icon" :class="{ 'collapsed': isLayerPanelCollapsed }">
@@ -344,22 +356,6 @@
         </div>
       </div>
       
-      <!-- 右侧可拖拽的分隔条 -->
-      <div 
-        v-show="!isRightPanelCollapsed"
-        class="panel-resizer panel-resizer-right" 
-        @mousedown="handleRightResizeStart"
-        :class="{ 'resizing': isRightResizing }"
-      ></div>
-      
-      <!-- 右侧面板：属性 -->
-      <div 
-        v-show="!isRightPanelCollapsed"
-        class="right-panel" 
-        :style="{ width: rightPanelWidth + 'px' }"
-      >
-        <PropertyPanel />
-      </div>
     </div>
     
     <!-- 底部状态栏 -->
@@ -396,6 +392,7 @@ import type { MapPoint } from '@/types/mapEditor';
 import PathTypeIcon from './components/icons/PathTypeIcon.vue';
 import LocationTypeIcon from './components/icons/LocationTypeIcon.vue';
 import SvgIcon from '@/components/SvgIcon/index.vue';
+import { exportMapFile, importMapFile } from '@/api/opentcs/map';
 
 const route = useRoute();
 const router = useRouter();
@@ -421,14 +418,20 @@ const currentEditPoint = ref<MapPoint | null>(null);
 // 左侧面板收起状态
 const isLeftPanelCollapsed = ref(false);
 
-// 右侧面板收起状态
-const isRightPanelCollapsed = ref(false);
-
 // 图层面板折叠状态
-const isLayerPanelCollapsed = ref(false);
+const isLayerPanelCollapsed = ref(true);
 
-// 工具模式记忆状态
-const autoSwitchTool = ref(true);
+// 属性面板折叠状态
+const isPropertyPanelCollapsed = ref(false);
+
+// 属性/图层面板高度（支持上下拖动）
+const PROPERTY_PANEL_HEIGHT_KEY = 'map-editor-property-panel-height';
+const LAYER_PANEL_HEIGHT_KEY = 'map-editor-layer-panel-height';
+const propertyPanelHeight = ref<number | null>(null);
+const layerPanelHeight = ref<number | null>(null);
+
+// 工具模式记忆状态（默认不自动切换回选择工具）
+const autoSwitchTool = ref(false);
 
 // 左侧面板宽度
 const LEFT_PANEL_MIN_WIDTH = 200;
@@ -436,19 +439,10 @@ const LEFT_PANEL_MAX_WIDTH = 600;
 const LEFT_PANEL_DEFAULT_WIDTH = 280;
 const LEFT_PANEL_WIDTH_KEY = 'map-editor-left-panel-width';
 
-// 右侧面板宽度
-const RIGHT_PANEL_MIN_WIDTH = 200;
-const RIGHT_PANEL_MAX_WIDTH = 400;
-const RIGHT_PANEL_DEFAULT_WIDTH = 280;
-const RIGHT_PANEL_WIDTH_KEY = 'map-editor-right-panel-width';
-
 const leftPanelWidth = ref(LEFT_PANEL_DEFAULT_WIDTH);
-const rightPanelWidth = ref(RIGHT_PANEL_DEFAULT_WIDTH);
 const isResizing = ref(false);
-const isRightResizing = ref(false);
 const resizeStartX = ref(0);
 const resizeStartWidth = ref(0);
-const resizeStartRightWidth = ref(0);
 
 // 从 store 获取状态
 const currentTool = computed(() => mapEditorStore.currentTool);
@@ -548,14 +542,95 @@ const toggleLeftPanelCollapse = () => {
   isLeftPanelCollapsed.value = !isLeftPanelCollapsed.value;
 };
 
-// 右侧面板收起/展开
-const toggleRightPanelCollapse = () => {
-  isRightPanelCollapsed.value = !isRightPanelCollapsed.value;
-};
-
 // 图层面板折叠/展开
 const toggleLayerPanelCollapse = () => {
   isLayerPanelCollapsed.value = !isLayerPanelCollapsed.value;
+};
+
+// 属性面板折叠/展开
+const togglePropertyPanelCollapse = () => {
+  isPropertyPanelCollapsed.value = !isPropertyPanelCollapsed.value;
+};
+
+// 属性 / 图层 面板高度拖拽
+const isVerticalResizing = ref(false);
+const verticalResizeStartY = ref(0);
+const startPropertyHeight = ref(0);
+const startLayerHeight = ref(0);
+
+const handlePropertyLayerResizeStart = (e: MouseEvent) => {
+  // 仅在两个面板都展开时允许拖动
+  if (isPropertyPanelCollapsed.value || isLayerPanelCollapsed.value) {
+    return;
+  }
+  isVerticalResizing.value = true;
+  verticalResizeStartY.value = e.clientY;
+
+  const propertyEl = document.querySelector('.left-panels .property-panel-container') as HTMLElement | null;
+  const layerEl = document.querySelector('.left-panels .layer-panel-container') as HTMLElement | null;
+
+  if (!propertyEl || !layerEl) return;
+
+  startPropertyHeight.value = propertyEl.getBoundingClientRect().height;
+  startLayerHeight.value = layerEl.getBoundingClientRect().height;
+
+  document.addEventListener('mousemove', handlePropertyLayerResizeMove);
+  document.addEventListener('mouseup', handlePropertyLayerResizeEnd);
+  document.body.style.cursor = 'row-resize';
+  document.body.style.userSelect = 'none';
+
+  e.preventDefault();
+};
+
+const handlePropertyLayerResizeMove = (e: MouseEvent) => {
+  if (!isVerticalResizing.value) return;
+
+  const deltaY = e.clientY - verticalResizeStartY.value;
+
+  const propertyEl = document.querySelector('.left-panels .property-panel-container') as HTMLElement | null;
+  const layerEl = document.querySelector('.left-panels .layer-panel-container') as HTMLElement | null;
+  const leftPanelsEl = document.querySelector('.left-panels') as HTMLElement | null;
+
+  if (!propertyEl || !layerEl || !leftPanelsEl) return;
+
+  const minHeight = 80;
+  const totalAvailable =
+    leftPanelsEl.getBoundingClientRect().height -
+    (leftPanelsEl.querySelector('.panel-container') as HTMLElement)?.getBoundingClientRect().height;
+
+  let newPropertyHeight = startPropertyHeight.value + deltaY;
+  let newLayerHeight = startLayerHeight.value - deltaY;
+
+  if (newPropertyHeight < minHeight) {
+    newPropertyHeight = minHeight;
+    newLayerHeight = totalAvailable - minHeight;
+  } else if (newLayerHeight < minHeight) {
+    newLayerHeight = minHeight;
+    newPropertyHeight = totalAvailable - minHeight;
+  }
+
+  propertyPanelHeight.value = newPropertyHeight;
+  layerPanelHeight.value = newLayerHeight;
+
+  propertyEl.style.height = `${newPropertyHeight}px`;
+  layerEl.style.height = `${newLayerHeight}px`;
+};
+
+const handlePropertyLayerResizeEnd = () => {
+  if (!isVerticalResizing.value) return;
+
+  isVerticalResizing.value = false;
+  document.removeEventListener('mousemove', handlePropertyLayerResizeMove);
+  document.removeEventListener('mouseup', handlePropertyLayerResizeEnd);
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+
+  if (propertyPanelHeight.value !== null) {
+    localStorage.setItem(PROPERTY_PANEL_HEIGHT_KEY, propertyPanelHeight.value.toString());
+  }
+  if (layerPanelHeight.value !== null) {
+    localStorage.setItem(LAYER_PANEL_HEIGHT_KEY, layerPanelHeight.value.toString());
+  }
 };
 
 // 撤销/重做
@@ -713,46 +788,6 @@ const handleResizeEnd = () => {
   localStorage.setItem(LEFT_PANEL_WIDTH_KEY, leftPanelWidth.value.toString());
 };
 
-// 拖拽调整右侧面板宽度
-const handleRightResizeStart = (e: MouseEvent) => {
-  isRightResizing.value = true;
-  resizeStartX.value = e.clientX;
-  resizeStartRightWidth.value = rightPanelWidth.value;
-  
-  document.addEventListener('mousemove', handleRightResizeMove);
-  document.addEventListener('mouseup', handleRightResizeEnd);
-  document.body.style.cursor = 'col-resize';
-  document.body.style.userSelect = 'none';
-  
-  e.preventDefault();
-};
-
-const handleRightResizeMove = (e: MouseEvent) => {
-  if (!isRightResizing.value) return;
-  
-  const deltaX = e.clientX - resizeStartX.value;
-  const newWidth = resizeStartRightWidth.value - deltaX;
-  
-  // 限制宽度范围
-  rightPanelWidth.value = Math.max(
-    RIGHT_PANEL_MIN_WIDTH,
-    Math.min(RIGHT_PANEL_MAX_WIDTH, newWidth)
-  );
-};
-
-const handleRightResizeEnd = () => {
-  if (!isRightResizing.value) return;
-  
-  isRightResizing.value = false;
-  document.removeEventListener('mousemove', handleRightResizeMove);
-  document.removeEventListener('mouseup', handleRightResizeEnd);
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-  
-  // 保存宽度到 localStorage
-  localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, rightPanelWidth.value.toString());
-};
-
 // 初始化网格大小为20（固定值）
 onMounted(async () => {
   // 从 localStorage 加载面板宽度
@@ -763,13 +798,24 @@ onMounted(async () => {
       leftPanelWidth.value = width;
     }
   }
-  
-  // 从 localStorage 加载右侧面板宽度
-  const savedRightWidth = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
-  if (savedRightWidth) {
-    const width = parseInt(savedRightWidth, 10);
-    if (width >= RIGHT_PANEL_MIN_WIDTH && width <= RIGHT_PANEL_MAX_WIDTH) {
-      rightPanelWidth.value = width;
+
+  // 从 localStorage 加载属性/图层面板高度
+  const savedPropertyHeight = localStorage.getItem(PROPERTY_PANEL_HEIGHT_KEY);
+  const savedLayerHeight = localStorage.getItem(LAYER_PANEL_HEIGHT_KEY);
+  if (savedPropertyHeight && savedLayerHeight) {
+    const p = parseInt(savedPropertyHeight, 10);
+    const l = parseInt(savedLayerHeight, 10);
+    if (!Number.isNaN(p) && !Number.isNaN(l)) {
+      propertyPanelHeight.value = p;
+      layerPanelHeight.value = l;
+      nextTick(() => {
+        const propertyEl = document.querySelector('.left-panels .property-panel-container') as HTMLElement | null;
+        const layerEl = document.querySelector('.left-panels .layer-panel-container') as HTMLElement | null;
+        if (propertyEl && layerEl) {
+          propertyEl.style.height = `${p}px`;
+          layerEl.style.height = `${l}px`;
+        }
+      });
     }
   }
   
@@ -918,6 +964,29 @@ const handleExportMap = () => {
   ElMessage.success('地图导出成功');
 };
 
+// 导出 openTCS 模型（当前使用后端导出的 PlantModel JSON）
+const handleExportModel = async () => {
+  const modelId = mapEditorStore.currentMapModelId;
+  if (!modelId) {
+    ElMessage.warning('当前没有可导出的地图模型');
+    return;
+  }
+  try {
+    const blob = await exportMapFile(modelId);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${mapEditorStore.mapData?.mapInfo.name || 'plant_model'}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    ElMessage.success('openTCS 模型导出成功');
+  } catch (error: any) {
+    ElMessage.error('导出 openTCS 模型失败：' + (error?.message || '未知错误'));
+  }
+};
+
 // 导入地图
 const handleImportMap = () => {
   // 创建文件输入元素
@@ -991,8 +1060,61 @@ const handleImportMap = () => {
   input.click();
 };
 
+// 导入 openTCS 模型文件（调用后端导入接口）
+const handleImportModel = () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json,.xml';
+
+  input.onchange = async (e) => {
+    const target = e.target as HTMLInputElement;
+    if (!target.files || target.files.length === 0) {
+      return;
+    }
+
+    const file = target.files[0];
+    try {
+      await importMapFile(file);
+      ElMessage.success('openTCS 模型导入成功，请在地图列表中查看新建地图');
+    } catch (error: any) {
+      ElMessage.error('导入 openTCS 模型失败：' + (error?.message || '未知错误'));
+    }
+  };
+
+  input.click();
+};
+
+// 导出/导入下拉菜单命令分发
+const handleExportCommand = (command: 'editor' | 'model') => {
+  if (command === 'editor') {
+    handleExportMap();
+  } else {
+    handleExportModel();
+  }
+};
+
+const handleImportCommand = (command: 'editor' | 'model') => {
+  if (command === 'editor') {
+    handleImportMap();
+  } else {
+    handleImportModel();
+  }
+};
+
 // 键盘快捷键
 const handleKeyDown = (e: KeyboardEvent) => {
+  const target = e.target as HTMLElement | null;
+  const isTypingElement =
+    target &&
+    (target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      (target as any).isContentEditable);
+
+  // 在输入框内不处理编辑器级快捷键
+  if (isTypingElement) {
+    return;
+  }
+
   // Ctrl+Z 撤销
   if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
     e.preventDefault();
@@ -1009,6 +1131,41 @@ const handleKeyDown = (e: KeyboardEvent) => {
   if (e.ctrlKey && e.key === 's') {
     e.preventDefault();
     handleSave();
+  }
+
+  // Delete / Backspace 删除选中元素
+  if (!e.ctrlKey && !e.metaKey && (e.key === 'Delete' || e.key === 'Backspace')) {
+    if (hasSelection.value) {
+      e.preventDefault();
+      handleBatchDelete();
+    }
+  }
+
+  // 数字键切换工具（仅在未按下 Ctrl/Meta/Alt 时生效）
+  if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+    switch (e.key) {
+      case '1':
+        setTool(ToolMode.SELECT);
+        break;
+      case '2':
+        setTool(ToolMode.PAN);
+        break;
+      case '3':
+        setTool(ToolMode.POINT);
+        break;
+      case '4':
+        setTool(ToolMode.PATH);
+        break;
+      case '5':
+        setTool(ToolMode.LOCATION);
+        break;
+      case '6':
+        setTool(ToolMode.DASHED_LINK);
+        break;
+      case '7':
+        setTool(ToolMode.RULE_REGION);
+        break;
+    }
   }
 };
 
@@ -1091,6 +1248,12 @@ onUnmounted(() => {
       .el-button-group.creation-tool-group {
         display: inline-flex;
         gap: 6px;
+      }
+
+      .export-import-group {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
       }
       
       // 确保 tooltip 不影响按钮布局
@@ -1284,12 +1447,38 @@ onUnmounted(() => {
         // 视图面板始终占据剩余空间
         &:first-child {
           flex: 1;
+          min-height: 150px;
+        }
+        
+        // 属性面板根据内容自适应，可调整高度
+        &.property-panel-container {
+          flex-shrink: 0;
+          max-height: 60%;
+          overflow: auto;
+          resize: vertical;
+          
+          .panel-content {
+            min-height: 80px;
+            max-height: none;
+          }
         }
         
         // 图层面板根据内容自适应
+        &.layer-panel-container {
+          flex-shrink: 0;
+          max-height: 60%;
+          overflow: auto;
+          resize: vertical;
+          
+          .panel-content {
+            min-height: 80px;
+            max-height: none;
+          }
+        }
+        
+        // 最后一个面板没有底部边框
         &:last-child {
           border-bottom: none;
-          flex-shrink: 0;
         }
         
         .panel-header {
@@ -1304,6 +1493,7 @@ onUnmounted(() => {
           cursor: pointer;
           user-select: none;
           transition: background-color 0.2s;
+          flex-shrink: 0;
           
           &:hover {
             background: #f5f7fa;
