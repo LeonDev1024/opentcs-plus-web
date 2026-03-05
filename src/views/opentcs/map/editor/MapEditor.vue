@@ -426,15 +426,17 @@ const currentEditPoint = ref<MapPoint | null>(null);
 // 左侧面板收起状态
 const isLeftPanelCollapsed = ref(false);
 
-// 图层面板折叠状态
+// 图层面板折叠状态（默认收起）
 const isLayerPanelCollapsed = ref(true);
 
-// 属性面板折叠状态
+// 属性面板折叠状态（默认展开）
 const isPropertyPanelCollapsed = ref(false);
 
-// 属性/图层面板高度（支持上下拖动）
+// 面板折叠状态与高度（支持记忆）
 const PROPERTY_PANEL_HEIGHT_KEY = 'map-editor-property-panel-height';
 const LAYER_PANEL_HEIGHT_KEY = 'map-editor-layer-panel-height';
+const PROPERTY_PANEL_COLLAPSED_KEY = 'map-editor-property-panel-collapsed';
+const LAYER_PANEL_COLLAPSED_KEY = 'map-editor-layer-panel-collapsed';
 const propertyPanelHeight = ref<number | null>(null);
 const layerPanelHeight = ref<number | null>(null);
 
@@ -550,14 +552,38 @@ const toggleLeftPanelCollapse = () => {
   isLeftPanelCollapsed.value = !isLeftPanelCollapsed.value;
 };
 
-// 图层面板折叠/展开
+// 图层面板折叠/展开（带状态记忆）
 const toggleLayerPanelCollapse = () => {
   isLayerPanelCollapsed.value = !isLayerPanelCollapsed.value;
+  localStorage.setItem(LAYER_PANEL_COLLAPSED_KEY, isLayerPanelCollapsed.value ? '1' : '0');
+
+  nextTick(() => {
+    const layerEl = document.querySelector('.left-panels .layer-panel-container') as HTMLElement | null;
+    if (!layerEl) return;
+    // 收起时让高度回到 header 自身高度，展开时恢复为记忆高度
+    if (isLayerPanelCollapsed.value) {
+      layerEl.style.height = '';
+    } else if (layerPanelHeight.value !== null) {
+      layerEl.style.height = `${layerPanelHeight.value}px`;
+    }
+  });
 };
 
-// 属性面板折叠/展开
+// 属性面板折叠/展开（带状态记忆）
 const togglePropertyPanelCollapse = () => {
   isPropertyPanelCollapsed.value = !isPropertyPanelCollapsed.value;
+  localStorage.setItem(PROPERTY_PANEL_COLLAPSED_KEY, isPropertyPanelCollapsed.value ? '1' : '0');
+
+  nextTick(() => {
+    const propertyEl = document.querySelector('.left-panels .property-panel-container') as HTMLElement | null;
+    if (!propertyEl) return;
+    // 收起时让高度回到 header 自身高度，展开时恢复为记忆高度
+    if (isPropertyPanelCollapsed.value) {
+      propertyEl.style.height = '';
+    } else if (propertyPanelHeight.value !== null) {
+      propertyEl.style.height = `${propertyPanelHeight.value}px`;
+    }
+  });
 };
 
 // 单个面板高度拖拽
@@ -603,7 +629,8 @@ const handlePanelResizeMove = (e: MouseEvent) => {
 
   const minHeight = 80;
   const deltaY = e.clientY - verticalResizeStartY.value;
-  let newHeight = startPanelHeight.value + deltaY;
+  // 鼠标向上拖动时面板变大，向下拖动时面板变小
+  let newHeight = startPanelHeight.value - deltaY;
   if (newHeight < minHeight) newHeight = minHeight;
 
   panelEl.style.height = `${newHeight}px`;
@@ -799,25 +826,53 @@ onMounted(async () => {
     }
   }
 
+  // 从 localStorage 加载属性/图层面板折叠状态
+  const savedPropertyCollapsed = localStorage.getItem(PROPERTY_PANEL_COLLAPSED_KEY);
+  const savedLayerCollapsed = localStorage.getItem(LAYER_PANEL_COLLAPSED_KEY);
+  if (savedPropertyCollapsed !== null) {
+    isPropertyPanelCollapsed.value = savedPropertyCollapsed === '1';
+  }
+  if (savedLayerCollapsed !== null) {
+    isLayerPanelCollapsed.value = savedLayerCollapsed === '1';
+  }
+
   // 从 localStorage 加载属性/图层面板高度
   const savedPropertyHeight = localStorage.getItem(PROPERTY_PANEL_HEIGHT_KEY);
   const savedLayerHeight = localStorage.getItem(LAYER_PANEL_HEIGHT_KEY);
-  if (savedPropertyHeight && savedLayerHeight) {
+  if (savedPropertyHeight) {
     const p = parseInt(savedPropertyHeight, 10);
-    const l = parseInt(savedLayerHeight, 10);
-    if (!Number.isNaN(p) && !Number.isNaN(l)) {
+    if (!Number.isNaN(p)) {
       propertyPanelHeight.value = p;
-      layerPanelHeight.value = l;
-      nextTick(() => {
-        const propertyEl = document.querySelector('.left-panels .property-panel-container') as HTMLElement | null;
-        const layerEl = document.querySelector('.left-panels .layer-panel-container') as HTMLElement | null;
-        if (propertyEl && layerEl) {
-          propertyEl.style.height = `${p}px`;
-          layerEl.style.height = `${l}px`;
-        }
-      });
     }
   }
+  if (savedLayerHeight) {
+    const l = parseInt(savedLayerHeight, 10);
+    if (!Number.isNaN(l)) {
+      layerPanelHeight.value = l;
+    }
+  }
+
+  // 根据折叠状态应用高度
+  nextTick(() => {
+    const propertyEl = document.querySelector('.left-panels .property-panel-container') as HTMLElement | null;
+    const layerEl = document.querySelector('.left-panels .layer-panel-container') as HTMLElement | null;
+
+    if (propertyEl) {
+      if (isPropertyPanelCollapsed.value) {
+        propertyEl.style.height = '';
+      } else if (propertyPanelHeight.value !== null) {
+        propertyEl.style.height = `${propertyPanelHeight.value}px`;
+      }
+    }
+
+    if (layerEl) {
+      if (isLayerPanelCollapsed.value) {
+        layerEl.style.height = '';
+      } else if (layerPanelHeight.value !== null) {
+        layerEl.style.height = `${layerPanelHeight.value}px`;
+      }
+    }
+  });
   
   // 加载地图数据（从 query 参数获取）
   const mapId = route.query.id as string;
