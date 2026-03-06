@@ -1,19 +1,73 @@
 <template>
   <div class="map-editor">
-    <!-- 顶部菜单栏 -->
+    <!-- 顶部菜单栏：文件、编辑、视图 | 模型名称、保存、关闭 -->
     <div class="menu-bar">
-      <div class="menu-left">
-        <span class="editor-title">
-          地图编辑器 - {{ mapEditorStore.mapData?.mapInfo?.name || '未命名地图' }}
-          <el-tag v-if="mapEditorStore.mapData" size="small" type="info" style="margin-left: 8px;">
-            v{{ mapEditorStore.mapData.mapInfo.mapVersion || '1.0' }}
-          </el-tag>
-        </span>
-      </div>
-      <div class="menu-right">
-        <el-button type="success" size="small" icon="Document" @click="handleSave" :loading="loading">
-          保存
-        </el-button>
+      <el-menu mode="horizontal" :ellipsis="false" class="top-menu" default-active="">
+        <el-sub-menu index="file" :show-timeout="0" :hide-timeout="0">
+          <template #title>文件</template>
+          <el-menu-item index="save" @click="handleSave">
+            <el-icon><Document /></el-icon>
+            <span>保存</span>
+          </el-menu-item>
+          <el-menu-item index="close" @click="handleClose">
+            <el-icon><Close /></el-icon>
+            <span>关闭</span>
+          </el-menu-item>
+          <el-divider style="margin: 4px 0" />
+          <el-sub-menu index="export" popper-class="nested-sub-menu">
+            <template #title>导出</template>
+            <el-menu-item index="export-editor" @click="handleExportCommand('editor')">导出编辑器 JSON</el-menu-item>
+            <el-menu-item index="export-model" @click="handleExportCommand('model')">导出 openTCS 模型</el-menu-item>
+          </el-sub-menu>
+          <el-sub-menu index="import" popper-class="nested-sub-menu">
+            <template #title>导入</template>
+            <el-menu-item index="import-editor" @click="handleImportCommand('editor')">导入编辑器 JSON</el-menu-item>
+            <el-menu-item index="import-model" @click="handleImportCommand('model')">导入 openTCS 模型</el-menu-item>
+          </el-sub-menu>
+        </el-sub-menu>
+        <el-sub-menu index="edit" :show-timeout="0" :hide-timeout="0">
+          <template #title>编辑</template>
+          <el-menu-item index="undo" :disabled="!canUndo" @click="undo">
+            <el-icon><RefreshLeft /></el-icon>
+            <span>撤销</span>
+          </el-menu-item>
+          <el-menu-item index="redo" :disabled="!canRedo" @click="redo">
+            <el-icon><RefreshRight /></el-icon>
+            <span>重做</span>
+          </el-menu-item>
+          <el-divider style="margin: 4px 0" />
+          <el-menu-item index="delete" :disabled="!hasSelection" @click="handleBatchDelete">
+            <el-icon><Delete /></el-icon>
+            <span>删除</span>
+          </el-menu-item>
+        </el-sub-menu>
+        <el-sub-menu index="insert" :show-timeout="0" :hide-timeout="0">
+          <template #title>插入</template>
+          <el-menu-item index="raster-map" @click="openImportRasterDialog">
+            <el-icon><Picture /></el-icon>
+            <span>导航栅格地图</span>
+          </el-menu-item>
+        </el-sub-menu>
+        <el-sub-menu index="view" :show-timeout="0" :hide-timeout="0">
+          <template #title>视图</template>
+          <el-menu-item index="zoom-in" @click="zoomIn">
+            <el-icon><ZoomIn /></el-icon>
+            <span>放大</span>
+          </el-menu-item>
+          <el-menu-item index="zoom-out" @click="zoomOut">
+            <el-icon><ZoomOut /></el-icon>
+            <span>缩小</span>
+          </el-menu-item>
+          <el-menu-item index="zoom-reset" @click="resetZoom">
+            <el-icon><FullScreen /></el-icon>
+            <span>重置缩放</span>
+          </el-menu-item>
+        </el-sub-menu>
+      </el-menu>
+      <div class="menu-bar-right">
+        <span class="menu-bar-model-name">地图编辑-{{ mapEditorStore.mapData?.mapInfo?.name || '未命名' }}</span>
+        <el-tag size="small" type="info" class="menu-bar-version">v{{ mapEditorStore.mapData?.mapInfo?.mapVersion || '1.0' }}</el-tag>
+        <el-button type="primary" size="small" icon="Document" @click="handleSave" :loading="loading">保存</el-button>
         <el-button size="small" icon="Close" @click="handleClose">关闭</el-button>
       </div>
     </div>
@@ -366,16 +420,65 @@
       
     </div>
     
-    <!-- 底部状态栏 -->
+    <!-- 底部状态栏（模型坐标 + scaleX/scaleY 换算为 mm/m，与 openTCS 一致） -->
     <div class="status-bar">
       <div class="status-right">
         <span class="coordinates">
-          X: {{ mousePosition.x.toFixed(2) }}, 
-          Y: {{ mousePosition.y.toFixed(2) }}
+          X: {{ mousePosition.x.toFixed(0) }}, Y: {{ mousePosition.y.toFixed(0) }}
+          <template v-if="scaleX != null && scaleY != null">
+            ({{ formatModelLength(mousePosition.x, scaleX) }}, {{ formatModelLength(mousePosition.y, scaleY) }})
+          </template>
         </span>
+        <span v-if="scaleX != null" class="scale-hint">Scale: {{ scaleX }} mm/unit</span>
       </div>
     </div>
     
+    <!-- 导入栅格地图对话框（选择 map.yaml + map.pgm） -->
+    <el-dialog
+      v-model="importRasterDialogVisible"
+      title="导入栅格地图"
+      width="480"
+      destroy-on-close
+      @close="resetImportRasterState"
+    >
+      <div class="import-raster-form">
+        <div class="import-raster-row">
+          <span class="label">map.yaml</span>
+          <el-button size="small" @click="triggerYamlSelect">选择 YAML 文件</el-button>
+          <input
+            ref="yamlInputRef"
+            type="file"
+            accept=".yaml,.yml"
+            style="display: none"
+            @change="onYamlFileChange"
+          />
+          <span class="file-name">{{ rasterYamlFileName || '未选择' }}</span>
+        </div>
+        <div class="import-raster-row">
+          <span class="label">map.pgm</span>
+          <el-button size="small" @click="triggerPgmSelect">选择栅格图像 (PGM)</el-button>
+          <input
+            ref="pgmInputRef"
+            type="file"
+            accept=".pgm"
+            style="display: none"
+            @change="onPgmFileChange"
+          />
+          <span class="file-name">{{ rasterPgmFileName || '未选择' }}</span>
+        </div>
+        <div v-if="rasterParsedInfo" class="import-raster-info">
+          <div>分辨率: {{ rasterParsedInfo.resolution }} m/像素</div>
+          <div>原点: ({{ rasterParsedInfo.originX }}, {{ rasterParsedInfo.originY }}) m</div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="importRasterDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="!rasterYamlFile || !rasterPgmFile" :loading="importRasterLoading" @click="confirmImportRaster">
+          确定
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 点编辑对话框 -->
     <PointEditDialog 
       v-model="showPointEditDialog" 
@@ -401,6 +504,9 @@ import PathTypeIcon from './components/icons/PathTypeIcon.vue';
 import LocationTypeIcon from './components/icons/LocationTypeIcon.vue';
 import SvgIcon from '@/components/SvgIcon/index.vue';
 import { exportMapFile, importMapFile } from '@/api/opentcs/map';
+import { Document, Close, RefreshLeft, RefreshRight, Delete, ZoomIn, ZoomOut, FullScreen, Picture } from '@element-plus/icons-vue';
+import { parsePgmToDataUrl } from '@/utils/mapEditor/pgmParser';
+import type { RasterBackground } from '@/types/mapEditor';
 
 const route = useRoute();
 const router = useRouter();
@@ -422,6 +528,17 @@ const mousePosition = ref({ x: 0, y: 0 });
 // 点编辑对话框
 const showPointEditDialog = ref(false);
 const currentEditPoint = ref<MapPoint | null>(null);
+
+// 导入栅格地图
+const importRasterDialogVisible = ref(false);
+const yamlInputRef = ref<HTMLInputElement | null>(null);
+const pgmInputRef = ref<HTMLInputElement | null>(null);
+const rasterYamlFile = ref<File | null>(null);
+const rasterPgmFile = ref<File | null>(null);
+const rasterYamlFileName = ref('');
+const rasterPgmFileName = ref('');
+const rasterParsedInfo = ref<{ resolution: number; originX: number; originY: number } | null>(null);
+const importRasterLoading = ref(false);
 
 // 左侧面板收起状态
 const isLeftPanelCollapsed = ref(false);
@@ -461,7 +578,27 @@ const canRedo = computed(() => mapEditorStore.canRedo);
 const loading = computed(() => mapEditorStore.loading);
 const isDirty = computed(() => mapEditorStore.isDirty);
 const canvasState = computed(() => mapEditorStore.canvasState);
-const hasSelection = computed(() => mapEditorStore.selection.selectedIds.size > 0);
+
+// 比例尺（mm/单位），用于状态栏换算与 openTCS 一致
+const scaleX = computed(() => {
+  const v = mapEditorStore.mapData?.mapInfo?.scaleX ?? mapEditorStore.mapData?.visualLayout?.scaleX;
+  return typeof v === 'number' ? v : (v != null ? parseFloat(String(v)) : null);
+});
+const scaleY = computed(() => {
+  const v = mapEditorStore.mapData?.mapInfo?.scaleY ?? mapEditorStore.mapData?.visualLayout?.scaleY;
+  return typeof v === 'number' ? v : (v != null ? parseFloat(String(v)) : null);
+});
+// 模型坐标 → 实际长度显示（单位 mm，≥1000 时显示为 m）
+const formatModelLength = (modelUnits: number, scaleMmPerUnit: number): string => {
+  const mm = modelUnits * scaleMmPerUnit;
+  if (Math.abs(mm) >= 1000) return `${(mm / 1000).toFixed(2)} m`;
+  return `${mm.toFixed(1)} mm`;
+};
+
+const hasSelection = computed(() => {
+  const { selectedIds, selectedType } = mapEditorStore.selection;
+  return selectedIds.size > 0 && selectedType !== 'layout';
+});
 
 type PathConnectionType = 'direct' | 'orthogonal' | 'curve';
 
@@ -953,11 +1090,11 @@ const handlePointUpdated = () => {
 const handleBatchDelete = async () => {
   const selectedIds = mapEditorStore.selection.selectedIds;
   const selectedType = mapEditorStore.selection.selectedType;
-  
-  if (selectedIds.size === 0) {
+
+  if (selectedIds.size === 0 || selectedType === 'layout') {
     return;
   }
-  
+
   try {
     await ElMessageBox.confirm(
       `确定要删除选中的 ${selectedIds.size} 个元素吗？`,
@@ -1156,6 +1293,98 @@ const handleImportCommand = (command: 'editor' | 'model') => {
   }
 };
 
+// ---------- 导入栅格地图（map.yaml + map.pgm）----------
+function parseMapYaml(text: string): { resolution: number; originX: number; originY: number } | null {
+  let resolution = 0.05;
+  let originX = 0;
+  let originY = 0;
+  const resMatch = text.match(/resolution:\s*([\d.]+)/);
+  if (resMatch) resolution = parseFloat(resMatch[1]);
+  const originMatch = text.match(/origin:\s*\[\s*([-\d.]+)\s*,\s*([-\d.]+)/);
+  if (originMatch) {
+    originX = parseFloat(originMatch[1]);
+    originY = parseFloat(originMatch[2]);
+  }
+  return { resolution, originX, originY };
+}
+
+const openImportRasterDialog = () => {
+  importRasterDialogVisible.value = true;
+};
+
+const resetImportRasterState = () => {
+  rasterYamlFile.value = null;
+  rasterPgmFile.value = null;
+  rasterYamlFileName.value = '';
+  rasterPgmFileName.value = '';
+  rasterParsedInfo.value = null;
+  if (yamlInputRef.value) yamlInputRef.value.value = '';
+  if (pgmInputRef.value) pgmInputRef.value.value = '';
+};
+
+const triggerYamlSelect = () => {
+  yamlInputRef.value?.click();
+};
+
+const triggerPgmSelect = () => {
+  pgmInputRef.value?.click();
+};
+
+const onYamlFileChange = async (e: Event) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  rasterYamlFile.value = file;
+  rasterYamlFileName.value = file.name;
+  try {
+    const text = await file.text();
+    rasterParsedInfo.value = parseMapYaml(text);
+  } catch {
+    rasterParsedInfo.value = null;
+  }
+};
+
+const onPgmFileChange = (e: Event) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  rasterPgmFile.value = file;
+  rasterPgmFileName.value = file.name;
+};
+
+const confirmImportRaster = async () => {
+  const yamlFile = rasterYamlFile.value;
+  const pgmFile = rasterPgmFile.value;
+  if (!yamlFile || !pgmFile) return;
+  importRasterLoading.value = true;
+  try {
+    const yamlText = await yamlFile.text();
+    const parsed = parseMapYaml(yamlText);
+    if (!parsed) {
+      ElMessage.warning('无法解析 YAML 中的 resolution 与 origin');
+      return;
+    }
+    const arrayBuffer = await pgmFile.arrayBuffer();
+    const { dataUrl, width, height } = await parsePgmToDataUrl(arrayBuffer);
+    const scaleM = (scaleX.value != null ? scaleX.value / 1000 : 0.05) as number; // m/unit，默认 50mm/unit
+    const payload: RasterBackground = {
+      imageDataUrl: dataUrl,
+      originX: parsed.originX,
+      originY: parsed.originY,
+      resolution: parsed.resolution,
+      widthPx: width,
+      heightPx: height
+    };
+    mapEditorStore.setRasterBackground(payload);
+    importRasterDialogVisible.value = false;
+    ElMessage.success('栅格地图已导入，已作为底图显示');
+  } catch (err: any) {
+    ElMessage.error('导入栅格地图失败：' + (err?.message || '未知错误'));
+  } finally {
+    importRasterLoading.value = false;
+  }
+};
+
 // 键盘快捷键
 const handleKeyDown = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement | null;
@@ -1261,20 +1490,64 @@ onUnmounted(() => {
     border-bottom: 1px solid #e4e7ed;
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 16px;
-    
-    .menu-left {
-      .editor-title {
-        font-size: 14px;
-        font-weight: 500;
-        color: #303133;
+    padding: 0 8px;
+
+    .top-menu {
+      flex: 1;
+      border-bottom: none;
+      height: 40px;
+      :deep(.el-sub-menu__title),
+      :deep(.el-menu-item) {
+        height: 36px;
+        line-height: 36px;
+      }
+      /* 菜单项间距调小 */
+      :deep(.el-sub-menu__title) {
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+      :deep(.el-menu--horizontal > .el-sub-menu .el-sub-menu__title) {
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+      /* 隐藏菜单项右侧下拉三角，仅左键点击展开 */
+      :deep(.el-sub-menu__icon-arrow) {
+        display: none;
       }
     }
-    
-    .menu-right {
+    .menu-bar-right {
       display: flex;
+      align-items: center;
       gap: 8px;
+      margin-left: auto;
+      flex-shrink: 0;
+      .menu-bar-model-name {
+        font-size: 13px;
+        color: var(--el-text-color-regular);
+        margin-right: 6px;
+      }
+      .menu-bar-version {
+        margin-right: 4px;
+      }
+    }
+  }
+
+  .import-raster-form {
+    .import-raster-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      .label { min-width: 80px; }
+      .file-name { color: var(--el-text-color-secondary); font-size: 13px; }
+    }
+    .import-raster-info {
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: var(--el-fill-color-light);
+      border-radius: 4px;
+      font-size: 13px;
+      color: var(--el-text-color-regular);
     }
   }
   
@@ -1682,8 +1955,17 @@ onUnmounted(() => {
     font-size: 12px;
     
     .status-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+
       .coordinates {
         color: #909399;
+      }
+
+      .scale-hint {
+        color: #c0c4cc;
+        font-size: 11px;
       }
     }
   }

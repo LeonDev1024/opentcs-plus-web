@@ -13,7 +13,8 @@ import type {
   ToolMode,
   CanvasState,
   SelectionState,
-  Command
+  Command,
+  RasterBackground
 } from '@/types/mapEditor';
 import { ToolMode as ToolModeEnum, LayerType } from '@/types/mapEditor';
 import { CommandManager } from '@/utils/mapEditor/command';
@@ -80,6 +81,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   
   // 是否已修改（用于提示保存）
   const isDirty = ref(false);
+
+  // 栅格底图（导入的 map.yaml + map.pgm）
+  const rasterBackground = ref<RasterBackground | null>(null);
 
   const POINT_NAME_REGEX = /^Point-(\d+)$/i;
 
@@ -602,15 +606,47 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   /**
    * 选择元素
    */
-  const selectElement = (id: string, type: 'point' | 'path' | 'location', multiSelect = false) => {
+  const selectElement = (id: string, type: 'point' | 'path' | 'location' | 'layout', multiSelect = false) => {
     if (!multiSelect) {
       selection.selectedIds.clear();
     }
-    
     selection.selectedIds.add(id);
     selection.selectedType = type;
   };
-  
+
+  /**
+   * 选择 Layout（与 openTCS 一致：选中布局节点时显示布局属性）
+   */
+  const selectLayout = () => {
+    selection.selectedIds.clear();
+    selection.selectedIds.add('layout');
+    selection.selectedType = 'layout';
+  };
+
+  /**
+   * 更新布局属性（Name、Scale of x-axis/y-axis）
+   */
+  const updateLayoutProperties = (payload: { name?: string; scaleX?: number; scaleY?: number }) => {
+    if (!mapData.value) return;
+    if (payload.name !== undefined) {
+      if (!mapData.value.visualLayout) {
+        mapData.value.visualLayout = { name: payload.name };
+      } else {
+        mapData.value.visualLayout.name = payload.name;
+      }
+      if (mapData.value.mapInfo) mapData.value.mapInfo.name = payload.name;
+    }
+    if (payload.scaleX !== undefined && mapData.value.mapInfo) {
+      mapData.value.mapInfo.scaleX = payload.scaleX;
+      if (mapData.value.visualLayout) mapData.value.visualLayout.scaleX = payload.scaleX;
+    }
+    if (payload.scaleY !== undefined && mapData.value.mapInfo) {
+      mapData.value.mapInfo.scaleY = payload.scaleY;
+      if (mapData.value.visualLayout) mapData.value.visualLayout.scaleY = payload.scaleY;
+    }
+    isDirty.value = true;
+  };
+
   /**
    * 取消选择
    */
@@ -775,6 +811,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const reset = () => {
     mapData.value = null;
     currentMapModelId.value = null;
+    rasterBackground.value = null;
     layerGroups.value = [];
     layers.value = [];
     points.value = [];
@@ -789,6 +826,14 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     isDirty.value = false;
     pointNameCounter.value = 0;
     locationNameCounter.value = 0;
+  };
+
+  const setRasterBackground = (data: RasterBackground | null) => {
+    rasterBackground.value = data;
+  };
+
+  const clearRasterBackground = () => {
+    rasterBackground.value = null;
   };
   
   return {
@@ -808,6 +853,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     selection,
     loading,
     isDirty,
+    rasterBackground,
     
     // Getters
     selectedElements,
@@ -833,6 +879,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     updateLocation,
     deleteLocation,
     selectElement,
+    selectLayout,
+    updateLayoutProperties,
     clearSelection,
     addLayer,
     updateLayer,
@@ -844,7 +892,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     undo,
     redo,
     executeCommand,
-    reset
+    reset,
+    setRasterBackground,
+    clearRasterBackground
   };
 });
 

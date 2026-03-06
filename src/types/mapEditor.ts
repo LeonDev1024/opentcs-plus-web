@@ -227,10 +227,26 @@ export interface CanvasState {
   height: number;
 }
 
+// ==================== 栅格底图（YAML + PGM 导入）====================
+export interface RasterBackground {
+  /** 图像 Data URL（PGM 转成可显示格式） */
+  imageDataUrl: string;
+  /** 栅格原点 X，米（地图左下角在世界坐标系中的位置） */
+  originX: number;
+  /** 栅格原点 Y，米 */
+  originY: number;
+  /** 分辨率，米/像素 */
+  resolution: number;
+  /** 图像宽度，像素 */
+  widthPx: number;
+  /** 图像高度，像素 */
+  heightPx: number;
+}
+
 // ==================== 选择状态 ====================
 export interface SelectionState {
   selectedIds: Set<string>;
-  selectedType: 'point' | 'path' | 'location' | null;
+  selectedType: 'point' | 'path' | 'location' | 'layout' | null;
 }
 
 // ==================== 命令接口（用于撤销/重做）====================

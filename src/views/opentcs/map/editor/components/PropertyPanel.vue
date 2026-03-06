@@ -1,11 +1,58 @@
 <template>
   <div class="property-panel">
     <div class="panel-content">
-      <!-- 无选择状态 -->
-      <div v-if="!selectedElement" class="no-selection">
-        <el-empty description="请选择一个元素" />
+      <!-- Layout 属性（与 openTCS 一致：选中布局时显示） -->
+      <div v-if="selectedType === 'layout'" class="layout-properties">
+        <div class="element-title">Layout</div>
+        <table class="kv-table">
+          <thead>
+            <tr>
+              <th class="kv-header-key">Attribute</th>
+              <th class="kv-header-value">Value</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="kv-key">Name</td>
+              <td class="kv-value">
+                <el-input v-model="layoutForm.name" size="small" @change="updateLayout" />
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Scale of x-axis</td>
+              <td class="kv-value">
+                <el-input-number v-model="layoutForm.scaleX" size="small" :min="0.1" :step="1" :precision="1" @change="updateLayout" />
+                <span class="kv-unit"> mm</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Scale of y-axis</td>
+              <td class="kv-value">
+                <el-input-number v-model="layoutForm.scaleY" size="small" :min="0.1" :step="1" :precision="1" @change="updateLayout" />
+                <span class="kv-unit"> mm</span>
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Miscellaneous</td>
+              <td class="kv-value"><span class="kv-readonly">-</span></td>
+            </tr>
+            <tr>
+              <td class="kv-key">Layers</td>
+              <td class="kv-value"><span class="kv-readonly">{{ defaultLayerName }}</span></td>
+            </tr>
+            <tr>
+              <td class="kv-key">Layer groups</td>
+              <td class="kv-value"><span class="kv-readonly">{{ defaultLayerGroupName }}</span></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-      
+
+      <!-- 无选择状态 -->
+      <div v-else-if="!selectedElement" class="no-selection">
+        <el-empty description="请选择一个元素或布局" />
+      </div>
+
       <!-- 点属性编辑：Key / Value 表格形式（对齐 openTCS Point 属性） -->
       <div v-else-if="selectedType === 'point'" class="point-properties">
         <div class="element-title">Point</div>
@@ -270,7 +317,22 @@
             <tr>
               <td class="kv-key">Type</td>
               <td class="kv-value">
-                <span class="kv-readonly">{{ formatLocationType(locationForm) }}</span>
+                <el-select
+                  v-model="locationForm.locationTypeId"
+                  size="small"
+                  placeholder="选择位置类型"
+                  clearable
+                  filterable
+                  style="width: 100%"
+                  @change="updateLocation"
+                >
+                  <el-option
+                    v-for="item in locationTypeOptions"
+                    :key="String(item.id)"
+                    :label="item.name"
+                    :value="item.id"
+                  />
+                </el-select>
               </td>
             </tr>
             <tr>
@@ -282,7 +344,7 @@
             <tr>
               <td class="kv-key">Symbol</td>
               <td class="kv-value">
-                <span class="kv-readonly">DEFAULT</span>
+                <span class="kv-readonly">{{ getSymbolForLocationType(locationForm.locationTypeId) }}</span>
               </td>
             </tr>
             <tr>
@@ -347,11 +409,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
+import { getLocationTypeListForSelect } from '@/api/opentcs/map/location';
+import type { LocationVO } from '@/api/opentcs/map/location/types';
 
 const mapEditorStore = useMapEditorStore();
+
+// 位置类型下拉选项（来自接口）
+const locationTypeOptions = ref<LocationVO[]>([]);
+
+const loadLocationTypes = async () => {
+  try {
+    locationTypeOptions.value = await getLocationTypeListForSelect();
+  } catch (e) {
+    console.error('加载位置类型列表失败', e);
+  }
+};
+
+onMounted(() => {
+  loadLocationTypes();
+});
 
 const getLayerName = (layerId: string) => {
   if (!layerId) return '';
@@ -375,6 +454,15 @@ const getComponentName = (id: string | number | undefined) => {
   return location?.name || normalizedId;
 };
 
+// 根据选中的 locationTypeId 取该位置类型 properties 中 name 为 symbol 的 value
+const getSymbolForLocationType = (locationTypeId: string | number | undefined): string => {
+  if (locationTypeId === undefined || locationTypeId === null) return '-';
+  const type = locationTypeOptions.value.find(t => String(t.id) === String(locationTypeId));
+  if (!type?.properties || !Array.isArray(type.properties)) return '-';
+  const p = type.properties.find((x: any) => x && (x.name === 'symbol' || x.name === 'Symbol'));
+  return (p && p.value) ? String(p.value) : '-';
+};
+
 // 选中类型
 const selectedType = computed(() => mapEditorStore.selection.selectedType);
 
@@ -384,9 +472,8 @@ const selectedElement = computed<MapPoint | MapPath | MapLocation | null>(() => 
   if (!selectedType.value || selectedIds.size !== 1) {
     return null;
   }
-  
+  if (selectedType.value === 'layout') return null;
   const id = Array.from(selectedIds)[0];
-  
   if (selectedType.value === 'point') {
     return mapEditorStore.points.find(p => p.id === id) || null;
   } else if (selectedType.value === 'path') {
@@ -394,9 +481,37 @@ const selectedElement = computed<MapPoint | MapPath | MapLocation | null>(() => 
   } else if (selectedType.value === 'location') {
     return mapEditorStore.locations.find(l => l.id === id) || null;
   }
-  
   return null;
 });
+
+// Layout 表单（与 openTCS 一致）
+const layoutForm = ref({ name: '', scaleX: 50, scaleY: 50 });
+const defaultLayerName = computed(() => mapEditorStore.layers[0]?.name || 'Default layer');
+const defaultLayerGroupName = computed(() => mapEditorStore.layerGroups[0]?.name || 'Default layer group');
+
+watch(
+  () => [selectedType.value, mapEditorStore.mapData] as const,
+  () => {
+    if (selectedType.value === 'layout' && mapEditorStore.mapData) {
+      const info = mapEditorStore.mapData.mapInfo;
+      const vl = mapEditorStore.mapData.visualLayout;
+      layoutForm.value = {
+        name: vl?.name ?? info?.name ?? 'Layout VLayout-01',
+        scaleX: Number(info?.scaleX ?? vl?.scaleX ?? 50),
+        scaleY: Number(info?.scaleY ?? vl?.scaleY ?? 50)
+      };
+    }
+  },
+  { immediate: true }
+);
+
+const updateLayout = () => {
+  mapEditorStore.updateLayoutProperties({
+    name: layoutForm.value.name,
+    scaleX: layoutForm.value.scaleX,
+    scaleY: layoutForm.value.scaleY
+  });
+};
 
 // 点表单数据
 const pointForm = ref<MapPoint>({
@@ -627,6 +742,12 @@ const updateLocation = () => {
 
       .kv-readonly {
         color: #303133;
+      }
+
+      .kv-unit {
+        color: #909399;
+        margin-left: 2px;
+        font-size: 12px;
       }
     }
 

@@ -23,7 +23,20 @@
       </el-form-item>
       
       <el-form-item label="位置类型" prop="locationTypeId">
-        <el-input v-model="formData.locationTypeId" placeholder="请输入位置类型" />
+        <el-select
+          v-model="formData.locationTypeId"
+          placeholder="选择位置类型"
+          clearable
+          filterable
+          style="width: 100%"
+        >
+          <el-option
+            v-for="item in locationTypeOptions"
+            :key="String(item.id)"
+            :label="item.name"
+            :value="String(item.id)"
+          />
+        </el-select>
       </el-form-item>
       
       <el-form-item label="X坐标" prop="x">
@@ -114,12 +127,29 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import type { MapLocation } from '@/types/mapEditor';
+import { getLocationTypeListForSelect } from '@/api/opentcs/map/location';
+import type { LocationVO } from '@/api/opentcs/map/location/types';
 
 const mapEditorStore = useMapEditorStore();
+
+// 位置类型下拉选项（来自接口）
+const locationTypeOptions = ref<LocationVO[]>([]);
+
+const loadLocationTypes = async () => {
+  try {
+    locationTypeOptions.value = await getLocationTypeListForSelect();
+  } catch (e) {
+    console.error('加载位置类型列表失败', e);
+  }
+};
+
+onMounted(() => {
+  loadLocationTypes();
+});
 
 // Props
 const props = defineProps<{

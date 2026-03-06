@@ -3,16 +3,28 @@ import { AxiosPromise } from 'axios';
 import { LocationVO, LocationForm, LocationQuery } from '@/api/opentcs/map/location/types';
 
 /**
- * 查询位置类型列表
+ * 查询位置类型列表（分页，用于管理页）
  * @param query
  * @returns {*}
  */
-export const listLocation = (query?: LocationQuery): AxiosPromise<LocationVO[]> => {
+export const listLocation = (query?: LocationQuery): AxiosPromise<{ rows: LocationVO[]; total: number }> => {
   return request({
     url: '/map/locationType/list',
     method: 'get',
     params: query
-  });
+  }) as AxiosPromise<{ rows: LocationVO[]; total: number }>;
+};
+
+/**
+ * 获取位置类型列表（用于下拉选择，如地图编辑器）
+ * @returns 位置类型列表
+ */
+export const getLocationTypeListForSelect = (): Promise<LocationVO[]> => {
+  return request({
+    url: '/map/locationType/list',
+    method: 'get',
+    params: { pageNum: 1, pageSize: 500 }
+  }).then((res: any) => (res?.rows ? res.rows : []));
 };
 
 /**

@@ -9,9 +9,10 @@
       @wheel="handleWheel"
       @contextmenu.prevent
     >
-      <!-- 背景层 -->
+      <!-- 背景层（与 openTCS 一致：灰色扩展区 + 白色主工作区） -->
       <v-layer ref="backgroundLayerRef" :config="{ name: 'background', listening: false }">
-        <v-rect :config="backgroundConfig" />
+        <v-rect :config="backgroundExtendedConfig" />
+        <v-rect :config="backgroundMainConfig" />
       </v-layer>
       
       <!-- 中心标记层 -->
@@ -44,6 +45,11 @@
           :key="`grid-${index}`"
           :config="line"
         />
+      </v-layer>
+      
+      <!-- 栅格底图层（导入的 map.yaml + map.pgm） -->
+      <v-layer v-if="rasterBackgroundConfig" :config="{ name: 'raster-background', listening: false }">
+        <v-image :config="rasterBackgroundConfig" />
       </v-layer>
       
       <!-- 点位层 -->
@@ -124,9 +130,15 @@
             @click="handleLocationClick(location, $event)"
             @contextmenu.prevent="handleLocationContextMenu(location, $event)"
           />
-          <!-- 位置中心 symbol 文本（例如业务位置类型的图标），默认不显示，只有设置了 label 才显示 -->
+          <!-- 位置方框内嵌图标：来自位置类型 properties 中 name 为 symbol 的 value -->
+          <v-image
+            v-if="!isRuleRegionLocation(location) && getLocationIconConfig(location)"
+            :key="`${location.id}-icon`"
+            :config="getLocationIconConfig(location)"
+          />
+          <!-- 无图标时显示 label 文本 -->
           <v-text
-            v-if="location.editorProps?.label"
+            v-else-if="location.editorProps?.label"
             :key="`${location.id}-symbol`"
             :config="getLocationSymbolConfig(location)"
           />
@@ -200,7 +212,62 @@ import { ToolMode, LayerType } from '@/types/mapEditor';
 import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
 import { AddPointCommand, MovePointCommand } from '@/utils/mapEditor/command';
 import { snapPoint } from '@/utils/mapEditor/snap';
+import { getLocationTypeListForSelect } from '@/api/opentcs/map/location';
+import type { LocationVO } from '@/api/opentcs/map/location/types';
 import LocationEditDialog from './LocationEditDialog.vue';
+
+// 位置类型列表（用于解析 properties 中 name===symbol 的 value 作为图标）
+const locationTypeList = ref<LocationVO[]>([]);
+const loadLocationTypes = async () => {
+  try {
+    locationTypeList.value = await getLocationTypeListForSelect();
+    preloadLocationIconImages();
+  } catch (e) {
+    console.error('加载位置类型列表失败', e);
+  }
+};
+
+// 从位置类型的 properties 中取 name 为 symbol 的 value
+const getSymbolForLocationTypeId = (locationTypeId: string | number | undefined): string => {
+  if (locationTypeId === undefined || locationTypeId === null) return '';
+  const id = String(locationTypeId);
+  const type = locationTypeList.value.find((t) => String(t.id) === id);
+  if (!type?.properties || !Array.isArray(type.properties)) return '';
+  const symbolProp = type.properties.find((p: any) => p && (p.name === 'symbol' || p.name === 'Symbol'));
+  return symbolProp && symbolProp.value ? String(symbolProp.value) : '';
+};
+
+// 位置方框内图标：assets/location/*.svg 的 URL 映射（symbol 名称 -> url）
+const locationIconUrlMap: Record<string, string> = {};
+try {
+  const modules = import.meta.glob('@/assets/location/*.svg', { eager: true, as: 'url' }) as Record<string, string | { default: string }>;
+  Object.keys(modules).forEach((path) => {
+    const match = path.match(/location[\/\\]([^\/\\]+)\.svg$/);
+    if (!match || !match[1]) return;
+    const v = modules[path];
+    const url = typeof v === 'string' ? v : (v && (v as { default: string }).default);
+    if (url) locationIconUrlMap[match[1]] = url;
+  });
+} catch (_) {}
+
+// 已加载的图标图片缓存（symbol -> HTMLImageElement），用于 Konva.Image
+const locationIconImageCache = ref<Record<string, HTMLImageElement>>({});
+const preloadLocationIconImages = () => {
+  const symbols = new Set<string>();
+  locationTypeList.value.forEach((t) => {
+    if (!t.properties || !Array.isArray(t.properties)) return;
+    const p = t.properties.find((x: any) => x && (x.name === 'symbol' || x.name === 'Symbol'));
+    if (p && p.value) symbols.add(String(p.value));
+  });
+  symbols.forEach((symbol) => {
+    if (locationIconImageCache.value[symbol] || !locationIconUrlMap[symbol]) return;
+    const img = new Image();
+    img.onload = () => {
+      locationIconImageCache.value = { ...locationIconImageCache.value, [symbol]: img };
+    };
+    img.src = locationIconUrlMap[symbol];
+  });
+};
 
 // 注册 vue-konva 组件（如果全局注册不工作，则在组件内注册）
 // 注意：vue-konva 3.x 使用 v-stage, v-layer 等组件名
@@ -313,8 +380,23 @@ const centerLineConfig = computed(() => {
   };
 });
 
-// 背景配置
-const backgroundConfig = computed(() => ({
+// 扩展区背景（灰色，与 openTCS 一致：主工作区外的区域）
+const BACKGROUND_EXTEND = 8000; // 扩展像素，平移时可见灰色区域
+const backgroundExtendedConfig = computed(() => {
+  const w = canvasState.value.width || 1920;
+  const h = canvasState.value.height || 1080;
+  return {
+    x: -BACKGROUND_EXTEND,
+    y: -BACKGROUND_EXTEND,
+    width: w + BACKGROUND_EXTEND * 2,
+    height: h + BACKGROUND_EXTEND * 2,
+    fill: '#e8e8e8',
+    listening: false
+  };
+});
+
+// 主工作区背景（白色，与 openTCS 一致）
+const backgroundMainConfig = computed(() => ({
   x: 0,
   y: 0,
   width: canvasState.value.width || 1920,
@@ -323,53 +405,92 @@ const backgroundConfig = computed(() => ({
   listening: false
 }));
 
-// 网格配置
-const gridSize = ref(20); // 基础网格大小（画布坐标），固定为20px
+// 栅格底图（导入的 map.yaml + map.pgm）：比例尺 m/单位，用于将 origin 转为模型坐标
+const rasterScaleM = computed(() => {
+  const scaleX = mapEditorStore.mapData?.mapInfo?.scaleX ?? mapEditorStore.mapData?.visualLayout?.scaleX;
+  const v = typeof scaleX === 'number' ? scaleX : (scaleX != null ? parseFloat(String(scaleX)) : 50);
+  return (v || 50) / 1000; // mm/unit -> m/unit，默认 50mm/unit = 0.05
+});
+
+// 栅格底图：手动加载图片，避免 useImage 返回不稳定导致 .value 报错
+const rasterLoadedImage = ref<HTMLImageElement | null>(null);
+watch(
+  () => mapEditorStore.rasterBackground?.imageDataUrl,
+  (dataUrl) => {
+    rasterLoadedImage.value = null;
+    if (!dataUrl) return;
+    const img = new Image();
+    img.onload = () => {
+      rasterLoadedImage.value = img;
+    };
+    img.onerror = () => {
+      rasterLoadedImage.value = null;
+    };
+    img.src = dataUrl;
+  },
+  { immediate: true }
+);
+
+const rasterBackgroundConfig = computed(() => {
+  const raster = mapEditorStore.rasterBackground;
+  if (!raster) return null;
+  const img = rasterLoadedImage.value;
+  if (!img) return null;
+  const scaleM = rasterScaleM.value;
+  const ox = raster.originX / scaleM;
+  const oy = raster.originY / scaleM;
+  const h = raster.heightPx;
+  const w = raster.widthPx;
+  return {
+    x: ox,
+    y: oy - h,
+    width: w,
+    height: h,
+    image: img,
+    listening: false
+  };
+});
+
+// 网格配置：画布上按固定步长绘制，保证网格线密度可见；比例尺由 scaleX/scaleY 在状态栏换算
+const gridSize = ref(20);
 const showGrid = ref(true);
 
 const gridLines = computed(() => {
   if (!showGrid.value) {
     return [];
   }
-  
   const lines: any[] = [];
-  // 使用固定的画布尺寸
   const width = canvasState.value.width || 1920;
   const height = canvasState.value.height || 1080;
   const size = gridSize.value;
-  
-  // 计算需要绘制的网格线范围
-  // 扩展一些区域以支持平移和缩放
-  const padding = size * 20; // 扩展更多区域
+  const padding = size * 20;
   const startX = Math.floor(-padding / size) * size;
   const endX = Math.ceil((width + padding) / size) * size;
   const startY = Math.floor(-padding / size) * size;
   const endY = Math.ceil((height + padding) / size) * size;
-  
-  // 垂直线
+
   for (let x = startX; x <= endX; x += size) {
+    const isMajor = size > 0 && x !== 0 && x % (size * 5) === 0;
     lines.push({
       points: [x, startY, x, endY],
-      stroke: '#cccccc',
-      strokeWidth: 1,
+      stroke: isMajor ? '#b0b0b0' : '#cccccc',
+      strokeWidth: isMajor ? 1.2 : 1,
       listening: false,
       perfectDrawEnabled: false,
       hitStrokeWidth: 0
     });
   }
-  
-  // 水平线
   for (let y = startY; y <= endY; y += size) {
+    const isMajor = size > 0 && y !== 0 && y % (size * 5) === 0;
     lines.push({
       points: [startX, y, endX, y],
-      stroke: '#cccccc',
-      strokeWidth: 1,
+      stroke: isMajor ? '#b0b0b0' : '#cccccc',
+      strokeWidth: isMajor ? 1.2 : 1,
       listening: false,
       perfectDrawEnabled: false,
       hitStrokeWidth: 0
     });
   }
-  
   return lines;
 });
 
@@ -931,7 +1052,7 @@ const getLocationRectConfig = (location: MapLocation) => {
   };
 };
 
-// 获取位置中心 symbol 文本的配置
+// 获取位置中心 symbol 文本的配置（无图标时用文本占位）
 const getLocationSymbolConfig = (location: MapLocation) => {
   const centroid = getLocationCentroid(location);
   const isSelected = mapEditorStore.selection.selectedIds.has(location.id);
@@ -946,6 +1067,27 @@ const getLocationSymbolConfig = (location: MapLocation) => {
     fill: isSelected ? '#ff4d4f' : '#000000',
     align: 'center',
     verticalAlign: 'middle',
+    listening: false
+  };
+};
+
+// 当前 Location 对应的图标 symbol（来自位置类型 properties.name===symbol 的 value）
+const getLocationSymbol = (location: MapLocation) => getSymbolForLocationTypeId(location.locationTypeId);
+
+// 位置方框内嵌图标的配置（Konva.Image），仅当该 symbol 已加载时有效
+const getLocationIconConfig = (location: MapLocation) => {
+  const symbol = getLocationSymbol(location);
+  const img = symbol ? locationIconImageCache.value[symbol] : null;
+  if (!img) return null;
+  const centroid = getLocationCentroid(location);
+  const size = 24; // 图标在 40x40 方框内居中，边长 24
+  const half = size / 2;
+  return {
+    x: centroid.x - half,
+    y: centroid.y - half,
+    width: size,
+    height: size,
+    image: img,
     listening: false
   };
 };
@@ -2565,6 +2707,7 @@ const handleKeyUp = (e: KeyboardEvent) => {
 let resizeObserver: ResizeObserver | null = null;
 
 onMounted(() => {
+  loadLocationTypes();
   // 初始化画布尺寸
   nextTick(() => {
     if (containerRef.value) {

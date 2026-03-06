@@ -15,6 +15,7 @@
               <template #default="{ node, data }">
                 <div 
                   class="tree-node"
+                  :class="{ 'is-selected-layout': data.type === 'layout' && isLayoutSelected }"
                   @dblclick="handleNodeDoubleClick(data)"
                   @contextmenu.prevent="handleNodeContextMenu($event, data)"
                 >
@@ -213,11 +214,17 @@ const treeData = computed(() => {
 });
 
 const isSelected = (id: string, elementType: string) => {
-  return mapEditorStore.selection.selectedIds.has(id) && 
+  return mapEditorStore.selection.selectedIds.has(id) &&
          mapEditorStore.selection.selectedType === elementType;
 };
 
+const isLayoutSelected = computed(() => mapEditorStore.selection.selectedType === 'layout');
+
 const handleNodeClick = (data: any) => {
+  if (data.type === 'layout') {
+    mapEditorStore.selectLayout();
+    return;
+  }
   if (data.type === 'element') {
     handleElementSelect(data.elementId, data.elementType);
   }
@@ -396,7 +403,12 @@ const handlePointUpdated = () => {
       flex-wrap: nowrap;
       flex: 1;
       white-space: nowrap;
-      
+
+      &.is-selected-layout {
+        background: #ecf5ff;
+        color: #409eff;
+      }
+
       .node-icon {
         font-size: 16px;
         color: #606266;
