@@ -93,6 +93,7 @@ declare module 'vue' {
     SubmitVerify: typeof import('./../components/Process/submitVerify.vue')['default']
     SvgIcon: typeof import('./../components/SvgIcon/index.vue')['default']
     TopNav: typeof import('./../components/TopNav/index.vue')['default']
+    UserAvatarInitial: typeof import('./../components/UserAvatarInitial/index.vue')['default']
     UserSelect: typeof import('./../components/UserSelect/index.vue')['default']
   }
   export interface ComponentCustomProperties {

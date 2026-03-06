@@ -56,7 +56,8 @@
       <div class="right-menu-item hover-effect avatar-item">
         <el-dropdown trigger="click" @command="handleCommand">
           <div class="avatar-wrapper">
-            <img :src="userStore.avatar" class="user-avatar" />
+            <!-- 使用昵称首字母头像，蓝底白字 -->
+            <UserAvatarInitial :nickname="userStore.nickname" :name="userStore.name" size="sm" />
             <el-icon><caret-bottom /></el-icon>
           </div>
           <template #dropdown>
@@ -80,6 +81,7 @@
 
 <script setup lang="ts">
 import SearchMenu from './TopBar/search.vue';
+import UserAvatarInitial from '@/components/UserAvatarInitial/index.vue';
 import { useAppStore } from '@/store/modules/app';
 import { useUserStore } from '@/store/modules/user';
 import { useSettingsStore } from '@/store/modules/settings';

@@ -1,6 +1,7 @@
 <template>
   <div class="user-info-head" @click="editCropper()">
-    <img :src="options.img" title="点击上传头像" class="img-circle img-lg" />
+    <!-- 显示昵称首字母头像：蓝色底白色字体 -->
+    <UserAvatarInitial :nickname="userStore.nickname" :name="userStore.name" size="lg" />
     <el-dialog v-model="open" :title="title" width="800px" append-to-body @opened="modalOpened" @close="closeDialog">
       <el-row>
         <el-col :xs="24" :md="12" :style="{ height: '350px' }">
@@ -60,6 +61,7 @@ import 'vue-cropper/dist/index.css';
 import { VueCropper } from 'vue-cropper';
 import { uploadAvatar } from '@/api/system/user';
 import { useUserStore } from '@/store/modules/user';
+import UserAvatarInitial from '@/components/UserAvatarInitial/index.vue';
 import { UploadRawFile } from 'element-plus';
 import { ref, reactive, getCurrentInstance } from 'vue';
 
