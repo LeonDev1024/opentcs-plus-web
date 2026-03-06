@@ -65,7 +65,7 @@
         </el-sub-menu>
       </el-menu>
       <div class="menu-bar-right">
-        <span class="menu-bar-model-name">地图编辑-{{ mapEditorStore.mapData?.mapInfo?.name || '未命名' }}</span>
+        <span class="menu-bar-model-name">地图编辑器-{{ mapEditorStore.mapData?.mapInfo?.name || '未命名' }}</span>
         <el-tag size="small" type="info" class="menu-bar-version">v{{ mapEditorStore.mapData?.mapInfo?.mapVersion || '1.0' }}</el-tag>
         <el-button type="primary" size="small" icon="Document" @click="handleSave" :loading="loading">保存</el-button>
         <el-button size="small" icon="Close" @click="handleClose">关闭</el-button>
