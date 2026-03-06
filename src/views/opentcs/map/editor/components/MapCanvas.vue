@@ -8,10 +8,14 @@
       @wheel="handleWheel"
       @contextmenu.prevent
     >
-      <!-- 背景层（与 openTCS 一致：灰色扩展区 + 白色主工作区） -->
+      <!-- 背景层：仅灰色扩展区，去掉白色主工作区，方便在整张导航栅格图上自由布点 -->
       <v-layer ref="backgroundLayerRef" :config="{ name: 'background', listening: false }">
         <v-rect :config="backgroundExtendedConfig" />
-        <v-rect :config="backgroundMainConfig" />
+      </v-layer>
+      
+      <!-- 栅格底图层（导航地图）：始终在所有可见图层的最底部，仅内容按 config 显示 -->
+      <v-layer ref="rasterLayerRef" :config="{ name: 'raster-background', listening: false }">
+        <v-image v-if="rasterBackgroundConfig" :config="rasterBackgroundConfig" />
       </v-layer>
       
       <!-- 中心标记层 -->
@@ -29,7 +33,7 @@
         />
       </v-layer>
       
-      <!-- 网格层（在背景层之上，其他层之下） -->
+      <!-- 网格层（在背景层与导航栅格之上，其他层之下） -->
       <v-layer 
         ref="gridLayerRef" 
         :config="{ 
@@ -44,11 +48,6 @@
           :key="`grid-${index}`"
           :config="line"
         />
-      </v-layer>
-      
-      <!-- 栅格底图层（导入的 map.yaml + map.pgm） -->
-      <v-layer v-if="rasterBackgroundConfig" :config="{ name: 'raster-background', listening: false }">
-        <v-image :config="rasterBackgroundConfig" />
       </v-layer>
       
       <!-- 空白区域层：仅用于接收“点击空白处”的 mousedown（框选/添加点等），不拦截点与位置上的拖拽 -->
@@ -321,6 +320,7 @@ const containerRef = ref<HTMLDivElement>();
 const stageRef = ref<any>();
 const backgroundLayerRef = ref<any>();
 const gridLayerRef = ref<any>();
+const rasterLayerRef = ref<any>();
 const pointLayerRef = ref<any>();
 const pathLayerRef = ref<any>();
 const locationLayerRef = ref<any>();
@@ -351,9 +351,10 @@ const canvasState = computed(() => mapEditorStore.canvasState);
 const currentTool = computed(() => mapEditorStore.currentTool);
 
 const stageConfig = computed(() => {
-  // 获取容器尺寸
-  const containerWidth = containerRef.value?.clientWidth || 1920;
-  const containerHeight = containerRef.value?.clientHeight || 1080;
+  // 获取容器尺寸，设置最小宽高避免异常小尺寸导致 Stage 渲染/插入错乱
+  const MIN_STAGE = 400;
+  const containerWidth = Math.max(MIN_STAGE, containerRef.value?.clientWidth || 1920);
+  const containerHeight = Math.max(MIN_STAGE, containerRef.value?.clientHeight || 1080);
   
   return {
     width: containerWidth,
@@ -421,16 +422,6 @@ const backgroundExtendedConfig = computed(() => {
   };
 });
 
-// 主工作区背景（白色，与 openTCS 一致）
-const backgroundMainConfig = computed(() => ({
-  x: 0,
-  y: 0,
-  width: canvasState.value.width || 1920,
-  height: canvasState.value.height || 1080,
-  fill: '#ffffff',
-  listening: false
-}));
-
 // 空白区域矩形：覆盖整块可点击区域，仅用于接收“点击空白处”的 mousedown，点/位置在上层可正常拖拽
 const stageAreaRectConfig = computed(() => {
   const w = canvasState.value.width || 1920;
@@ -462,6 +453,10 @@ watch(
     const img = new Image();
     img.onload = () => {
       rasterLoadedImage.value = img;
+      nextTick(() => {
+        const layer = getKonvaNode(rasterLayerRef.value);
+        if (layer) layer.batchDraw?.();
+      });
     };
     img.onerror = () => {
       rasterLoadedImage.value = null;
@@ -476,14 +471,16 @@ const rasterBackgroundConfig = computed(() => {
   if (!raster) return null;
   const img = rasterLoadedImage.value;
   if (!img) return null;
-  const scaleM = rasterScaleM.value;
-  const ox = raster.originX / scaleM;
-  const oy = raster.originY / scaleM;
+  // 将导航栅格地图整体居中放置在当前主工作区中心
+  const canvasWidth = canvasState.value.width || 1920;
+  const canvasHeight = canvasState.value.height || 1080;
   const h = raster.heightPx;
   const w = raster.widthPx;
+  const x = (canvasWidth - w) / 2;
+  const y = (canvasHeight - h) / 2;
   return {
-    x: ox,
-    y: oy - h,
+    x,
+    y,
     width: w,
     height: h,
     image: img,

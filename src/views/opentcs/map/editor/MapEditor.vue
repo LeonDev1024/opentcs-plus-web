@@ -1300,7 +1300,8 @@ function parseMapYaml(text: string): { resolution: number; originX: number; orig
   let originY = 0;
   const resMatch = text.match(/resolution:\s*([\d.]+)/);
   if (resMatch) resolution = parseFloat(resMatch[1]);
-  const originMatch = text.match(/origin:\s*\[\s*([-\d.]+)\s*,\s*([-\d.]+)/);
+  // 支持 origin: [x, y] 或 origin: [x, y, z]
+  const originMatch = text.match(/origin:\s*\[\s*([-\d.]+)\s*,\s*([-\d.]+)(?:\s*,\s*[-\d.]+)?\s*\]/);
   if (originMatch) {
     originX = parseFloat(originMatch[1]);
     originY = parseFloat(originMatch[2]);
@@ -1309,7 +1310,9 @@ function parseMapYaml(text: string): { resolution: number; originX: number; orig
 }
 
 const openImportRasterDialog = () => {
-  importRasterDialogVisible.value = true;
+  nextTick(() => {
+    importRasterDialogVisible.value = true;
+  });
 };
 
 const resetImportRasterState = () => {
@@ -1355,7 +1358,10 @@ const onPgmFileChange = (e: Event) => {
 const confirmImportRaster = async () => {
   const yamlFile = rasterYamlFile.value;
   const pgmFile = rasterPgmFile.value;
-  if (!yamlFile || !pgmFile) return;
+  if (!yamlFile || !pgmFile) {
+    ElMessage.warning('请先选择 map.yaml 和 map.pgm 文件');
+    return;
+  }
   importRasterLoading.value = true;
   try {
     const yamlText = await yamlFile.text();
@@ -1366,20 +1372,23 @@ const confirmImportRaster = async () => {
     }
     const arrayBuffer = await pgmFile.arrayBuffer();
     const { dataUrl, width, height } = await parsePgmToDataUrl(arrayBuffer);
-    const scaleM = (scaleX.value != null ? scaleX.value / 1000 : 0.05) as number; // m/unit，默认 50mm/unit
+    // 为了让导航栅格地图的原点直接对齐到拓扑原点（模型坐标 0,0），
+    // 这里不再使用 YAML 中的 origin，而是将栅格图左下角锚定在模型原点。
     const payload: RasterBackground = {
       imageDataUrl: dataUrl,
-      originX: parsed.originX,
-      originY: parsed.originY,
+      originX: 0,
+      originY: 0,
       resolution: parsed.resolution,
       widthPx: width,
       heightPx: height
     };
     mapEditorStore.setRasterBackground(payload);
     importRasterDialogVisible.value = false;
-    ElMessage.success('栅格地图已导入，已作为底图显示');
+    resetImportRasterState();
+    ElMessage.success('栅格地图已导入，底图加载中… 若未看到请平移/缩放画布');
   } catch (err: any) {
-    ElMessage.error('导入栅格地图失败：' + (err?.message || '未知错误'));
+    const msg = err?.message || (err ? String(err) : '未知错误');
+    ElMessage.error('导入栅格地图失败：' + msg);
   } finally {
     importRasterLoading.value = false;
   }
