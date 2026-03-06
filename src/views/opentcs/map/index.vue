@@ -198,12 +198,13 @@ const handleAdd = () => {
   dialog.title = '添加地图模型';
 };
 
-/** 编辑地图按钮操作 */
+/** 编辑地图按钮操作：在新窗口中打开地图编辑器 */
 const handleEdit = (row: MapVO) => {
-  router.push({
-    path: '/opentcs/map/editor',
+  const routeUrl = router.resolve({
+    path: '/map/mapeditor',
     query: { id: row.mapId }
   });
+  window.open(routeUrl.href, '_blank');
 };
 
 /** 修改按钮操作 */

@@ -1011,7 +1011,9 @@ onMounted(async () => {
     }
   });
   
-  // 加载地图数据（从 query 参数获取）
+  // 加载地图数据：
+  // - 如果带有 id（从地图列表“编辑”跳转），则从后端加载对应地图
+  // - 如果没有 id（从左侧菜单直接打开），则进入“空白编辑器”模式，不再强制调用 loadMap，避免报错
   const mapId = route.query.id as string;
   if (mapId) {
     try {
@@ -1023,14 +1025,8 @@ onMounted(async () => {
       console.error('加载错误详情:', error);
     }
   } else {
-    ElMessage.warning('未指定地图ID，将创建新地图');
-    // 可以创建一个新地图
-    const newMapId = 'new_' + Date.now();
-    try {
-      await mapEditorStore.loadMap(newMapId);
-    } catch (error) {
-      console.error('创建新地图失败:', error);
-    }
+    // 从菜单直接打开：重置为干净状态，由用户通过“导入地图 / 导入 openTCS 模型”加载数据
+    mapEditorStore.reset();
   }
   
   // 注册键盘事件
