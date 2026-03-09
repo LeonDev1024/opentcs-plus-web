@@ -47,6 +47,10 @@
             <el-icon><Picture /></el-icon>
             <span>导航栅格地图</span>
           </el-menu-item>
+          <el-menu-item index="nav-stations" @click="handleImportStations">
+            <el-icon><Location /></el-icon>
+            <span>导航站点</span>
+          </el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="view" :show-timeout="0" :hide-timeout="0">
           <template #title>视图</template>
@@ -498,13 +502,13 @@ import ComponentsPanel from './components/ComponentsPanel.vue';
 import PropertyPanel from './components/PropertyPanel.vue';
 import PointEditDialog from './components/PointEditDialog.vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
-import { ToolMode } from '@/types/mapEditor';
+import { ToolMode, LayerType } from '@/types/mapEditor';
 import type { MapPoint } from '@/types/mapEditor';
 import PathTypeIcon from './components/icons/PathTypeIcon.vue';
 import LocationTypeIcon from './components/icons/LocationTypeIcon.vue';
 import SvgIcon from '@/components/SvgIcon/index.vue';
 import { exportMapFile, importMapFile } from '@/api/opentcs/map';
-import { Document, Close, RefreshLeft, RefreshRight, Delete, ZoomIn, ZoomOut, FullScreen, Picture } from '@element-plus/icons-vue';
+import { Document, Close, RefreshLeft, RefreshRight, Delete, ZoomIn, ZoomOut, FullScreen, Picture, Location } from '@element-plus/icons-vue';
 import { parsePgmToDataUrl } from '@/utils/mapEditor/pgmParser';
 import type { RasterBackground } from '@/types/mapEditor';
 
@@ -1266,6 +1270,135 @@ const handleImportModel = () => {
       ElMessage.success('openTCS 模型导入成功，请在地图列表中查看新建地图');
     } catch (error: any) {
       ElMessage.error('导入 openTCS 模型失败：' + (error?.message || '未知错误'));
+    }
+  };
+
+  input.click();
+};
+
+// 导入导航站点（stations.json）
+const handleImportStations = () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+
+  input.onchange = async (e) => {
+    const target = e.target as HTMLInputElement;
+    if (!target.files || target.files.length === 0) {
+      return;
+    }
+
+    const file = target.files[0];
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      const stations: any[] = Array.isArray(json)
+        ? json
+        : Array.isArray(json?.stations)
+          ? json.stations
+          : [];
+
+      if (!stations.length) {
+        ElMessage.error('文件中未找到 stations 数组');
+        return;
+      }
+
+      if (!mapEditorStore.mapData) {
+        ElMessage.warning('请先加载或创建地图后再导入站点');
+        return;
+      }
+
+      // 识别为工厂模型点元素：直接复用现有点位图层；仅当没有任何点位图层时才新建一个（并优先复用已有图层组）
+      let pointLayer =
+        mapEditorStore.layers.find((l) => l.id === mapEditorStore.activeLayerId && l.type === LayerType.POINT) ||
+        mapEditorStore.layers.find((l) => l.type === LayerType.POINT);
+      if (!pointLayer) {
+        const existingGroup =
+          mapEditorStore.layerGroups.find((g) => g.name === 'Default layer group' || g.name === '默认图层组') ||
+          mapEditorStore.layerGroups[0];
+        const layerGroupId = existingGroup
+          ? existingGroup.id
+          : mapEditorStore.addLayerGroup({ name: 'Default layer group', visible: true }).id;
+        pointLayer = mapEditorStore.addLayer({
+          name: 'Default layer',
+          type: LayerType.POINT,
+          layerGroupId,
+          visible: true,
+          locked: false,
+          zIndex: 1,
+          opacity: 1,
+          elementIds: []
+        });
+        mapEditorStore.setActiveLayer(pointLayer.id);
+      }
+
+      let created = 0;
+
+      // 若有已导入的导航栅格图，用其偏移量将点对齐到栅格图上（与 MapCanvas 放置方式一致）
+      const raster = mapEditorStore.rasterBackground;
+      const canvas = canvasState.value;
+      const canvasWidth = canvas.width || 1920;
+      const canvasHeight = canvas.height || 1080;
+      const rasterOffsetX =
+        raster && typeof raster.widthPx === 'number' ? (canvasWidth - raster.widthPx) / 2 : 0;
+      const rasterOffsetY =
+        raster && typeof raster.heightPx === 'number' ? (canvasHeight - raster.heightPx) / 2 : 0;
+
+      stations.forEach((station: any) => {
+        const pos = station?.position;
+        const hasWorld = pos && typeof pos.x === 'number' && typeof pos.y === 'number';
+        const hasImage =
+          raster && typeof station.imageX === 'number' && typeof station.imageY === 'number';
+
+        if (!hasWorld && !hasImage) {
+          return;
+        }
+
+        const name: string = station.name || mapEditorStore.generatePointName();
+        const descriptionParts: string[] = [];
+        if (station.type !== undefined) {
+          descriptionParts.push(`navType=${station.type}`);
+        }
+        if (typeof station.yaw === 'number') {
+          descriptionParts.push(`yaw=${station.yaw}`);
+        }
+        const description = descriptionParts.join(' ');
+
+        // 优先用 imageX/imageY 对齐到导航栅格图；否则用导航 position.x/y 作为模型坐标
+        const x = hasImage ? rasterOffsetX + station.imageX : pos.x;
+        const y = hasImage ? rasterOffsetY + station.imageY : pos.y;
+
+        mapEditorStore.addPoint({
+          id: station.id ? String(station.id) : undefined,
+          layerId: pointLayer.id,
+          name,
+          x,
+          y,
+          z: hasWorld && typeof pos.z === 'number' ? pos.z : undefined,
+          type: mapEditorStore.pointType,
+          description,
+          status: '0',
+          editorProps: {
+            radius: 5,
+            color: '#ff4d4f',
+            label: name,
+            labelVisible: true
+          }
+        });
+        created += 1;
+      });
+
+      if (created === 0) {
+        ElMessage.warning('未成功导入任何导航站点，请检查坐标数据是否完整');
+        return;
+      }
+
+      ElMessage.success(`已导入 ${created} 个导航站点`);
+    } catch (error: any) {
+      const msg = error?.message || String(error);
+      ElMessage.error('导入导航站点失败：' + msg);
+    } finally {
+      input.value = '';
     }
   };
 

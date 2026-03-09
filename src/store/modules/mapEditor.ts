@@ -85,6 +85,180 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   // 栅格底图（导入的 map.yaml + map.pgm）
   const rasterBackground = ref<RasterBackground | null>(null);
 
+  /** 创建默认图层组与图层（新地图无图层时使用） */
+  const createDefaultLayerStructure = (): { layerGroups: LayerGroup[]; layers: MapLayer[] } => {
+    const groupId = `layer_group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const layerGroup: LayerGroup = {
+      id: groupId,
+      name: 'Default layer group',
+      visible: true
+    };
+    const ts = Date.now();
+    const layers: MapLayer[] = [
+      {
+        id: `layer_${ts}_${Math.random().toString(36).substr(2, 9)}`,
+        name: 'Default layer',
+        type: LayerType.POINT,
+        layerGroupId: groupId,
+        visible: true,
+        locked: false,
+        zIndex: 1,
+        opacity: 1,
+        elementIds: []
+      },
+      {
+        id: `layer_${ts}_${Math.random().toString(36).substr(2, 9)}`,
+        name: 'Path layer',
+        type: LayerType.PATH,
+        layerGroupId: groupId,
+        visible: true,
+        locked: false,
+        zIndex: 2,
+        opacity: 1,
+        elementIds: []
+      },
+      {
+        id: `layer_${ts}_${Math.random().toString(36).substr(2, 9)}`,
+        name: 'Location layer',
+        type: LayerType.LOCATION,
+        layerGroupId: groupId,
+        visible: true,
+        locked: false,
+        zIndex: 3,
+        opacity: 1,
+        elementIds: []
+      }
+    ];
+    return { layerGroups: [layerGroup], layers };
+  };
+
+  /** 将后端图层组转为前端格式（id 转 string，补全字段） */
+  const normalizeLayerGroups = (raw: any[]): LayerGroup[] => {
+    if (!Array.isArray(raw)) return [];
+    return raw.map((g: any) => ({
+      id: g?.id != null ? String(g.id) : `layer_group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      name: g?.name ?? 'Layer group',
+      visible: g?.visible !== false
+    }));
+  };
+
+  /** 将后端图层转为前端格式（id 转 string，ordinal->zIndex，补 type/opacity/locked/elementIds） */
+  const normalizeLayers = (raw: any[], layerGroupIdMap: Map<string | number, string>): MapLayer[] => {
+    if (!Array.isArray(raw)) return [];
+    return raw.map((l: any, index: number) => {
+      const id = l?.id != null ? String(l.id) : `layer_${Date.now()}_${index}`;
+      const groupId = l?.layerGroupId != null ? layerGroupIdMap.get(l.layerGroupId) ?? String(l.layerGroupId) : undefined;
+      const typeByOrdinal = [LayerType.POINT, LayerType.PATH, LayerType.LOCATION];
+      const layerType = (l?.type as LayerType) ?? typeByOrdinal[index % 3];
+      return {
+        id,
+        name: l?.name ?? 'Layer',
+        type: layerType,
+        layerGroupId: groupId,
+        visible: l?.visible !== false,
+        locked: l?.locked === true,
+        zIndex: l?.ordinal != null ? Number(l.ordinal) : (l?.zIndex ?? index + 1),
+        opacity: l?.opacity ?? 1,
+        elementIds: Array.isArray(l?.elementIds) ? l.elementIds.map((e: any) => String(e)) : []
+      };
+    });
+  };
+
+  /** 将后端点转为前端 MapPoint（xPosition/yPosition->x/y，id 转 string，补 editorProps/layerId/status） */
+  const normalizePoint = (p: any, defaultLayerId: string): MapPoint => {
+    const id = p?.id != null ? String(p.id) : `point_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const x = p?.x ?? (p?.xPosition != null ? Number(p.xPosition) : 0);
+    const y = p?.y ?? (p?.yPosition != null ? Number(p.yPosition) : 0);
+    return {
+      ...p,
+      id,
+      layerId: p?.layerId ?? defaultLayerId,
+      name: p?.name ?? id,
+      x,
+      y,
+      z: p?.z ?? (p?.zPosition != null ? Number(p.zPosition) : undefined),
+      status: p?.status ?? 'active',
+      editorProps: {
+        radius: p?.editorProps?.radius ?? p?.radius ?? 20,
+        color: p?.editorProps?.color ?? '#4CAF50',
+        strokeColor: p?.editorProps?.strokeColor,
+        textColor: p?.editorProps?.textColor,
+        icon: p?.editorProps?.icon,
+        label: p?.editorProps?.label ?? p?.label,
+        labelVisible: p?.editorProps?.labelVisible !== false
+      }
+    };
+  };
+
+  /** 将后端路径转为前端 MapPath（sourcePointId/destPointId->startPointId/endPointId，id 转 string，补 geometry/editorProps） */
+  const normalizePath = (p: any, defaultLayerId: string): MapPath => {
+    const id = p?.id != null ? String(p.id) : `path_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const startPointId = p?.startPointId ?? p?.sourcePointId;
+    const endPointId = p?.endPointId ?? p?.destPointId;
+    const geometry = p?.geometry ?? {
+      controlPoints: [],
+      pathType: 'line' as const
+    };
+    if (geometry.controlPoints && geometry.controlPoints.length === 0 && startPointId != null && endPointId != null) {
+      geometry.controlPoints = [
+        { id: `cp_${id}_0`, x: 0, y: 0 },
+        { id: `cp_${id}_1`, x: 0, y: 0 }
+      ];
+    }
+    return {
+      ...p,
+      id,
+      layerId: p?.layerId ?? defaultLayerId,
+      name: p?.name ?? id,
+      startPointId,
+      endPointId,
+      status: p?.status ?? 'active',
+      geometry,
+      editorProps: {
+        strokeColor: p?.editorProps?.strokeColor ?? '#2196F3',
+        strokeWidth: p?.editorProps?.strokeWidth ?? 2,
+        lineStyle: p?.editorProps?.lineStyle ?? 'solid',
+        arrowVisible: p?.editorProps?.arrowVisible !== false,
+        label: p?.editorProps?.label,
+        labelVisible: p?.editorProps?.labelVisible !== false
+      }
+    };
+  };
+
+  /** 将后端位置转为前端 MapLocation（xPosition/yPosition->x/y，id 转 string，补 geometry/editorProps） */
+  const normalizeLocation = (l: any, defaultLayerId: string): MapLocation => {
+    const id = l?.id != null ? String(l.id) : `location_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const x = l?.x ?? (l?.xPosition != null ? Number(l.xPosition) : 0);
+    const y = l?.y ?? (l?.yPosition != null ? Number(l.yPosition) : 0);
+    const geometry = l?.geometry ?? {
+      vertices: [
+        { id: `v_${id}_0`, x, y },
+        { id: `v_${id}_1`, x: x + 100, y },
+        { id: `v_${id}_2`, x: x + 100, y: y + 100 },
+        { id: `v_${id}_3`, x, y: y + 100 }
+      ],
+      closed: true
+    };
+    if (geometry && typeof geometry.closed === 'undefined') geometry.closed = true;
+    return {
+      ...l,
+      id,
+      layerId: l?.layerId ?? defaultLayerId,
+      name: l?.name ?? id,
+      x,
+      y,
+      status: l?.status ?? 'active',
+      geometry,
+      editorProps: {
+        fillColor: l?.editorProps?.fillColor ?? 'rgba(33, 150, 243, 0.3)',
+        fillOpacity: l?.editorProps?.fillOpacity ?? 0.3,
+        strokeColor: l?.editorProps?.strokeColor ?? '#2196F3',
+        strokeWidth: l?.editorProps?.strokeWidth ?? 1,
+        labelVisible: l?.editorProps?.labelVisible !== false
+      }
+    };
+  };
+
   const POINT_NAME_REGEX = /^Point-(\d+)$/i;
 
   const formatPointName = (index: number) => {
@@ -195,39 +369,72 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         const apiData = responseData.data || responseData;
         
         if (apiData && (apiData.name || apiData.visualLayout)) {
-          // 转换API数据结构为MapEditorData格式
           const visualLayout = apiData.visualLayout || {};
-          
+          const rawLayerGroups = Array.isArray(visualLayout.layerGroups) ? visualLayout.layerGroups : [];
+          const rawLayers = Array.isArray(visualLayout.layers) ? visualLayout.layers : [];
+
+          let normalizedGroups = normalizeLayerGroups(rawLayerGroups);
+          const layerGroupIdMap = new Map(rawLayerGroups.map((g: any) => [g?.id, g?.id != null ? String(g.id) : null]).filter(([, v]) => v != null) as [string | number, string][]);
+          let normalizedLayers = normalizeLayers(rawLayers, layerGroupIdMap);
+
+          if (normalizedGroups.length === 0 || normalizedLayers.length === 0) {
+            const { layerGroups: defaultGroups, layers: defaultLayers } = createDefaultLayerStructure();
+            if (normalizedGroups.length === 0) normalizedGroups = defaultGroups;
+            if (normalizedLayers.length === 0) normalizedLayers = defaultLayers;
+          }
+
+          const defaultPointLayerId = normalizedLayers.find((l) => l.type === LayerType.POINT)?.id ?? normalizedLayers[0]?.id ?? '';
+          const defaultPathLayerId = normalizedLayers.find((l) => l.type === LayerType.PATH)?.id ?? normalizedLayers[0]?.id ?? '';
+          const defaultLocationLayerId = normalizedLayers.find((l) => l.type === LayerType.LOCATION)?.id ?? normalizedLayers[0]?.id ?? '';
+
+          const rawPoints = Array.isArray(apiData.points) ? apiData.points : (apiData.points ? Array.from(apiData.points) : []);
+          const rawPaths = Array.isArray(apiData.paths) ? apiData.paths : (apiData.paths ? Array.from(apiData.paths) : []);
+          const rawLocations = Array.isArray(apiData.locations) ? apiData.locations : (apiData.locations ? Array.from(apiData.locations) : []);
+
           data = {
             mapInfo: {
               id: apiData.mapId || mapId,
-              name: apiData.name || '新地图', // 使用 data.name 作为地图名字
+              name: apiData.name || '新地图',
               mapVersion: apiData.modelVersion || '1.0',
               description: apiData.description || '',
-              width: 1920, // 默认值，后端未提供
-              height: 1080, // 默认值，后端未提供
+              width: 1920,
+              height: 1080,
               scale: 1,
               offsetX: 0,
               offsetY: 0,
               scaleX: parseFloat(visualLayout.scaleX) || 50.0,
               scaleY: parseFloat(visualLayout.scaleY) || 50.0
             },
-            layerGroups: visualLayout.layerGroups || [],
-            layers: visualLayout.layers || [],
+            layerGroups: normalizedGroups,
+            layers: normalizedLayers,
             elements: {
-              points: apiData.points || [],
-              paths: apiData.paths || [],
-              locations: apiData.locations || []
+              points: rawPoints.map((p: any) => normalizePoint(p, defaultPointLayerId)),
+              paths: rawPaths.map((p: any) => normalizePath(p, defaultPathLayerId)),
+              locations: rawLocations.map((l: any) => normalizeLocation(l, defaultLocationLayerId))
             },
             metadata: {
               createdAt: apiData.createTime || new Date().toISOString(),
               updatedAt: apiData.updateTime || new Date().toISOString()
             },
-            // 保存原始 visualLayout 数据，用于视图树显示
             visualLayout: visualLayout
           };
         } else if (responseData.mapInfo) {
-          // 兼容旧的数据格式
+          const rawGroups = Array.isArray(responseData.layerGroups) ? responseData.layerGroups : [];
+          const rawLayers = Array.isArray(responseData.layers) ? responseData.layers : [];
+          let legGroups = normalizeLayerGroups(rawGroups);
+          const legMap = new Map(rawGroups.map((g: any) => [g?.id, g?.id != null ? String(g.id) : null]).filter(([, v]) => v != null) as [string | number, string][]);
+          let legLayers = normalizeLayers(rawLayers, legMap);
+          if (legGroups.length === 0 || legLayers.length === 0) {
+            const def = createDefaultLayerStructure();
+            if (legGroups.length === 0) legGroups = def.layerGroups;
+            if (legLayers.length === 0) legLayers = def.layers;
+          }
+          const dpId = legLayers.find((l) => l.type === LayerType.POINT)?.id ?? legLayers[0]?.id ?? '';
+          const dpathId = legLayers.find((l) => l.type === LayerType.PATH)?.id ?? legLayers[0]?.id ?? '';
+          const dlocId = legLayers.find((l) => l.type === LayerType.LOCATION)?.id ?? legLayers[0]?.id ?? '';
+          const rp = Array.isArray(responseData.elements?.points) ? responseData.elements.points : (Array.isArray(responseData.points) ? responseData.points : []);
+          const rpath = Array.isArray(responseData.elements?.paths) ? responseData.elements.paths : (Array.isArray(responseData.paths) ? responseData.paths : []);
+          const rloc = Array.isArray(responseData.elements?.locations) ? responseData.elements.locations : (Array.isArray(responseData.locations) ? responseData.locations : []);
           data = {
             mapInfo: {
               id: responseData.mapInfo.id || mapId,
@@ -242,12 +449,12 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               scaleX: 50.0,
               scaleY: 50.0
             },
-            layerGroups: responseData.layerGroups || [],
-            layers: responseData.layers || [],
+            layerGroups: legGroups,
+            layers: legLayers,
             elements: {
-              points: responseData.elements?.points || responseData.points || [],
-              paths: responseData.elements?.paths || responseData.paths || [],
-              locations: responseData.elements?.locations || responseData.locations || []
+              points: rp.map((p: any) => normalizePoint(p, dpId)),
+              paths: rpath.map((p: any) => normalizePath(p, dpathId)),
+              locations: rloc.map((l: any) => normalizeLocation(l, dlocId))
             },
             metadata: {
               createdAt: responseData.mapInfo.createTime || new Date().toISOString(),
@@ -275,28 +482,28 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       
       mapData.value = data;
       
-      // 更新图层组
-      layerGroups.value = data.layerGroups || [];
-      
-      // 更新图层
-      layers.value = data.layers || [];
-      
-      // 更新元素数据
-      points.value = (data.elements.points || []).map(point => ({
-        ...point,
-        editorProps: {
-          ...point.editorProps,
-          labelVisible: point.editorProps?.labelVisible !== false // 默认为 true
+      // 更新图层组与图层；若新创建的地图没有图层，则自动创建默认图层组和图层
+      const hasLayerGroups = (data.layerGroups || []).length > 0;
+      const hasLayers = (data.layers || []).length > 0;
+      if (!hasLayerGroups || !hasLayers) {
+        const { layerGroups: defaultGroups, layers: defaultLayers } = createDefaultLayerStructure();
+        layerGroups.value = defaultGroups;
+        layers.value = defaultLayers;
+        data.layerGroups = defaultGroups;
+        data.layers = defaultLayers;
+        if (mapData.value) {
+          mapData.value.layerGroups = defaultGroups;
+          mapData.value.layers = defaultLayers;
         }
-      }));
+      } else {
+        layerGroups.value = data.layerGroups || [];
+        layers.value = data.layers || [];
+      }
+      
+      // 更新元素数据（已由 normalizer 处理后端字段与默认值）
+      points.value = data.elements.points || [];
       paths.value = data.elements.paths || [];
-      locations.value = (data.elements.locations || []).map(location => ({
-        ...location,
-        editorProps: {
-          ...location.editorProps,
-          labelVisible: location.editorProps?.labelVisible !== false // 默认为 true
-        }
-      }));
+      locations.value = data.elements.locations || [];
 
       syncPointNameCounter();
       syncLocationNameCounter();

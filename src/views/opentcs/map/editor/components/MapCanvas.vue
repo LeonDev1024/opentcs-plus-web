@@ -350,11 +350,13 @@ const getKonvaNode = (ref: any) => {
 const canvasState = computed(() => mapEditorStore.canvasState);
 const currentTool = computed(() => mapEditorStore.currentTool);
 
+// 容器视口尺寸（仅用于 Stage 显示大小，与模型空间 canvasState.width/height 分离，避免拖拽左侧面板时覆盖逻辑画布导致点位偏移）
+const containerSize = ref({ width: 1920, height: 1080 });
+
 const stageConfig = computed(() => {
-  // 获取容器尺寸，设置最小宽高避免异常小尺寸导致 Stage 渲染/插入错乱
   const MIN_STAGE = 400;
-  const containerWidth = Math.max(MIN_STAGE, containerRef.value?.clientWidth || 1920);
-  const containerHeight = Math.max(MIN_STAGE, containerRef.value?.clientHeight || 1080);
+  const containerWidth = Math.max(MIN_STAGE, containerSize.value.width || 1920);
+  const containerHeight = Math.max(MIN_STAGE, containerSize.value.height || 1080);
   
   return {
     width: containerWidth,
@@ -3012,27 +3014,23 @@ onMounted(() => {
       stage.on('mousedown', handleStageMouseDown);
     }
   });
-  // 初始化画布尺寸
+  // 初始化容器视口尺寸（不修改 store 中的逻辑画布宽高，避免覆盖地图模型尺寸导致点位偏移）
   nextTick(() => {
     if (containerRef.value) {
-      const containerWidth = containerRef.value.clientWidth || 1920;
-      const containerHeight = containerRef.value.clientHeight || 1080;
+      containerSize.value = {
+        width: containerRef.value.clientWidth || 1920,
+        height: containerRef.value.clientHeight || 1080
+      };
       
-      mapEditorStore.updateCanvasState({
-        width: containerWidth,
-        height: containerHeight
-      });
-      
-      // 监听容器尺寸变化
+      // 监听容器尺寸变化：只更新视口尺寸，不覆盖 canvasState.width/height（模型空间）
       resizeObserver = new ResizeObserver(() => {
         if (containerRef.value) {
-          const containerWidth = containerRef.value.clientWidth || 1920;
-          const containerHeight = containerRef.value.clientHeight || 1080;
-          
-          mapEditorStore.updateCanvasState({
-            width: containerWidth,
-            height: containerHeight
-          });
+          containerSize.value = {
+            width: containerRef.value.clientWidth || 1920,
+            height: containerRef.value.clientHeight || 1080
+          };
+          const stage = getKonvaNode(stageRef.value);
+          if (stage) stage.batchDraw();
         }
       });
       

@@ -98,7 +98,7 @@
 
 <script setup name="Map" lang="ts">
 import { useRouter } from 'vue-router';
-import { listMap, getMap, delMap, addMap, updateMap, loadMap } from '@/api/opentcs/map';
+import { listMap, getMap, delMap, addMap, updateMap } from '@/api/opentcs/map';
 import { MapVO, MapQuery, MapForm } from '@/api/opentcs/map/types';
 
 const router = useRouter();
@@ -152,8 +152,9 @@ const getList = async () => {
   loading.value = true;
   statusChangeReady.value = false;
   const res = await listMap(queryParams.value);
-  mapList.value = res.rows;
-  total.value = res.total;
+  const data = res?.data ?? res;
+  mapList.value = data?.rows ?? [];
+  total.value = data?.total ?? 0;
   loading.value = false;
   nextTick(() => {
     statusChangeReady.value = true;
@@ -243,18 +244,18 @@ const handleDelete = async (row?: MapVO) => {
   await getList();
 };
 
-/** 加载模型按钮操作 */
-const handleLoad = async (row?: MapVO) => {
-  const _id = row?.id || ids.value[0];
-  try {
-    loading.value = true;
-    await loadMap(_id);
-    proxy?.$modal.msgSuccess('加载模型成功');
-  } catch (error) {
-    console.error('加载模型失败:', error);
-  } finally {
-    loading.value = false;
+/** 加载模型按钮操作：在新窗口中打开地图编辑器 */
+const handleLoad = (row?: MapVO) => {
+  const targetRow = row ?? mapList.value.find((item) => ids.value.includes(item.id));
+  if (!targetRow?.mapId) {
+    proxy?.$modal.msgWarning('请先选择一条地图记录');
+    return;
   }
+  const routeUrl = router.resolve({
+    path: '/map/mapeditor',
+    query: { id: targetRow.mapId }
+  });
+  window.open(routeUrl.href, '_blank');
 };
 
 /** 状态修改  */

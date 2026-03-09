@@ -58,17 +58,6 @@ export const delMap = (id: string | number | Array<string | number>) => {
 };
 
 /**
- * 加载地图模型
- * @param id
- */
-export const loadMap = (id: string | number) => {
-  return request({
-    url: '/map/model/load/' + id,
-    method: 'post'
-  });
-};
-
-/**
  * 保存地图编辑器数据（保存到文件）
  * @param mapId 地图ID
  * @param data 编辑器数据
