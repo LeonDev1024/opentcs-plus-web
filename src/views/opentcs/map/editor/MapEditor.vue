@@ -558,6 +558,7 @@ const PROPERTY_PANEL_HEIGHT_KEY = 'map-editor-property-panel-height';
 const LAYER_PANEL_HEIGHT_KEY = 'map-editor-layer-panel-height';
 const PROPERTY_PANEL_COLLAPSED_KEY = 'map-editor-property-panel-collapsed';
 const LAYER_PANEL_COLLAPSED_KEY = 'map-editor-layer-panel-collapsed';
+const DEFAULT_LAYER_PANEL_HEIGHT = 200; // 图层面板默认展开高度，避免占满左侧
 const propertyPanelHeight = ref<number | null>(null);
 const layerPanelHeight = ref<number | null>(null);
 
@@ -701,11 +702,12 @@ const toggleLayerPanelCollapse = () => {
   nextTick(() => {
     const layerEl = document.querySelector('.left-panels .layer-panel-container') as HTMLElement | null;
     if (!layerEl) return;
-    // 收起时让高度回到 header 自身高度，展开时恢复为记忆高度
+    // 收起时让高度回到 header 自身高度，展开时恢复为记忆高度或默认高度
     if (isLayerPanelCollapsed.value) {
       layerEl.style.height = '';
-    } else if (layerPanelHeight.value !== null) {
-      layerEl.style.height = `${layerPanelHeight.value}px`;
+    } else {
+      const h = layerPanelHeight.value ?? DEFAULT_LAYER_PANEL_HEIGHT;
+      layerEl.style.height = `${h}px`;
     }
   });
 };
@@ -1009,8 +1011,9 @@ onMounted(async () => {
     if (layerEl) {
       if (isLayerPanelCollapsed.value) {
         layerEl.style.height = '';
-      } else if (layerPanelHeight.value !== null) {
-        layerEl.style.height = `${layerPanelHeight.value}px`;
+      } else {
+        const h = layerPanelHeight.value ?? DEFAULT_LAYER_PANEL_HEIGHT;
+        layerEl.style.height = `${h}px`;
       }
     }
   });
@@ -1927,13 +1930,14 @@ onUnmounted(() => {
           }
         }
         
-        // 图层面板可调整高度（通过自定义拖拽条）
+        // 图层面板可调整高度（通过自定义拖拽条），默认高度由 JS 设置，限制最大高度避免占满
         &.layer-panel-container {
           flex-shrink: 0;
           overflow: hidden;
+          max-height: 50vh;
           
           .panel-content {
-            min-height: 80px;
+            min-height: 60px;
             max-height: none;
           }
         }

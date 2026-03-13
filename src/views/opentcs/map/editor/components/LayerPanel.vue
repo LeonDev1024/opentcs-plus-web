@@ -43,12 +43,24 @@
               
               <el-table-column prop="name" label="名称" min-width="120" />
               
-              <el-table-column prop="layerGroupId" label="图层组" width="120">
+              <el-table-column prop="layerGroupId" label="图层组" width="140">
                 <template #default="{ row }">
-                  <el-tag size="small" v-if="getLayerGroupName(row.layerGroupId)">
-                    {{ getLayerGroupName(row.layerGroupId) }}
-                  </el-tag>
-                  <span v-else style="color: #909399; font-size: 12px;">未分组</span>
+                  <el-select
+                    :model-value="row.layerGroupId ?? ''"
+                    size="small"
+                    placeholder="选择图层组"
+                    class="layer-group-select"
+                    @update:model-value="(val: string) => handleLayerGroupChange(row, val)"
+                    @click.stop
+                  >
+                    <el-option label="未分组" :value="''" />
+                    <el-option
+                      v-for="g in layerGroups"
+                      :key="g.id"
+                      :label="g.name"
+                      :value="g.id"
+                    />
+                  </el-select>
                 </template>
               </el-table-column>
             </el-table>
@@ -154,6 +166,10 @@ const handleRowClick = (row: MapLayer) => {
 
 const handleVisibilityChange = (layer: MapLayer) => {
   mapEditorStore.updateLayer(layer.id, { visible: layer.visible });
+};
+
+const handleLayerGroupChange = (layer: MapLayer, groupId: string) => {
+  mapEditorStore.updateLayer(layer.id, { layerGroupId: groupId || undefined });
 };
 
 const handleAddLayer = () => {
@@ -370,6 +386,10 @@ watch(
     flex: 1;
     overflow-y: auto;
     padding: 8px;
+    
+    :deep(.layer-group-select) {
+      width: 100%;
+    }
     
     :deep(.el-table) {
       font-size: 12px;

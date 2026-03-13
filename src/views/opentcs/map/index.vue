@@ -3,8 +3,8 @@
     <transition :enter-active-class="proxy?.animate.searchAnimate.enter" :leave-active-class="proxy?.animate.searchAnimate.leave">
       <div v-show="showSearch" class="search">
         <el-form ref="queryFormRef" :model="queryParams" :inline="true" label-width="100px">
-          <el-form-item label="地图模型名称" prop="name">
-            <el-input v-model="queryParams.name" placeholder="请输入地图模型名称" clearable @keyup.enter="handleQuery" />
+          <el-form-item label="工厂模型名称" prop="name">
+            <el-input v-model="queryParams.name" placeholder="请输入工厂模型名称" clearable @keyup.enter="handleQuery" />
           </el-form-item>
           <el-form-item label="状态" prop="status">
             <el-select v-model="queryParams.status" placeholder="状态" clearable>
@@ -41,8 +41,8 @@
 
       <el-table v-loading="loading" :data="mapList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column label="地图模型ID" align="center" prop="mapId" width="200" />
-        <el-table-column label="地图模型名称" align="center" prop="name" />
+        <el-table-column label="工厂模型ID" align="center" prop="id" width="200" />
+        <el-table-column label="工厂模型名称" align="center" prop="name" />
         <el-table-column label="版本" align="center" prop="modelVersion" width="100" />
         <el-table-column key="status" label="状态" align="center">
           <template #default="scope">
@@ -128,8 +128,6 @@ const initFormData: MapForm = {
   id: undefined,
   name: undefined,
   description: undefined,
-  filePath: undefined,
-  version: undefined,
   status: '0'
 };
 const data = reactive<PageData<MapForm, MapQuery>>({
@@ -152,9 +150,12 @@ const getList = async () => {
   loading.value = true;
   statusChangeReady.value = false;
   const res = await listMap(queryParams.value);
+  // listMap 返回类型为 AxiosPromise<MapVO[]>
   const data = res?.data ?? res;
-  mapList.value = data?.rows ?? [];
-  total.value = data?.total ?? 0;
+  // 若后端包装为 { rows, total }，则优先按包装解析；否则按纯数组解析
+  const rows = (data as any)?.rows ?? data;
+  mapList.value = Array.isArray(rows) ? rows : [];
+  total.value = (data as any)?.total ?? mapList.value.length;
   loading.value = false;
   nextTick(() => {
     statusChangeReady.value = true;
@@ -203,7 +204,7 @@ const handleAdd = () => {
 const handleEdit = (row: MapVO) => {
   const routeUrl = router.resolve({
     path: '/map/mapeditor',
-    query: { id: row.mapId }
+    query: { id: row.id }
   });
   window.open(routeUrl.href, '_blank');
 };
@@ -247,13 +248,13 @@ const handleDelete = async (row?: MapVO) => {
 /** 加载模型按钮操作：在新窗口中打开地图编辑器 */
 const handleLoad = (row?: MapVO) => {
   const targetRow = row ?? mapList.value.find((item) => ids.value.includes(item.id));
-  if (!targetRow?.mapId) {
+  if (!targetRow?.id) {
     proxy?.$modal.msgWarning('请先选择一条地图记录');
     return;
   }
   const routeUrl = router.resolve({
     path: '/map/mapeditor',
-    query: { id: targetRow.mapId }
+    query: { id: targetRow.id }
   });
   window.open(routeUrl.href, '_blank');
 };
