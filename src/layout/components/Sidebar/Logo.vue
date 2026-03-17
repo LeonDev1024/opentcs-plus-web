@@ -105,7 +105,7 @@ const titleSub = import.meta.env.VITE_APP_LOGO_TITLE_SUB ?? '调度管理平台'
     .sidebar-title-main {
       font-size: 17px !important;
       font-weight: 800 !important;
-      letter-spacing: 1.2px !important;
+      letter-spacing: 0.5px !important;
       white-space: nowrap !important;
       color: var(--text-primary) !important;
       font-family:
