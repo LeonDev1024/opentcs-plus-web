@@ -5,6 +5,10 @@
     "ComputedRef": true,
     "DirectiveBinding": true,
     "EffectScope": true,
+    "ElLoading": true,
+    "ElMessage": true,
+    "ElMessageBox": true,
+    "ElNotification": true,
     "ExtractDefaultPropTypes": true,
     "ExtractPropTypes": true,
     "ExtractPublicPropTypes": true,
@@ -314,10 +318,6 @@
     "watchThrottled": true,
     "watchTriggerable": true,
     "watchWithFilter": true,
-    "whenever": true,
-    "ElLoading": true,
-    "ElMessage": true,
-    "ElMessageBox": true,
-    "ElNotification": true
+    "whenever": true
   }
 }

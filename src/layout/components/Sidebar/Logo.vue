@@ -8,9 +8,10 @@
       <router-link key="expand" class="sidebar-logo-link" to="/">
         <div class="logo-content">
           <img v-if="logo" :src="logo" class="sidebar-logo" />
-          <h1 class="sidebar-title" :style="{ color: sideTheme === 'theme-dark' ? variables.logoTitleColor : variables.logoLightTitleColor }">
-            {{ title }}
-          </h1>
+          <div class="sidebar-title-wrap">
+            <span class="sidebar-title-main">{{ titleMain }}</span>
+            <span class="sidebar-title-sub">{{ titleSub }}</span>
+          </div>
         </div>
       </router-link>
     </transition>
@@ -18,8 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import variables from '@/assets/styles/variables.module.scss';
-import logo from '@/assets/logo/logo-rectangle.svg';
+import logo from '@/assets/logo/logo-robot.svg';
 import { useSettingsStore } from '@/store/modules/settings';
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 
@@ -30,9 +30,8 @@ defineProps({
   }
 });
 
-const title = import.meta.env.VITE_APP_LOGO_TITLE;
-const settingsStore = useSettingsStore();
-const sideTheme = computed(() => settingsStore.sideTheme);
+const titleMain = import.meta.env.VITE_APP_LOGO_TITLE_MAIN ?? 'OPENTCSPLUS';
+const titleSub = import.meta.env.VITE_APP_LOGO_TITLE_SUB ?? '调度管理平台';
 </script>
 
 <style lang="scss" scoped>
@@ -52,7 +51,7 @@ const sideTheme = computed(() => settingsStore.sideTheme);
   height: var(--navbar-height) !important;
   background: transparent !important;
   border: none !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   display: flex !important;
   align-items: center !important;
   justify-content: flex-start !important;
@@ -80,33 +79,49 @@ const sideTheme = computed(() => settingsStore.sideTheme);
     .logo-content {
       display: flex !important;
       align-items: center !important;
-      gap: 8px !important;
+      gap: 12px !important;
       white-space: nowrap !important;
     }
 
-    /* Logo图片 */
+    /* Logo图片（机器人图标） */
     .sidebar-logo {
-      width: 24px !important;
-      height: 24px !important;
+      width: 40px !important;
+      height: 40px !important;
       flex-shrink: 0 !important;
-      transition: var(--transition-transform) !important;
-
-      &:hover {
-        transform: rotate(360deg) !important;
-      }
     }
 
-    /* Logo标题 */
-    .sidebar-title {
-      margin: 0 !important;
-      color: var(--text-primary) !important;
-      font-weight: var(--font-weight-bold) !important;
-      font-size: 14px !important;
-      letter-spacing: 0.3px !important;
+    /* Logo标题 - 双行样式 */
+    .sidebar-title-wrap {
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: flex-start !important;
+      justify-content: center !important;
+      line-height: 1.3 !important;
+      gap: 2px !important;
+      min-width: 0 !important;
+      flex: 1 1 auto !important;
+      overflow: visible !important;
+    }
+    .sidebar-title-main {
+      font-size: 17px !important;
+      font-weight: 800 !important;
+      letter-spacing: 1.2px !important;
       white-space: nowrap !important;
-      overflow: hidden !important;
-      text-overflow: ellipsis !important;
-      line-height: 1 !important;
+      color: var(--text-primary) !important;
+      font-family:
+        Avenir,
+        Helvetica Neue,
+        Arial,
+        Helvetica,
+        sans-serif !important;
+    }
+    .sidebar-title-sub {
+      font-size: 12px !important;
+      font-weight: 500 !important;
+      letter-spacing: 0.5px !important;
+      white-space: nowrap !important;
+      color: var(--text-secondary) !important;
+      opacity: 0.9 !important;
       font-family:
         Avenir,
         Helvetica Neue,

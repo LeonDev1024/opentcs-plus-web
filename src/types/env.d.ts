@@ -7,6 +7,8 @@ declare module '*.vue' {
 // 环境变量
 interface ImportMetaEnv {
   VITE_APP_TITLE: string;
+  VITE_APP_LOGO_TITLE_MAIN?: string;
+  VITE_APP_LOGO_TITLE_SUB?: string;
   VITE_APP_PORT: number;
   VITE_APP_BASE_API: string;
   VITE_APP_BASE_URL: string;

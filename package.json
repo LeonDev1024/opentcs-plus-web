@@ -11,6 +11,7 @@
     "build:prod": "vite build --mode production",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "favicon": "node scripts/generate-favicon.mjs",
     "lint:eslint": "eslint",
     "lint:eslint:fix": "eslint --fix",
     "prettier": "prettier --write ."
@@ -71,6 +72,7 @@
     "prettier": "3.5.2",
     "sass": "1.87.0",
     "sharp": "^0.34.5",
+    "to-ico": "^1.1.5",
     "typescript": "~5.8.3",
     "unocss": "66.5.2",
     "unplugin-auto-import": "19.1.2",
