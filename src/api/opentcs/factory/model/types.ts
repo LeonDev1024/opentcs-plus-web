@@ -4,10 +4,7 @@ export interface FactoryModelVO {
   id: number;
   factoryId: string;
   name: string;
-  modelVersion: string;
   scale: number;
-  coordinateSystem: string;
-  lengthUnit: string;
   properties?: string;
   description?: string;
   status: string;
@@ -19,10 +16,7 @@ export interface FactoryModelForm {
   id?: number;
   factoryId?: string;
   name: string;
-  modelVersion?: string;
   scale?: number;
-  coordinateSystem?: string;
-  lengthUnit?: string;
   properties?: string;
   description?: string;
   status?: string;

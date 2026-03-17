@@ -36,7 +36,6 @@
 
       <el-table v-loading="loading" :data="locationList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column label="id" align="center" prop="id" width="80" />
         <el-table-column label="位置类型名称" align="center" prop="name" min-width="150" />
         <el-table-column label="允许的操作" align="center" prop="allowedOperations" min-width="150" show-overflow-tooltip>
           <template #default="scope">

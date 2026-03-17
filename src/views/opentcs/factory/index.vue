@@ -1,5 +1,25 @@
 <template>
   <div class="factory-container">
+    <transition :enter-active-class="proxy?.animate.searchAnimate.enter" :leave-active-class="proxy?.animate.searchAnimate.leave">
+      <div v-show="showSearch" class="search">
+        <el-form ref="queryFormRef" :model="queryParams" :inline="true" label-width="100px">
+          <el-form-item label="工厂名称" prop="name">
+            <el-input v-model="queryParams.name" placeholder="请输入工厂名称" clearable @keyup.enter="handleQuery" />
+          </el-form-item>
+          <el-form-item label="状态" prop="status">
+            <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="width: 120px;">
+              <el-option label="正常" value="0" />
+              <el-option label="停用" value="1" />
+            </el-select>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
+            <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+          </el-form-item>
+        </el-form>
+      </div>
+    </transition>
+
     <el-card shadow="never">
       <template #header>
         <el-row :gutter="10" class="mb8">
@@ -14,17 +34,11 @@
 
       <el-table v-loading="loading" :data="factoryList" border>
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column label="工厂ID" align="center" prop="factoryId" width="180" />
+        <el-table-column label="工厂编号" align="center" prop="factoryId" width="200" />
         <el-table-column label="工厂名称" align="center" prop="name" />
-        <el-table-column label="版本" align="center" prop="modelVersion" width="100" />
         <el-table-column label="比例尺" align="center" width="100">
           <template #default="{ row }">
-            {{ row.scale }} px/m
-          </template>
-        </el-table-column>
-        <el-table-column label="坐标系" align="center" width="120">
-          <template #default="{ row }">
-            {{ row.coordinateSystem === 'RIGHT_HAND' ? '右手系' : '左手系' }}
+            {{ row.scale || 1 }} mm/px
           </template>
         </el-table-column>
         <el-table-column label="状态" align="center" width="100">
@@ -65,33 +79,12 @@
         <el-form-item label="工厂名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入工厂名称" />
         </el-form-item>
-        <el-form-item label="工厂ID" prop="factoryId">
-          <el-input v-model="form.factoryId" placeholder="请输入工厂唯一标识" :disabled="!!form.id" />
+        <el-form-item label="工厂编号" prop="factoryId">
+          <el-input v-model="form.factoryId" placeholder="自动生成" disabled />
         </el-form-item>
-        <el-form-item label="模型版本" prop="modelVersion">
-          <el-input v-model="form.modelVersion" placeholder="默认 1.0" />
-        </el-form-item>
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <el-form-item label="比例尺" prop="scale">
-              <el-input-number v-model="form.scale" :min="1" :max="100" placeholder="px/m" />
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="坐标系" prop="coordinateSystem">
-              <el-select v-model="form.coordinateSystem" placeholder="请选择">
-                <el-option label="右手系" value="RIGHT_HAND" />
-                <el-option label="左手系" value="LEFT_HAND" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-form-item label="长度单位" prop="lengthUnit">
-          <el-select v-model="form.lengthUnit" placeholder="请选择">
-            <el-option label="米 (METER)" value="METER" />
-            <el-option label="厘米 (CENTIMETER)" value="CENTIMETER" />
-            <el-option label="毫米 (MILLIMETER)" value="MILLIMETER" />
-          </el-select>
+        <el-form-item label="比例尺" prop="scale">
+          <el-input-number v-model="form.scale" :min="1" :max="100" :step="1" precision="0" />
+          <span style="margin-left: 8px; color: #909399;">mm/px</span>
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" />
@@ -117,14 +110,17 @@
 import { listFactoryModel, getFactoryModel, addFactoryModel, updateFactoryModel, delFactoryModel } from '@/api/opentcs/factory/model';
 import type { FactoryModelVO, FactoryModelForm, FactoryModelQuery } from '@/api/opentcs/factory/model/types';
 import { ElMessageBox } from 'element-plus';
-import type { FormInstance } from 'element-plus';
+import type { FormInstance, ElFormInstance } from 'element-plus';
 
 const router = useRouter();
+const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 
 const loading = ref(true);
 const showSearch = ref(true);
 const total = ref(0);
 const factoryList = ref<FactoryModelVO[]>([]);
+
+const queryFormRef = ref<ElFormInstance>();
 
 const queryParams = reactive<FactoryModelQuery>({
   pageNum: 1,
@@ -142,17 +138,13 @@ const form = reactive<FactoryModelForm>({
   id: undefined,
   factoryId: '',
   name: '',
-  modelVersion: '1.0',
-  scale: 50,
-  coordinateSystem: 'RIGHT_HAND',
-  lengthUnit: 'METER',
+  scale: 1,
   description: '',
   status: '0'
 });
 
 const rules = {
-  name: [{ required: true, message: '工厂名称不能为空', trigger: 'blur' }],
-  factoryId: [{ required: true, message: '工厂ID不能为空', trigger: 'blur' }]
+  name: [{ required: true, message: '工厂名称不能为空', trigger: 'blur' }]
 };
 
 const formRef = ref<FormInstance>();
@@ -177,8 +169,7 @@ const handleQuery = () => {
 
 // 重置
 const resetQuery = () => {
-  queryParams.name = undefined;
-  queryParams.status = undefined;
+  queryFormRef.value?.resetFields();
   handleQuery();
 };
 
@@ -229,10 +220,7 @@ const reset = () => {
   form.id = undefined;
   form.factoryId = '';
   form.name = '';
-  form.modelVersion = '1.0';
-  form.scale = 50;
-  form.coordinateSystem = 'RIGHT_HAND';
-  form.lengthUnit = 'METER';
+  form.scale = 1;
   form.description = '';
   form.status = '0';
   formRef.value?.resetFields();
@@ -278,5 +266,9 @@ onMounted(() => {
 .factory-container {
   height: 100%;
   padding: 16px;
+}
+
+.search {
+  margin-bottom: 16px;
 }
 </style>
