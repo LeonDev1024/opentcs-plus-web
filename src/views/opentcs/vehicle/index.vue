@@ -1,33 +1,32 @@
 <template>
   <div class="p-2">
     <transition :enter-active-class="proxy?.animate.searchAnimate.enter" :leave-active-class="proxy?.animate.searchAnimate.leave">
-      <div v-show="showSearch" class="search">
-        <el-form ref="queryFormRef" :model="queryParams" :inline="true" label-width="100px">
-          <el-form-item label="车辆名称" prop="name">
-            <el-input v-model="queryParams.name" placeholder="请输入车辆名称" clearable @keyup.enter="handleQuery" />
-          </el-form-item>
-          <el-form-item label="车辆VIN码" prop="vinCode">
-            <el-input v-model="queryParams.vinCode" placeholder="请输入车辆VIN码" clearable @keyup.enter="handleQuery" />
-          </el-form-item>
-          <el-form-item label="车辆类型" prop="vehicleTypeId">
-            <el-select v-model="queryParams.vehicleTypeId" placeholder="请选择车辆类型" clearable style="width: 200px">
-              <el-option v-for="type in vehicleTypes" :key="type.id" :label="type.name" :value="type.id" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="车辆状态" prop="state">
-            <el-select v-model="queryParams.state" placeholder="车辆状态" clearable>
-              <el-option label="空闲" value="IDLE" />
-              <el-option label="工作中" value="WORKING" />
-              <el-option label="维护中" value="UNAVAILABLE" />
-              <el-option label="充电中" value="CHARGING" />
-              <el-option label="错误" value="ERROR" />
-            </el-select>
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
-            <el-button icon="Refresh" @click="resetQuery">重置</el-button>
-          </el-form-item>
-        </el-form>
+      <div v-show="showSearch" class="my-[10px] vehicle-search-card">
+        <el-card shadow="hover">
+          <el-form ref="queryFormRef" :model="queryParams" :inline="true" label-width="100px">
+            <el-form-item label="车辆名称" prop="name">
+              <el-input v-model="queryParams.name" placeholder="请输入车辆名称" clearable @keyup.enter="handleQuery" />
+            </el-form-item>
+            <el-form-item label="车辆类型" prop="vehicleTypeId">
+              <el-select v-model="queryParams.vehicleTypeId" placeholder="请选择车辆类型" clearable style="width: 200px">
+                <el-option v-for="type in vehicleTypes" :key="type.id" :label="type.name" :value="type.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="车辆状态" prop="state">
+              <el-select v-model="queryParams.state" placeholder="车辆状态" clearable>
+                <el-option label="空闲" value="IDLE" />
+                <el-option label="工作中" value="WORKING" />
+                <el-option label="维护中" value="UNAVAILABLE" />
+                <el-option label="充电中" value="CHARGING" />
+                <el-option label="错误" value="ERROR" />
+              </el-select>
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
+              <el-button icon="Refresh" @click="resetQuery">重置</el-button>
+            </el-form-item>
+          </el-form>
+        </el-card>
       </div>
     </transition>
 

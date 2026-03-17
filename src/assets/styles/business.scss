@@ -95,6 +95,22 @@
   }
 }
 
+// AMR 列表筛选卡片：宽度与表格卡片对齐，筛选条件居中
+.vehicle-search-card {
+  .el-card__body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 12px 24px;
+  }
+
+  .el-form {
+    justify-content: center;
+    margin: 0;
+  }
+}
+
+
 // 操作按钮栏优化
 .action-bar {
   display: flex;
