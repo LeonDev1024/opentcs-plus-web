@@ -40,10 +40,11 @@
   .sidebar-container {
     transition: width var(--duration-300) var(--ease-in-out);
     width: var(--sidebar-width) !important;
-    background: linear-gradient(180deg, var(--menuBg) 0%, var(--menuBg) 100%);
+    // 使用 JS 传入的 bgColor，保证在浅色主题下侧边栏与顶部导航一致
+    background: var(--menuBg);
     position: fixed;
     font-size: 0;
-    top: var(--navbar-height);
+    top: calc(var(--navbar-height) + 2px);
     bottom: 0;
     left: 0;
     z-index: 1001;
@@ -317,18 +318,7 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  
-  &::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 60%;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.3), transparent);
-  }
-  
+
   .sidebar-logo-link {
     width: auto;
     min-width: fit-content;

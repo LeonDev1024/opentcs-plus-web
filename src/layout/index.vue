@@ -129,6 +129,7 @@ const setLayout = () => {
 // 标签栏：与内容同宽，紧贴内容上方
 .tags-view-adaptive {
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 // 固定头部区域（全宽，贯穿视口）
