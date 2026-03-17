@@ -3,6 +3,8 @@
 export interface NavigationMapVO {
   id: number;
   factoryModelId: number;
+  factoryName?: string;  // 关联的工厂名称
+  factoryId?: string;   // 关联的工厂编号
   mapId: string;
   name: string;
   floorNumber: number | null;
