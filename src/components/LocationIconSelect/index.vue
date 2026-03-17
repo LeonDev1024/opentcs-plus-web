@@ -61,9 +61,6 @@ for (const path in modules) {
 allIcons.value = icons.sort();
 iconNames.value = icons;
 
-// 调试：输出加载的图标列表
-console.log('Location icons loaded:', icons);
-
 /**
  * 筛选图标
  */

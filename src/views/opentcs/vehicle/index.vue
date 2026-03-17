@@ -179,7 +179,6 @@ const getList = async () => {
   loading.value = true;
   try {
     const res = await listVehicle(queryParams.value);
-    console.log('Vehicle list response:', res);
     vehicleList.value = res.rows;
     total.value = res.total;
   } catch (error) {

@@ -92,6 +92,12 @@
               </td>
             </tr>
             <tr>
+              <td class="kv-key">Locked</td>
+              <td class="kv-value">
+                <el-switch v-model="pointForm.locked" size="small" @change="togglePointLock" />
+              </td>
+            </tr>
+            <tr>
               <td class="kv-key">Angle</td>
               <td class="kv-value">
                 <span class="kv-readonly">NaN deg</span>
@@ -206,6 +212,12 @@
               </td>
             </tr>
             <tr>
+              <td class="kv-key">Locked</td>
+              <td class="kv-value">
+                <el-switch v-model="pathForm.locked" size="small" @change="togglePathLock" />
+              </td>
+            </tr>
+            <tr>
               <td class="kv-key">Length</td>
               <td class="kv-value">
                 <span class="kv-readonly">{{ formatPathLength(pathForm) }}</span>
@@ -300,6 +312,12 @@
               <td class="kv-key">Name</td>
               <td class="kv-value">
                 <el-input v-model="locationForm.name" size="small" @change="updateLocation" />
+              </td>
+            </tr>
+            <tr>
+              <td class="kv-key">Locked</td>
+              <td class="kv-value">
+                <el-switch v-model="locationForm.locked" size="small" @change="toggleLocationLock" />
               </td>
             </tr>
             <tr>
@@ -521,6 +539,7 @@ const pointForm = ref<MapPoint>({
   x: 0,
   y: 0,
   status: '0',
+  locked: false,
   editorProps: {
     radius: 5,
     color: '#8c8c8c',
@@ -535,6 +554,7 @@ const pathForm = ref<MapPath>({
   layerId: '',
   name: '',
   status: '0',
+  locked: false,
   geometry: {
     controlPoints: [],
     pathType: 'line'
@@ -554,6 +574,7 @@ const locationForm = ref<MapLocation>({
   layerId: '',
   name: '',
   status: '0',
+  locked: false,
   geometry: {
     vertices: [],
     closed: true
@@ -662,6 +683,27 @@ const updatePath = () => {
 const updateLocation = () => {
   if (selectedType.value === 'location' && selectedElement.value) {
     mapEditorStore.updateLocation((selectedElement.value as MapLocation).id, locationForm.value);
+  }
+};
+
+// 切换点锁定状态
+const togglePointLock = () => {
+  if (selectedType.value === 'point' && selectedElement.value) {
+    mapEditorStore.togglePointLock((selectedElement.value as MapPoint).id);
+  }
+};
+
+// 切换路径锁定状态
+const togglePathLock = () => {
+  if (selectedType.value === 'path' && selectedElement.value) {
+    mapEditorStore.togglePathLock((selectedElement.value as MapPath).id);
+  }
+};
+
+// 切换位置锁定状态
+const toggleLocationLock = () => {
+  if (selectedType.value === 'location' && selectedElement.value) {
+    mapEditorStore.toggleLocationLock((selectedElement.value as MapLocation).id);
   }
 };
 </script>

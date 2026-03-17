@@ -72,3 +72,93 @@ export interface MapQuery extends PageQuery {
   status?: string;
 }
 
+// ==================== 地图编辑器 API 类型 ====================
+
+/**
+ * 后端返回的地图编辑器数据
+ * 对应后端 PlantModelBO
+ */
+export interface MapEditorResponse {
+  /** 响应码 */
+  code?: number;
+  /** 响应消息 */
+  msg?: string;
+  /** 地图ID */
+  mapId?: string | number;
+  /** 地图名称 */
+  name?: string;
+  /** 地图版本 */
+  modelVersion?: string;
+  /** 描述 */
+  description?: string;
+  /** 创建时间 */
+  createTime?: string;
+  /** 更新时间 */
+  updateTime?: string;
+  /** 点位数据 */
+  points?: any[];
+  /** 路径数据 */
+  paths?: any[];
+  /** 位置数据 */
+  locations?: any[];
+  /** 视觉布局数据 */
+  visualLayout?: VisualLayoutData;
+  /** 图层组数据（备用） */
+  layerGroups?: any[];
+  /** 图层数据（备用） */
+  layers?: any[];
+  /** 地图信息（备用） */
+  mapInfo?: {
+    createTime?: string;
+    updateTime?: string;
+    [key: string]: any;
+  };
+  /** 元素数据（备用） */
+  elements?: {
+    points?: any[];
+    paths?: any[];
+    locations?: any[];
+  };
+}
+
+/**
+ * 视觉布局数据（后端返回）
+ */
+export interface VisualLayoutData {
+  /** 图层组列表 */
+  layerGroups?: any[];
+  /** 图层列表 */
+  layers?: any[];
+  /** X轴比例 */
+  scaleX?: number | string;
+  /** Y轴比例 */
+  scaleY?: number | string;
+  /** 布局名称 */
+  name?: string;
+}
+
+/**
+ * 地图编辑器数据（前端内部使用）
+ */
+export interface MapEditorSaveData {
+  mapInfo: {
+    id: string | number;
+    name: string;
+    mapVersion: string;
+    description?: string;
+    width: number;
+    height: number;
+    scale: number;
+    offsetX: number;
+    offsetY: number;
+    scaleX?: number;
+    scaleY?: number;
+  };
+  layerGroups?: any[];
+  layers?: any[];
+  points?: any[];
+  paths?: any[];
+  locations?: any[];
+  visualLayout?: VisualLayoutData;
+}
+

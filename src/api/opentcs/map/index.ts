@@ -1,6 +1,6 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { MapVO, MapForm, MapQuery } from '@/api/opentcs/map/types';
+import { MapVO, MapForm, MapQuery, MapEditorResponse, MapEditorSaveData } from '@/api/opentcs/map/types';
 
 // 查询地图模型列表
 export function listMap(query?: MapQuery): AxiosPromise<MapVO[]> {
@@ -62,7 +62,7 @@ export const delMap = (id: string | number | Array<string | number>) => {
  * @param mapId 地图ID
  * @param data 编辑器数据
  */
-export const saveMapEditorData = (mapId: string | number, data: any) => {
+export const saveMapEditorData = (mapId: string | number, data: MapEditorSaveData) => {
   // 将编辑器数据序列化为 JSON
   const jsonData = JSON.stringify(data, null, 2);
   
@@ -84,7 +84,7 @@ export const saveMapEditorData = (mapId: string | number, data: any) => {
  * 后端返回标准响应包装：R<PlantModelBO>
  * 注意：后端 VO 字段名为 modelId，这里保持一致。
  */
-export const loadMapEditorData = (modelId: string | number): Promise<any> => {
+export const loadMapEditorData = (modelId: string | number): AxiosPromise<MapEditorResponse> => {
   return request({
     url: `/map/editor/load`,
     method: 'post',

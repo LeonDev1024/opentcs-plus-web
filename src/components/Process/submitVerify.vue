@@ -265,7 +265,6 @@ const openDialog = async (id?: string) => {
   selectCopyUserList.value = task.value.copyList;
   selectCopyUserIds.value = task.value.copyList.map((e) => e.userId).join(',');
   varNodeList.value = task.value.varList;
-  console.log('varNodeList', varNodeList.value)
   buttonDisabled.value = false;
   try {
     const data = {

@@ -19,6 +19,7 @@ import type {
 import { ToolMode as ToolModeEnum, LayerType } from '@/types/mapEditor';
 import { CommandManager } from '@/utils/mapEditor/command';
 import { loadMapEditorData, saveMapEditorData } from '@/api/opentcs/map';
+import type { MapEditorResponse, VisualLayoutData } from '@/api/opentcs/map/types';
 
 export const useMapEditorStore = defineStore('mapEditor', () => {
   // ==================== 状态 ====================
@@ -75,7 +76,18 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   
   // 命令管理器（撤销/重做）
   const commandManager = new CommandManager();
-  
+
+  // 剪贴板（用于复制粘贴）
+  const clipboard = ref<{
+    points: MapPoint[];
+    paths: MapPath[];
+    locations: MapLocation[];
+  }>({
+    points: [],
+    paths: [],
+    locations: []
+  });
+
   // 是否正在加载
   const loading = ref(false);
   
@@ -84,6 +96,20 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
 
   // 栅格底图（导入的 map.yaml + map.pgm）
   const rasterBackground = ref<RasterBackground | null>(null);
+
+  // 版本历史记录
+  interface VersionSnapshot {
+    id: string;
+    timestamp: number;
+    description: string;
+    points: MapPoint[];
+    paths: MapPath[];
+    locations: MapLocation[];
+    layerGroups: LayerGroup[];
+    layers: MapLayer[];
+  }
+  const versionHistory = ref<VersionSnapshot[]>([]);
+  const maxVersionHistory = 20; // 最多保存20个版本
 
   /** 创建默认图层组与图层（新地图无图层时使用） */
   const createDefaultLayerStructure = (): { layerGroups: LayerGroup[]; layers: MapLayer[] } => {
@@ -133,9 +159,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   };
 
   /** 将后端图层组转为前端格式（id 转 string，补全字段） */
-  const normalizeLayerGroups = (raw: any[]): LayerGroup[] => {
+  const normalizeLayerGroups = (raw: Record<string, any>[]): LayerGroup[] => {
     if (!Array.isArray(raw)) return [];
-    return raw.map((g: any) => ({
+    return raw.map((g: Record<string, any>) => ({
       id: g?.id != null ? String(g.id) : `layer_group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: g?.name ?? 'Layer group',
       visible: g?.visible !== false
@@ -143,9 +169,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   };
 
   /** 将后端图层转为前端格式（id 转 string，ordinal->zIndex，补 type/opacity/locked/elementIds） */
-  const normalizeLayers = (raw: any[], layerGroupIdMap: Map<string | number, string>): MapLayer[] => {
+  const normalizeLayers = (raw: Record<string, any>[], layerGroupIdMap: Map<string | number, string>): MapLayer[] => {
     if (!Array.isArray(raw)) return [];
-    return raw.map((l: any, index: number) => {
+    return raw.map((l: Record<string, any>, index: number) => {
       const id = l?.id != null ? String(l.id) : `layer_${Date.now()}_${index}`;
       const groupId = l?.layerGroupId != null ? layerGroupIdMap.get(l.layerGroupId) ?? String(l.layerGroupId) : undefined;
       const typeByOrdinal = [LayerType.POINT, LayerType.PATH, LayerType.LOCATION];
@@ -159,13 +185,13 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         locked: l?.locked === true,
         zIndex: l?.ordinal != null ? Number(l.ordinal) : (l?.zIndex ?? index + 1),
         opacity: l?.opacity ?? 1,
-        elementIds: Array.isArray(l?.elementIds) ? l.elementIds.map((e: any) => String(e)) : []
+        elementIds: Array.isArray(l?.elementIds) ? l.elementIds.map((e: string | number) => String(e)) : []
       };
     });
   };
 
   /** 将后端点转为前端 MapPoint（xPosition/yPosition->x/y，id 转 string，补 editorProps/layerId/status） */
-  const normalizePoint = (p: any, defaultLayerId: string): MapPoint => {
+  const normalizePoint = (p: Record<string, any>, defaultLayerId: string): MapPoint => {
     const id = p?.id != null ? String(p.id) : `point_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const x = p?.x ?? (p?.xPosition != null ? Number(p.xPosition) : 0);
     const y = p?.y ?? (p?.yPosition != null ? Number(p.yPosition) : 0);
@@ -191,7 +217,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   };
 
   /** 将后端路径转为前端 MapPath（sourcePointId/destPointId->startPointId/endPointId，id 转 string，补 geometry/editorProps） */
-  const normalizePath = (p: any, defaultLayerId: string): MapPath => {
+  const normalizePath = (p: Record<string, any>, defaultLayerId: string): MapPath => {
     const id = p?.id != null ? String(p.id) : `path_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const startPointId = p?.startPointId ?? p?.sourcePointId;
     const endPointId = p?.endPointId ?? p?.destPointId;
@@ -226,7 +252,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   };
 
   /** 将后端位置转为前端 MapLocation（xPosition/yPosition->x/y，id 转 string，补 geometry/editorProps） */
-  const normalizeLocation = (l: any, defaultLayerId: string): MapLocation => {
+  const normalizeLocation = (l: Record<string, any>, defaultLayerId: string): MapLocation => {
     const id = l?.id != null ? String(l.id) : `location_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const x = l?.x ?? (l?.xPosition != null ? Number(l.xPosition) : 0);
     const y = l?.y ?? (l?.yPosition != null ? Number(l.yPosition) : 0);
@@ -314,31 +340,42 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   };
   
   // ==================== Getters ====================
-  
+
+  // 元素 Map 缓存 - 优化查找性能 O(n) -> O(1)
+  const pointsMap = computed(() => new Map(points.value.map(p => [p.id, p])));
+  const pathsMap = computed(() => new Map(paths.value.map(p => [p.id, p])));
+  const locationsMap = computed(() => new Map(locations.value.map(l => [l.id, l])));
+
   // 当前选中的元素
   const selectedElements = computed(() => {
     const elements: Array<MapPoint | MapPath | MapLocation> = [];
-    
+
     if (selection.selectedType === 'point') {
       selection.selectedIds.forEach(id => {
-        const point = points.value.find(p => p.id === id);
+        const point = pointsMap.value.get(id);
         if (point) elements.push(point);
       });
     } else if (selection.selectedType === 'path') {
       selection.selectedIds.forEach(id => {
-        const path = paths.value.find(p => p.id === id);
+        const path = pathsMap.value.get(id);
         if (path) elements.push(path);
       });
     } else if (selection.selectedType === 'location') {
       selection.selectedIds.forEach(id => {
-        const location = locations.value.find(l => l.id === id);
+        const location = locationsMap.value.get(id);
         if (location) elements.push(location);
       });
     }
-    
+
     return elements;
   });
-  
+
+  // 选中的元素数量
+  const selectedCount = computed(() => selection.selectedIds.size);
+
+  // 是否有选中元素
+  const hasSelection = computed(() => selection.selectedIds.size > 0);
+
   // 是否可以撤销
   const canUndo = computed(() => commandManager.canUndo());
   
@@ -360,21 +397,18 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       
       try {
         const response = await loadMapEditorData(mapId);
-        // loadMapEditorData 返回 { data: ... } 格式
+        // loadMapEditorData 返回的数据已经被响应拦截器处理，直接是业务数据
         // 后端返回的数据结构：{ code: 200, msg: "操作成功", data: { name, mapId, modelVersion, points, paths, locations, visualLayout: { name, scaleX, scaleY, layers, layerGroups } } }
-        const responseData = (response.data || response) as any;
-        
-        // 处理API返回的实际数据结构
-        // 如果 responseData 有 data 字段，说明是标准响应格式
-        const apiData = responseData.data || responseData;
-        
+        // 或者已经是 { name, mapId, modelVersion, ... } 格式
+        const apiData = (response as MapEditorResponse);
+
         if (apiData && (apiData.name || apiData.visualLayout)) {
           const visualLayout = apiData.visualLayout || {};
           const rawLayerGroups = Array.isArray(visualLayout.layerGroups) ? visualLayout.layerGroups : [];
           const rawLayers = Array.isArray(visualLayout.layers) ? visualLayout.layers : [];
 
           let normalizedGroups = normalizeLayerGroups(rawLayerGroups);
-          const layerGroupIdMap = new Map(rawLayerGroups.map((g: any) => [g?.id, g?.id != null ? String(g.id) : null]).filter(([, v]) => v != null) as [string | number, string][]);
+          const layerGroupIdMap = new Map(rawLayerGroups.map((g: Record<string, any>) => [g?.id, g?.id != null ? String(g.id) : null]).filter(([, v]) => v != null) as [string | number, string][]);
           let normalizedLayers = normalizeLayers(rawLayers, layerGroupIdMap);
 
           if (normalizedGroups.length === 0 || normalizedLayers.length === 0) {
@@ -402,27 +436,27 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               scale: 1,
               offsetX: 0,
               offsetY: 0,
-              scaleX: parseFloat(visualLayout.scaleX) || 50.0,
-              scaleY: parseFloat(visualLayout.scaleY) || 50.0
+              scaleX: parseFloat(String(visualLayout.scaleX)) || 50.0,
+              scaleY: parseFloat(String(visualLayout.scaleY)) || 50.0
             },
             layerGroups: normalizedGroups,
             layers: normalizedLayers,
             elements: {
-              points: rawPoints.map((p: any) => normalizePoint(p, defaultPointLayerId)),
-              paths: rawPaths.map((p: any) => normalizePath(p, defaultPathLayerId)),
-              locations: rawLocations.map((l: any) => normalizeLocation(l, defaultLocationLayerId))
+              points: rawPoints.map((p: Record<string, any>) => normalizePoint(p, defaultPointLayerId)),
+              paths: rawPaths.map((p: Record<string, any>) => normalizePath(p, defaultPathLayerId)),
+              locations: rawLocations.map((l: Record<string, any>) => normalizeLocation(l, defaultLocationLayerId))
             },
             metadata: {
               createdAt: apiData.createTime || new Date().toISOString(),
               updatedAt: apiData.updateTime || new Date().toISOString()
             },
-            visualLayout: visualLayout
+            visualLayout: visualLayout as any
           };
-        } else if (responseData.mapInfo) {
-          const rawGroups = Array.isArray(responseData.layerGroups) ? responseData.layerGroups : [];
-          const rawLayers = Array.isArray(responseData.layers) ? responseData.layers : [];
+        } else if (apiData.mapInfo) {
+          const rawGroups = Array.isArray(apiData.layerGroups) ? apiData.layerGroups : [];
+          const rawLayers = Array.isArray(apiData.layers) ? apiData.layers : [];
           let legGroups = normalizeLayerGroups(rawGroups);
-          const legMap = new Map(rawGroups.map((g: any) => [g?.id, g?.id != null ? String(g.id) : null]).filter(([, v]) => v != null) as [string | number, string][]);
+          const legMap = new Map(rawGroups.map((g: Record<string, any>) => [g?.id, g?.id != null ? String(g.id) : null]).filter(([, v]) => v != null) as [string | number, string][]);
           let legLayers = normalizeLayers(rawLayers, legMap);
           if (legGroups.length === 0 || legLayers.length === 0) {
             const def = createDefaultLayerStructure();
@@ -432,18 +466,18 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           const dpId = legLayers.find((l) => l.type === LayerType.POINT)?.id ?? legLayers[0]?.id ?? '';
           const dpathId = legLayers.find((l) => l.type === LayerType.PATH)?.id ?? legLayers[0]?.id ?? '';
           const dlocId = legLayers.find((l) => l.type === LayerType.LOCATION)?.id ?? legLayers[0]?.id ?? '';
-          const rp = Array.isArray(responseData.elements?.points) ? responseData.elements.points : (Array.isArray(responseData.points) ? responseData.points : []);
-          const rpath = Array.isArray(responseData.elements?.paths) ? responseData.elements.paths : (Array.isArray(responseData.paths) ? responseData.paths : []);
-          const rloc = Array.isArray(responseData.elements?.locations) ? responseData.elements.locations : (Array.isArray(responseData.locations) ? responseData.locations : []);
+          const rp = Array.isArray(apiData.elements?.points) ? apiData.elements.points : (Array.isArray(apiData.points) ? apiData.points : []);
+          const rpath = Array.isArray(apiData.elements?.paths) ? apiData.elements.paths : (Array.isArray(apiData.paths) ? apiData.paths : []);
+          const rloc = Array.isArray(apiData.elements?.locations) ? apiData.elements.locations : (Array.isArray(apiData.locations) ? apiData.locations : []);
           data = {
             mapInfo: {
-              id: responseData.mapInfo.id || mapId,
-              name: responseData.mapInfo.name || '新地图',
-              mapVersion: responseData.mapInfo.modelVersion || '1.0',
-              description: responseData.mapInfo.description || '',
-              width: parseFloat(responseData.mapInfo.layoutWidth) || 1920,
-              height: parseFloat(responseData.mapInfo.layoutHeight) || 1080,
-              scale: parseFloat(responseData.mapInfo.scale) || 1,
+              id: apiData.mapInfo.id || mapId,
+              name: apiData.mapInfo.name || '新地图',
+              mapVersion: apiData.mapInfo.modelVersion || '1.0',
+              description: apiData.mapInfo.description || '',
+              width: parseFloat(apiData.mapInfo.layoutWidth) || 1920,
+              height: parseFloat(apiData.mapInfo.layoutHeight) || 1080,
+              scale: parseFloat(apiData.mapInfo.scale) || 1,
               offsetX: 0,
               offsetY: 0,
               scaleX: 50.0,
@@ -452,22 +486,23 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             layerGroups: legGroups,
             layers: legLayers,
             elements: {
-              points: rp.map((p: any) => normalizePoint(p, dpId)),
-              paths: rpath.map((p: any) => normalizePath(p, dpathId)),
-              locations: rloc.map((l: any) => normalizeLocation(l, dlocId))
+              points: rp.map((p: Record<string, any>) => normalizePoint(p, dpId)),
+              paths: rpath.map((p: Record<string, any>) => normalizePath(p, dpathId)),
+              locations: rloc.map((l: Record<string, any>) => normalizeLocation(l, dlocId))
             },
             metadata: {
-              createdAt: responseData.mapInfo.createTime || new Date().toISOString(),
-              updatedAt: responseData.mapInfo.updateTime || new Date().toISOString()
+              createdAt: apiData.mapInfo.createTime || new Date().toISOString(),
+              updatedAt: apiData.mapInfo.updateTime || new Date().toISOString()
             }
           };
         } else {
           // 如果没有数据，抛出错误（默认图层应该由后端创建）
           throw new Error('地图数据不存在，请先在后端创建地图模型');
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         // 如果文件不存在，抛出错误（默认图层应该由后端创建）
-        if (error?.response?.status === 404 || error?.message?.includes('不存在')) {
+        const err = error as { response?: { status?: number }; message?: string };
+        if (err?.response?.status === 404 || err?.message?.includes('不存在')) {
           throw new Error('地图数据不存在，请先在后端创建地图模型');
         } else {
           throw error;
@@ -475,7 +510,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       }
       
       // 验证数据格式
-      console.log('地图数据：', data.mapInfo);
       if (!data || !data.mapInfo) {
         throw new Error('地图数据格式错误');
       }
@@ -662,15 +696,18 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       isDirty.value = true;
     }
   };
-  
+
   /**
-   * 删除点
+   * 通用删除元素函数 - 抽取重复逻辑
    */
-  const deletePoint = (id: string) => {
-    const index = points.value.findIndex(p => p.id === id);
+  const deleteElement = <T extends { id: string }>(
+    elements: Ref<T[]>,
+    id: string
+  ) => {
+    const index = elements.value.findIndex(el => el.id === id);
     if (index !== -1) {
-      points.value.splice(index, 1);
-      
+      elements.value.splice(index, 1);
+
       // 从图层中移除
       layers.value.forEach(layer => {
         if (!Array.isArray(layer.elementIds)) return;
@@ -679,14 +716,26 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           layer.elementIds.splice(elementIndex, 1);
         }
       });
-      
+
       // 从选择中移除
       selection.selectedIds.delete(id);
-      
+
       isDirty.value = true;
     }
   };
-  
+
+  /**
+   * 删除点
+   */
+  const deletePoint = (id: string) => {
+    // 检查是否锁定
+    const point = points.value.find(p => p.id === id);
+    if (point?.locked) {
+      throw new Error('该元素已锁定，无法删除');
+    }
+    deleteElement(points, id);
+  };
+
   /**
    * 添加路径
    */
@@ -728,26 +777,14 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
    * 删除路径
    */
   const deletePath = (id: string) => {
-    const index = paths.value.findIndex(p => p.id === id);
-    if (index !== -1) {
-      paths.value.splice(index, 1);
-      
-      // 从图层中移除
-      layers.value.forEach(layer => {
-        if (!Array.isArray(layer.elementIds)) return;
-        const elementIndex = layer.elementIds.indexOf(id);
-        if (elementIndex !== -1) {
-          layer.elementIds.splice(elementIndex, 1);
-        }
-      });
-      
-      // 从选择中移除
-      selection.selectedIds.delete(id);
-      
-      isDirty.value = true;
+    // 检查是否锁定
+    const path = paths.value.find(p => p.id === id);
+    if (path?.locked) {
+      throw new Error('该元素已锁定，无法删除');
     }
+    deleteElement(paths, id);
   };
-  
+
   /**
    * 添加位置
    */
@@ -790,68 +827,137 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
    * 删除位置
    */
   const deleteLocation = (id: string) => {
-    const index = locations.value.findIndex(l => l.id === id);
-    if (index !== -1) {
-      locations.value.splice(index, 1);
-      
-      // 从图层中移除
-      layers.value.forEach(layer => {
-        if (!Array.isArray(layer.elementIds)) return;
-        const elementIndex = layer.elementIds.indexOf(id);
-        if (elementIndex !== -1) {
-          layer.elementIds.splice(elementIndex, 1);
-        }
-      });
-      
-      // 从选择中移除
-      selection.selectedIds.delete(id);
-      
-      isDirty.value = true;
+    // 检查是否锁定
+    const location = locations.value.find(l => l.id === id);
+    if (location?.locked) {
+      throw new Error('该元素已锁定，无法删除');
     }
+    deleteElement(locations, id);
   };
-  
+
+  /**
+   * 锁定/解锁点
+   */
+  const togglePointLock = (id: string) => {
+    const point = points.value.find(p => p.id === id);
+    if (point) {
+      point.locked = !point.locked;
+      isDirty.value = true;
+      return point.locked;
+    }
+    return false;
+  };
+
+  /**
+   * 锁定/解锁路径
+   */
+  const togglePathLock = (id: string) => {
+    const path = paths.value.find(p => p.id === id);
+    if (path) {
+      path.locked = !path.locked;
+      isDirty.value = true;
+      return path.locked;
+    }
+    return false;
+  };
+
+  /**
+   * 锁定/解锁位置
+   */
+  const toggleLocationLock = (id: string) => {
+    const location = locations.value.find(l => l.id === id);
+    if (location) {
+      location.locked = !location.locked;
+      isDirty.value = true;
+      return location.locked;
+    }
+    return false;
+  };
+
+  /**
+   * 批量锁定选中的元素
+   */
+  const lockSelectedElements = (lock: boolean = true) => {
+    if (selection.selectedType === 'point') {
+      selection.selectedIds.forEach(id => {
+        const point = points.value.find(p => p.id === id);
+        if (point) point.locked = lock;
+      });
+    } else if (selection.selectedType === 'path') {
+      selection.selectedIds.forEach(id => {
+        const path = paths.value.find(p => p.id === id);
+        if (path) path.locked = lock;
+      });
+    } else if (selection.selectedType === 'location') {
+      selection.selectedIds.forEach(id => {
+        const location = locations.value.find(l => l.id === id);
+        if (location) location.locked = lock;
+      });
+    }
+    isDirty.value = true;
+  };
+
+  /**
+   * 检查元素是否锁定
+   */
+  const isElementLocked = (id: string, type: 'point' | 'path' | 'location'): boolean => {
+    if (type === 'point') {
+      return points.value.find(p => p.id === id)?.locked || false;
+    } else if (type === 'path') {
+      return paths.value.find(p => p.id === id)?.locked || false;
+    } else if (type === 'location') {
+      return locations.value.find(l => l.id === id)?.locked || false;
+    }
+    return false;
+  };
+
   /**
    * 选择元素
+   * @param id 元素ID
+   * @param type 元素类型
+   * @param multiSelect 是否多选（追加模式）
+   * @param shiftSelect 是否使用Shift键选择（追加模式）
    */
-  const selectElement = (id: string, type: 'point' | 'path' | 'location' | 'layout', multiSelect = false) => {
-    if (!multiSelect) {
+  const selectElement = (id: string, type: 'point' | 'path' | 'location' | 'layout', multiSelect = false, shiftSelect = false) => {
+    if (shiftSelect || multiSelect) {
+      // 追加模式：不清除现有选择
+      if (selection.selectedIds.has(id)) {
+        // 如果已经选中，则取消选中
+        selection.selectedIds.delete(id);
+      } else {
+        selection.selectedIds.add(id);
+      }
+    } else {
       selection.selectedIds.clear();
+      selection.selectedIds.add(id);
     }
-    selection.selectedIds.add(id);
     selection.selectedType = type;
   };
 
   /**
-   * 选择 Layout（与 openTCS 一致：选中布局节点时显示布局属性）
+   * 批量选择元素
+   * @param ids 元素ID数组
+   * @param type 元素类型
+   * @param append 是否追加模式
    */
-  const selectLayout = () => {
-    selection.selectedIds.clear();
-    selection.selectedIds.add('layout');
-    selection.selectedType = 'layout';
+  const selectElements = (ids: string[], type: 'point' | 'path' | 'location', append = false) => {
+    if (!append) {
+      selection.selectedIds.clear();
+    }
+    ids.forEach(id => selection.selectedIds.add(id));
+    selection.selectedType = type;
   };
 
   /**
-   * 更新布局属性（Name、Scale of x-axis/y-axis）
+   * 全选所有元素
    */
-  const updateLayoutProperties = (payload: { name?: string; scaleX?: number; scaleY?: number }) => {
-    if (!mapData.value) return;
-    if (payload.name !== undefined) {
-      if (!mapData.value.visualLayout) {
-        mapData.value.visualLayout = { name: payload.name };
-      } else {
-        mapData.value.visualLayout.name = payload.name;
-      }
-      if (mapData.value.mapInfo) mapData.value.mapInfo.name = payload.name;
-    }
-    if (payload.scaleX !== undefined && mapData.value.mapInfo) {
-      mapData.value.mapInfo.scaleX = payload.scaleX;
-      if (mapData.value.visualLayout) mapData.value.visualLayout.scaleX = payload.scaleX;
-    }
-    if (payload.scaleY !== undefined && mapData.value.mapInfo) {
-      mapData.value.mapInfo.scaleY = payload.scaleY;
-      if (mapData.value.visualLayout) mapData.value.visualLayout.scaleY = payload.scaleY;
-    }
-    isDirty.value = true;
+  const selectAll = () => {
+    selection.selectedIds.clear();
+    points.value.forEach(p => selection.selectedIds.add(p.id));
+    paths.value.forEach(p => selection.selectedIds.add(p.id));
+    locations.value.forEach(l => selection.selectedIds.add(l.id));
+    // 选中多种类型时，selectedType 设为 null 表示多类型选择
+    selection.selectedType = null;
   };
 
   /**
@@ -861,7 +967,122 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     selection.selectedIds.clear();
     selection.selectedType = null;
   };
-  
+
+  /**
+   * 复制选中的元素到剪贴板
+   */
+  const copySelected = () => {
+    const copiedPoints: MapPoint[] = [];
+    const copiedPaths: MapPath[] = [];
+    const copiedLocations: MapLocation[] = [];
+
+    selection.selectedIds.forEach(id => {
+      const point = pointsMap.value.get(id);
+      if (point) {
+        copiedPoints.push({ ...point });
+      }
+      const path = pathsMap.value.get(id);
+      if (path) {
+        copiedPaths.push({ ...path });
+      }
+      const location = locationsMap.value.get(id);
+      if (location) {
+        copiedLocations.push({ ...location });
+      }
+    });
+
+    clipboard.value = {
+      points: copiedPoints,
+      paths: copiedPaths,
+      locations: copiedLocations
+    };
+  };
+
+  /**
+   * 粘贴剪贴板中的元素
+   * @param offsetX X轴偏移量
+   * @param offsetY Y轴偏移量
+   * @returns 是否粘贴成功
+   */
+  const paste = (offsetX = 20, offsetY = 20): boolean => {
+    if (clipboard.value.points.length === 0 &&
+        clipboard.value.paths.length === 0 &&
+        clipboard.value.locations.length === 0) {
+      return false;
+    }
+
+    // 创建ID映射，用于更新路径的起点和终点ID
+    const pointIdMap = new Map<string, string>();
+    const locationIdMap = new Map<string, string>();
+
+    // 复制点
+    clipboard.value.points.forEach(point => {
+      const newId = `point_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      pointIdMap.set(point.id, newId);
+      addPoint({
+        ...point,
+        id: newId,
+        x: point.x + offsetX,
+        y: point.y + offsetY,
+        name: `${point.name}_copy`
+      });
+    });
+
+    // 复制位置
+    clipboard.value.locations.forEach(location => {
+      const newId = `location_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      locationIdMap.set(location.id, newId);
+      const newVertices = (location.geometry.vertices || []).map(v => ({
+        x: v.x + offsetX,
+        y: v.y + offsetY
+      }));
+      addLocation({
+        ...location,
+        id: newId,
+        geometry: {
+          ...location.geometry,
+          vertices: newVertices,
+          position: location.geometry.position ? {
+            x: location.geometry.position.x + offsetX,
+            y: location.geometry.position.y + offsetY
+          } : undefined
+        },
+        name: `${location.name}_copy`
+      });
+    });
+
+    // 复制路径（需要更新起点和终点ID）
+    clipboard.value.paths.forEach(path => {
+      const newId = `path_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const newStartPointId = pointIdMap.get(String(path.startPointId)) || path.startPointId;
+      const newEndPointId = pointIdMap.get(String(path.endPointId)) || path.endPointId;
+      const newControlPoints = (path.geometry.controlPoints || []).map(cp => ({
+        x: cp.x + offsetX,
+        y: cp.y + offsetY
+      }));
+      addPath({
+        ...path,
+        id: newId,
+        startPointId: newStartPointId,
+        endPointId: newEndPointId,
+        geometry: {
+          ...path.geometry,
+          controlPoints: newControlPoints
+        }
+      });
+    });
+
+    return true;
+  };
+
+  /**
+   * 快速复制选中的元素（复制并粘贴，带偏移）
+   */
+  const duplicateSelected = (): boolean => {
+    copySelected();
+    return paste(20, 20);
+  };
+
   /**
    * 添加图层
    */
@@ -1011,7 +1232,82 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     commandManager.execute(command);
     isDirty.value = true;
   };
-  
+
+  /**
+   * 保存版本快照
+   */
+  const saveVersion = (description: string = '自动保存') => {
+    const snapshot: VersionSnapshot = {
+      id: `version_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      timestamp: Date.now(),
+      description,
+      points: JSON.parse(JSON.stringify(points.value)),
+      paths: JSON.parse(JSON.stringify(paths.value)),
+      locations: JSON.parse(JSON.stringify(locations.value)),
+      layerGroups: JSON.parse(JSON.stringify(layerGroups.value)),
+      layers: JSON.parse(JSON.stringify(layers.value))
+    };
+
+    // 添加新版本
+    versionHistory.value.push(snapshot);
+
+    // 限制版本数量
+    if (versionHistory.value.length > maxVersionHistory) {
+      versionHistory.value = versionHistory.value.slice(-maxVersionHistory);
+    }
+
+    return snapshot.id;
+  };
+
+  /**
+   * 获取版本列表
+   */
+  const getVersionHistory = () => {
+    return versionHistory.value.map(v => ({
+      id: v.id,
+      timestamp: v.timestamp,
+      description: v.description,
+      pointCount: v.points.length,
+      pathCount: v.paths.length,
+      locationCount: v.locations.length
+    }));
+  };
+
+  /**
+   * 恢复到指定版本
+   */
+  const restoreVersion = (versionId: string) => {
+    const snapshot = versionHistory.value.find(v => v.id === versionId);
+    if (!snapshot) {
+      throw new Error('版本不存在');
+    }
+
+    // 保存当前状态为新版本（恢复前）
+    saveVersion('恢复前');
+
+    // 恢复到指定版本
+    points.value = JSON.parse(JSON.stringify(snapshot.points));
+    paths.value = JSON.parse(JSON.stringify(snapshot.paths));
+    locations.value = JSON.parse(JSON.stringify(snapshot.locations));
+    layerGroups.value = JSON.parse(JSON.stringify(snapshot.layerGroups));
+    layers.value = JSON.parse(JSON.stringify(snapshot.layers));
+
+    // 清除选择
+    clearSelection();
+
+    // 标记为已修改
+    isDirty.value = true;
+
+    return true;
+  };
+
+  /**
+   * 清除版本历史
+   */
+  const clearVersionHistory = () => {
+    versionHistory.value = [];
+  };
+
   /**
    * 重置编辑器
    */
@@ -1061,9 +1357,12 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     loading,
     isDirty,
     rasterBackground,
+    versionHistory,
     
     // Getters
     selectedElements,
+    selectedCount,
+    hasSelection,
     canUndo,
     canRedo,
     
@@ -1085,10 +1384,18 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     addLocation,
     updateLocation,
     deleteLocation,
+    togglePointLock,
+    togglePathLock,
+    toggleLocationLock,
+    lockSelectedElements,
+    isElementLocked,
     selectElement,
-    selectLayout,
-    updateLayoutProperties,
+    selectElements,
+    selectAll,
     clearSelection,
+    copySelected,
+    paste,
+    duplicateSelected,
     addLayer,
     updateLayer,
     deleteLayer,
@@ -1099,6 +1406,10 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     undo,
     redo,
     executeCommand,
+    saveVersion,
+    getVersionHistory,
+    restoreVersion,
+    clearVersionHistory,
     reset,
     setRasterBackground,
     clearRasterBackground

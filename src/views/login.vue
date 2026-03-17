@@ -143,7 +143,7 @@ const handleLogin = () => {
         }
       }
     } else {
-      console.log('error submit!', fields);
+      console.error('error submit!', fields);
     }
   });
 };

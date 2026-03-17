@@ -176,6 +176,11 @@
   }
 }
 
+// 表单项标签统一样式（对话框内）
+.el-form-item__label {
+  font-weight: var(--font-weight-medium);
+}
+
 // 输入框优化
 .el-input {
   .el-input__wrapper {

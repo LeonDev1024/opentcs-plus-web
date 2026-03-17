@@ -207,9 +207,3 @@ const handleSave = async () => {
 };
 </script>
 
-<style scoped lang="scss">
-:deep(.el-form-item__label) {
-  font-weight: 500;
-}
-</style>
-

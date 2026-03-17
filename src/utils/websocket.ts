@@ -15,7 +15,7 @@ export const initWebSocket = (url: any) => {
       // 重连间隔
       delay: 1000,
       onFailed() {
-        console.log('websocket重连失败');
+        console.error('websocket重连失败');
       }
     },
     heartbeat: {
@@ -24,12 +24,6 @@ export const initWebSocket = (url: any) => {
       interval: 10000,
       // 接收到心跳response的超时时间
       pongTimeout: 2000
-    },
-    onConnected() {
-      console.log('websocket已经连接');
-    },
-    onDisconnected() {
-      console.log('websocket已经断开');
     },
     onMessage: (_, e) => {
       if (e.data.indexOf('ping') > 0) {

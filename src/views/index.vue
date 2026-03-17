@@ -150,7 +150,6 @@ const alarmStats = ref({
 
 onMounted(() => {
   // 这里可以从后端获取真实数据
-  console.log('首页加载完成');
 });
 </script>
 

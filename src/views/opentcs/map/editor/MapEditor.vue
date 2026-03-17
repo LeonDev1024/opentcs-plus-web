@@ -18,11 +18,17 @@
             <template #title>导出</template>
             <el-menu-item index="export-editor" @click="handleExportCommand('editor')">导出编辑器 JSON</el-menu-item>
             <el-menu-item index="export-model" @click="handleExportCommand('model')">导出 openTCS 模型</el-menu-item>
+            <el-divider style="margin: 4px 0" />
+            <el-menu-item index="export-png" @click="handleExportImage('png')">导出 PNG 图片</el-menu-item>
+            <el-menu-item index="export-svg" @click="handleExportImage('svg')">导出 SVG 图片</el-menu-item>
           </el-sub-menu>
           <el-sub-menu index="import" popper-class="nested-sub-menu">
             <template #title>导入</template>
             <el-menu-item index="import-editor" @click="handleImportCommand('editor')">导入编辑器 JSON</el-menu-item>
             <el-menu-item index="import-model" @click="handleImportCommand('model')">导入 openTCS 模型</el-menu-item>
+            <el-divider style="margin: 4px 0" />
+            <el-menu-item index="import-raster" @click="importRasterDialogVisible = true">导入栅格地图</el-menu-item>
+            <el-menu-item index="import-csv" @click="handleImportCsv">批量导入点位 (CSV)</el-menu-item>
           </el-sub-menu>
         </el-sub-menu>
         <el-sub-menu index="edit" :show-timeout="0" :hide-timeout="0">
@@ -39,6 +45,11 @@
           <el-menu-item index="delete" :disabled="!hasSelection" @click="handleBatchDelete">
             <el-icon><Delete /></el-icon>
             <span>删除</span>
+          </el-menu-item>
+          <el-divider style="margin: 4px 0" />
+          <el-menu-item index="version-history" @click="openVersionHistoryDialog">
+            <el-icon><Clock /></el-icon>
+            <span>版本历史</span>
           </el-menu-item>
         </el-sub-menu>
         <el-sub-menu index="insert" :show-timeout="0" :hide-timeout="0">
@@ -66,6 +77,15 @@
             <el-icon><FullScreen /></el-icon>
             <span>重置缩放</span>
           </el-menu-item>
+          <el-divider style="margin: 4px 0" />
+          <el-menu-item index="raster-calibrate" :disabled="!mapEditorStore.rasterBackground" @click="openRasterCalibrateDialog">
+            <el-icon><Location /></el-icon>
+            <span>栅格坐标校准</span>
+          </el-menu-item>
+          <el-menu-item index="raster-remove" :disabled="!mapEditorStore.rasterBackground" @click="removeRasterBackground">
+            <el-icon><Delete /></el-icon>
+            <span>移除栅格底图</span>
+          </el-menu-item>
         </el-sub-menu>
       </el-menu>
       <div class="menu-bar-right">
@@ -80,7 +100,7 @@
     <div class="toolbar">
       <div class="toolbar-left">
         <el-button-group>
-          <el-tooltip content="选择工具" :show-after="50" placement="bottom">
+          <el-tooltip content="选择工具 (1)" :show-after="50" placement="bottom">
             <el-button
               :type="currentTool === 'select' ? 'primary' : 'default'"
               size="small"
@@ -88,7 +108,7 @@
               @click="setTool(ToolMode.SELECT)"
             />
           </el-tooltip>
-          <el-tooltip content="平移工具" :show-after="50" placement="bottom">
+          <el-tooltip content="平移工具 (2)" :show-after="50" placement="bottom">
             <el-button
               :type="currentTool === 'pan' ? 'primary' : 'default'"
               size="small"
@@ -100,7 +120,7 @@
         <el-divider direction="vertical" />
         <el-button-group class="creation-tool-group">
           <div class="point-tool-wrapper toolbar-tool toolbar-tool-point">
-            <el-tooltip content="绘制点" :show-after="50" placement="bottom">
+            <el-tooltip content="绘制点 (3)" :show-after="50" placement="bottom">
               <el-button
                 :type="currentTool === 'point' ? 'primary' : 'default'"
                 size="small"
@@ -151,7 +171,7 @@
             </el-dropdown>
           </div>
           <div class="path-tool-wrapper toolbar-tool toolbar-tool-path">
-            <el-tooltip content="创建连线（点↔点）" :show-after="50" placement="bottom">
+            <el-tooltip content="创建连线 (4)" :show-after="50" placement="bottom">
               <el-button
                 :type="currentTool === 'path' ? 'primary' : 'default'"
                 size="small"
@@ -196,7 +216,7 @@
               </template>
             </el-dropdown>
           </div>
-          <el-tooltip content="绘制位置" :show-after="50" placement="bottom">
+          <el-tooltip content="绘制位置 (5)" :show-after="50" placement="bottom">
             <el-button
               class="toolbar-tool toolbar-tool-location"
               :type="currentTool === 'location' ? 'primary' : 'default'"
@@ -208,7 +228,7 @@
               </template>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="虚线路径（点↔业务位置）" :show-after="50" placement="bottom">
+          <el-tooltip content="虚线路径 (6)" :show-after="50" placement="bottom">
             <el-button
               class="toolbar-tool toolbar-tool-dashed"
               :type="currentTool === 'dashedLink' ? 'primary' : 'default'"
@@ -220,7 +240,7 @@
               </template>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="规则区域" :show-after="50" placement="bottom">
+          <el-tooltip content="规则区域 (7)" :show-after="50" placement="bottom">
             <el-button
               class="toolbar-tool toolbar-tool-rule"
               :type="currentTool === 'ruleRegion' ? 'primary' : 'default'"
@@ -264,6 +284,14 @@
               @click="handleBatchDelete"
             />
           </el-tooltip>
+          <el-tooltip content="批量属性编辑" :show-after="50" placement="bottom">
+            <el-button
+              size="small"
+              icon="Edit"
+              :disabled="!hasMultiSelection"
+              @click="openBatchEditDialog"
+            />
+          </el-tooltip>
         </el-button-group>
         <el-divider direction="vertical" />
         <div class="export-import-group">
@@ -300,11 +328,19 @@
           </el-tooltip>
         </el-button-group>
         <el-tooltip content="显示/隐藏网格" :show-after="50" placement="bottom">
-          <el-button 
+          <el-button
             :type="showGrid ? 'primary' : 'default'"
             size="small"
             icon="Grid"
             @click="toggleGrid"
+            :circle="true"
+          />
+        </el-tooltip>
+        <el-tooltip content="网格设置" :show-after="50" placement="bottom">
+          <el-button
+            size="small"
+            icon="Setting"
+            @click="openGridSettingsDialog"
             :circle="true"
           />
         </el-tooltip>
@@ -328,6 +364,49 @@
         </el-tooltip>
       </div>
       <div class="toolbar-right">
+        <!-- 仿真控制面板 -->
+        <template v-if="isSimulating">
+          <el-tooltip content="仿真速度" :show-after="50" placement="bottom">
+            <el-select v-model="simulationSpeed" size="small" style="width: 80px">
+              <el-option label="0.5x" :value="0.5" />
+              <el-option label="1x" :value="1" />
+              <el-option label="2x" :value="2" />
+              <el-option label="3x" :value="3" />
+            </el-select>
+          </el-tooltip>
+          <el-progress
+            :percentage="simulationProgress"
+            :stroke-width="8"
+            :show-text="false"
+            style="width: 100px"
+          />
+          <span class="simulation-progress-text">{{ simulationProgress }}%</span>
+        </template>
+        <!-- 仿真控制按钮 -->
+        <el-tooltip content="路径仿真 (选中路径后点击)" :show-after="50" placement="bottom">
+          <el-button
+            size="small"
+            :type="isSimulating ? 'warning' : 'default'"
+            :icon="isSimulating ? 'VideoPause' : 'VideoPlay'"
+            @click="toggleSimulation"
+            :disabled="!hasPathSelected && !isSimulating"
+          >
+            {{ isSimulating ? '停止' : '仿真' }}
+          </el-button>
+        </el-tooltip>
+        <el-divider direction="vertical" />
+        <!-- 地图检测按钮 -->
+        <el-tooltip content="检测地图问题" :show-after="50" placement="bottom">
+          <el-button
+            size="small"
+            :type="mapIssues.length > 0 ? 'danger' : 'default'"
+            :icon="MapLocation"
+            @click="runMapValidation"
+          >
+            检测 {{ mapIssues.length > 0 ? `(${mapIssues.length})` : '' }}
+          </el-button>
+        </el-tooltip>
+        <el-divider direction="vertical" />
         <el-tooltip :content="isLeftPanelCollapsed ? '展开侧边栏' : '收起侧边栏'" :show-after="50" placement="bottom">
           <el-button
             class="collapse-toggle"
@@ -418,7 +497,25 @@
       <!-- 中间：画布区域 -->
       <div class="canvas-area">
         <div class="canvas-wrapper">
-          <MapCanvas ref="mapCanvasRef" @point-double-click="handlePointDoubleClick" :auto-switch-tool="autoSwitchTool" />
+          <MapCanvas
+            ref="mapCanvasRef"
+            @point-double-click="handlePointDoubleClick"
+            :auto-switch-tool="autoSwitchTool"
+            :is-simulating="isSimulating"
+            :simulation-path-id="simulationPathId"
+            :simulation-progress="simulationProgress"
+            :map-issues="mapIssues"
+          />
+        </div>
+        <!-- 鹰眼图 -->
+        <div class="mini-map" @click="handleMiniMapClick">
+          <div class="mini-map-viewport" :style="miniMapViewportStyle"></div>
+          <div
+            v-for="point in mapEditorStore.points.slice(0, 50)"
+            :key="point.id"
+            class="mini-map-point"
+            :style="getMiniMapPointStyle(point)"
+          ></div>
         </div>
       </div>
       
@@ -426,9 +523,18 @@
     
     <!-- 底部状态栏（模型坐标 + scaleX/scaleY 换算为 mm/m，与 openTCS 一致） -->
     <div class="status-bar">
+      <div class="status-left">
+        <span class="selection-info" v-if="mapEditorStore.selectedCount > 0">
+          已选择: {{ mapEditorStore.selectedCount }} 个元素
+        </span>
+        <span class="selection-info" v-else>
+          未选择元素
+        </span>
+      </div>
       <div class="status-right">
+        <span class="zoom-level">缩放: {{ (canvasScale * 100).toFixed(0) }}%</span>
         <span class="coordinates">
-          X: {{ mousePosition.x.toFixed(0) }}, Y: {{ mousePosition.y.toFixed(0) }}
+          坐标: X: {{ mousePosition.x.toFixed(0) }}, Y: {{ mousePosition.y.toFixed(0) }}
           <template v-if="scaleX != null && scaleY != null">
             ({{ formatModelLength(mousePosition.x, scaleX) }}, {{ formatModelLength(mousePosition.y, scaleY) }})
           </template>
@@ -436,7 +542,62 @@
         <span v-if="scaleX != null" class="scale-hint">Scale: {{ scaleX }} mm/unit</span>
       </div>
     </div>
-    
+
+    <!-- 批量属性编辑对话框 -->
+    <el-dialog
+      v-model="batchEditDialogVisible"
+      title="批量属性编辑"
+      width="400"
+      destroy-on-close
+    >
+      <el-form label-width="100px">
+        <el-form-item label="选中元素">
+          <span>{{ mapEditorStore.selection.selectedIds.size }} 个元素</span>
+          <span class="batch-type-hint">({{ mapEditorStore.selection.selectedType }})</span>
+        </el-form-item>
+        <el-form-item label="修改图层">
+          <el-select v-model="batchEditForm.layerId" placeholder="选择图层" clearable>
+            <el-option
+              v-for="layer in mapEditorStore.layers"
+              :key="layer.id"
+              :label="layer.name"
+              :value="layer.id"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchEditDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleBatchEdit">确定</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 网格设置对话框 -->
+    <el-dialog
+      v-model="gridSettingsDialogVisible"
+      title="网格设置"
+      width="350"
+      destroy-on-close
+    >
+      <el-form label-width="80px">
+        <el-form-item label="网格间距">
+          <el-input-number v-model="gridSettingsForm.size" :min="5" :max="100" :step="5" />
+          <span style="margin-left: 8px; color: #909399;">像素</span>
+        </el-form-item>
+        <el-form-item label="网格颜色">
+          <el-color-picker v-model="gridSettingsForm.color" />
+        </el-form-item>
+        <el-form-item label="智能吸附">
+          <el-switch v-model="gridSettingsForm.snapEnabled" />
+          <span style="margin-left: 8px; color: #909399;">拖拽时自动吸附到网格</span>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="gridSettingsDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="applyGridSettings">应用</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 导入栅格地图对话框（选择 map.yaml + map.pgm） -->
     <el-dialog
       v-model="importRasterDialogVisible"
@@ -483,6 +644,298 @@
       </template>
     </el-dialog>
 
+    <!-- 批量导入点位 CSV 对话框 -->
+    <el-dialog
+      v-model="importCsvDialogVisible"
+      title="批量导入点位 (CSV)"
+      width="700"
+      destroy-on-close
+    >
+      <div class="import-csv-form">
+        <div class="import-csv-instructions">
+          <p>请上传 CSV 文件，文件格式如下：</p>
+          <div class="csv-format">
+            <code>name,code,x,y,type,description</code>
+          </div>
+          <ul class="format-notes">
+            <li><strong>name</strong>: 点位名称（必填）</li>
+            <li><strong>code</strong>: 点位编码（可选）</li>
+            <li><strong>x</strong>: X坐标（必填，单位：像素）</li>
+            <li><strong>y</strong>: Y坐标（必填，单位：像素）</li>
+            <li><strong>type</strong>: 点位类型（可选，默认Halt point）</li>
+            <li><strong>description</strong>: 描述（可选）</li>
+          </ul>
+          <p class="type-hint">类型可选值: Halt point, Park point, Station, Charge point</p>
+        </div>
+        <div class="import-csv-upload">
+          <el-button size="small" @click="triggerCsvSelect">选择 CSV 文件</el-button>
+          <input
+            ref="csvInputRef"
+            type="file"
+            accept=".csv"
+            style="display: none"
+            @change="onCsvFileChange"
+          />
+          <span class="file-name">{{ csvFileName || '未选择' }}</span>
+        </div>
+        <div v-if="csvParsedData.length > 0" class="import-csv-preview">
+          <div class="preview-header">
+            <span>预览 (共 {{ csvParsedData.length }} 条记录)</span>
+            <el-button size="small" type="danger" text @click="clearCsvData">清除</el-button>
+          </div>
+          <el-table :data="csvParsedData" height="250" size="small" stripe>
+            <el-table-column prop="name" label="名称" width="120" show-overflow-tooltip />
+            <el-table-column prop="code" label="编码" width="100" show-overflow-tooltip />
+            <el-table-column prop="x" label="X坐标" width="80" align="center" />
+            <el-table-column prop="y" label="Y坐标" width="80" align="center" />
+            <el-table-column prop="type" label="类型" width="100" show-overflow-tooltip />
+            <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip />
+            <el-table-column label="状态" width="80" align="center">
+              <template #default="{ row }">
+                <el-tag v-if="row.error" type="danger" size="small">错误</el-tag>
+                <el-tag v-else type="success" size="small">有效</el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+          <div v-if="csvErrorCount > 0" class="csv-error-summary">
+            <el-alert type="error" :closable="false" show-icon>
+              存在 {{ csvErrorCount }} 条无效数据，将跳过这些记录
+            </el-alert>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="importCsvDialogVisible = false">取消</el-button>
+        <el-button type="primary" :disabled="csvValidCount === 0" @click="confirmImportCsv">
+          导入 {{ csvValidCount }} 个点位
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 栅格底图坐标校准对话框 -->
+    <el-dialog
+      v-model="rasterCalibrateDialogVisible"
+      title="栅格坐标校准"
+      width="450"
+      destroy-on-close
+    >
+      <div class="raster-calibrate-form">
+        <div class="calibrate-info">
+          <p>当前栅格底图参数：</p>
+          <div class="info-row">
+            <span class="label">分辨率:</span>
+            <span>{{ rasterBackgroundInfo?.resolution?.toFixed(4) }} m/像素</span>
+          </div>
+          <div class="info-row">
+            <span class="label">图像尺寸:</span>
+            <span>{{ rasterBackgroundInfo?.widthPx }} × {{ rasterBackgroundInfo?.heightPx }} 像素</span>
+          </div>
+        </div>
+        <el-divider content-position="left">坐标偏移</el-divider>
+        <el-form label-width="80px" size="default">
+          <el-form-item label="原点 X">
+            <el-input-number v-model="rasterCalibrateForm.originX" :step="0.1" :precision="2" controls-position="right" style="width: 100%" />
+            <div class="form-tip">栅格图像左下角在地图中的 X 坐标（单位：米）</div>
+          </el-form-item>
+          <el-form-item label="原点 Y">
+            <el-input-number v-model="rasterCalibrateForm.originY" :step="0.1" :precision="2" controls-position="right" style="width: 100%" />
+            <div class="form-tip">栅格图像左下角在地图中的 Y 坐标（单位：米）</div>
+          </el-form-item>
+          <el-form-item label="分辨率">
+            <el-input-number v-model="rasterCalibrateForm.resolution" :step="0.001" :min="0.0001" :precision="4" controls-position="right" style="width: 100%" />
+            <div class="form-tip">米/像素，修改需谨慎</div>
+          </el-form-item>
+        </el-form>
+        <el-divider content-position="left">快速定位</el-divider>
+        <div class="quick-actions">
+          <el-button size="small" @click="resetRasterOrigin">重置到原点 (0, 0)</el-button>
+          <el-button size="small" @click="centerRasterInView">居中显示</el-button>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="rasterCalibrateDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="applyRasterCalibration">应用</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 版本历史对话框 -->
+    <el-dialog
+      v-model="versionHistoryDialogVisible"
+      title="版本历史"
+      width="600"
+      destroy-on-close
+    >
+      <div class="version-history">
+        <div class="version-actions">
+          <el-button size="small" type="primary" @click="createVersionSnapshot">创建快照</el-button>
+          <el-button size="small" @click="refreshVersionList">刷新</el-button>
+          <el-button size="small" @click="openVersionCompareDialog">版本对比</el-button>
+        </div>
+        <el-table :data="versionHistoryList" height="350" size="small" stripe>
+          <el-table-column prop="description" label="描述" min-width="120" show-overflow-tooltip />
+          <el-table-column label="时间" width="180">
+            <template #default="{ row }">
+              {{ formatVersionTime(row.timestamp) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="pointCount" label="点数" width="60" align="center" />
+          <el-table-column prop="pathCount" label="路径" width="60" align="center" />
+          <el-table-column prop="locationCount" label="位置" width="60" align="center" />
+          <el-table-column label="操作" width="100" align="center">
+            <template #default="{ row }">
+              <el-button type="primary" size="small" link @click="restoreVersion(row.id)">恢复</el-button>
+              <el-popconfirm title="确定删除此版本?" @confirm="deleteVersion(row.id)">
+                <template #reference>
+                  <el-button type="danger" size="small" link>删除</el-button>
+                </template>
+              </el-popconfirm>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div class="version-tip">
+          <el-alert type="info" :closable="false" show-icon>
+            最多保存 {{ maxVersionCount }} 个版本，恢复操作会自动保存当前状态
+          </el-alert>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="versionHistoryDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 版本对比对话框 -->
+    <el-dialog
+      v-model="versionCompareDialogVisible"
+      title="版本对比"
+      width="900"
+      destroy-on-close
+    >
+      <div class="version-compare">
+        <div class="compare-selector">
+          <div class="selector-item">
+            <span class="label">基准版本：</span>
+            <el-select v-model="compareVersionA" placeholder="选择版本" size="small" style="width: 200px">
+              <el-option
+                v-for="v in versionHistoryList"
+                :key="v.id"
+                :label="`${v.description} (${formatVersionTime(v.timestamp)})`"
+                :value="v.id"
+              />
+            </el-select>
+          </div>
+          <div class="selector-item">
+            <span class="label">对比版本：</span>
+            <el-select v-model="compareVersionB" placeholder="选择版本" size="small" style="width: 200px">
+              <el-option
+                v-for="v in versionHistoryList"
+                :key="v.id"
+                :label="`${v.description} (${formatVersionTime(v.timestamp)})`"
+                :value="v.id"
+              />
+            </el-select>
+          </div>
+          <el-button type="primary" size="small" :disabled="!compareVersionA || !compareVersionB" @click="runVersionCompare">对比</el-button>
+        </div>
+
+        <div v-if="compareResult" class="compare-result">
+          <el-tabs v-model="compareActiveTab">
+            <el-tab-pane label="点位变更" name="points">
+              <div class="change-summary">
+                <el-tag type="success" size="small">新增 {{ compareResult.points.added.length }}</el-tag>
+                <el-tag type="danger" size="small">删除 {{ compareResult.points.removed.length }}</el-tag>
+                <el-tag type="warning" size="small">修改 {{ compareResult.points.modified.length }}</el-tag>
+              </div>
+              <el-table :data="compareResult.points.all" height="250" size="small" stripe>
+                <el-table-column prop="changeType" label="变更" width="70" align="center">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.changeType === 'added'" type="success" size="small">新增</el-tag>
+                    <el-tag v-else-if="row.changeType === 'removed'" type="danger" size="small">删除</el-tag>
+                    <el-tag v-else type="warning" size="small">修改</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="name" label="名称" width="120" show-overflow-tooltip />
+                <el-table-column prop="x" label="X" width="70" align="center" />
+                <el-table-column prop="y" label="Y" width="70" align="center" />
+                <el-table-column prop="type" label="类型" width="100" show-overflow-tooltip />
+                <el-table-column label="变更详情" min-width="200">
+                  <template #default="{ row }">
+                    <span v-if="row.changeType === 'modified'" class="change-detail">
+                      <template v-for="(val, key) in row.changes" :key="key">
+                        {{ key }}: {{ val.from }} → {{ val.to }};
+                      </template>
+                    </span>
+                    <span v-else class="change-detail">-</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+
+            <el-tab-pane label="路径变更" name="paths">
+              <div class="change-summary">
+                <el-tag type="success" size="small">新增 {{ compareResult.paths.added.length }}</el-tag>
+                <el-tag type="danger" size="small">删除 {{ compareResult.paths.removed.length }}</el-tag>
+                <el-tag type="warning" size="small">修改 {{ compareResult.paths.modified.length }}</el-tag>
+              </div>
+              <el-table :data="compareResult.paths.all" height="250" size="small" stripe>
+                <el-table-column prop="changeType" label="变更" width="70" align="center">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.changeType === 'added'" type="success" size="small">新增</el-tag>
+                    <el-tag v-else-if="row.changeType === 'removed'" type="danger" size="small">删除</el-tag>
+                    <el-tag v-else type="warning" size="small">修改</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="name" label="名称" min-width="150" show-overflow-tooltip />
+                <el-table-column label="变更详情" min-width="200">
+                  <template #default="{ row }">
+                    <span v-if="row.changeType === 'modified'" class="change-detail">
+                      <template v-for="(val, key) in row.changes" :key="key">
+                        {{ key }}: {{ val.from }} → {{ val.to }};
+                      </template>
+                    </span>
+                    <span v-else class="change-detail">-</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+
+            <el-tab-pane label="位置变更" name="locations">
+              <div class="change-summary">
+                <el-tag type="success" size="small">新增 {{ compareResult.locations.added.length }}</el-tag>
+                <el-tag type="danger" size="small">删除 {{ compareResult.locations.removed.length }}</el-tag>
+                <el-tag type="warning" size="small">修改 {{ compareResult.locations.modified.length }}</el-tag>
+              </div>
+              <el-table :data="compareResult.locations.all" height="250" size="small" stripe>
+                <el-table-column prop="changeType" label="变更" width="70" align="center">
+                  <template #default="{ row }">
+                    <el-tag v-if="row.changeType === 'added'" type="success" size="small">新增</el-tag>
+                    <el-tag v-else-if="row.changeType === 'removed'" type="danger" size="small">删除</el-tag>
+                    <el-tag v-else type="warning" size="small">修改</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="name" label="名称" min-width="150" show-overflow-tooltip />
+                <el-table-column label="变更详情" min-width="200">
+                  <template #default="{ row }">
+                    <span v-if="row.changeType === 'modified'" class="change-detail">
+                      <template v-for="(val, key) in row.changes" :key="key">
+                        {{ key }}: {{ val.from }} → {{ val.to }};
+                      </template>
+                    </span>
+                    <span v-else class="change-detail">-</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+        <div v-else class="compare-empty">
+          <el-empty description="请选择两个版本进行对比" :image-size="80" />
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="versionCompareDialogVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 点编辑对话框 -->
     <PointEditDialog 
       v-model="showPointEditDialog" 
@@ -493,7 +946,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick, defineProps, defineEmits } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import MapCanvas from './components/MapCanvas.vue';
@@ -508,9 +961,21 @@ import PathTypeIcon from './components/icons/PathTypeIcon.vue';
 import LocationTypeIcon from './components/icons/LocationTypeIcon.vue';
 import SvgIcon from '@/components/SvgIcon/index.vue';
 import { exportMapFile, importMapFile } from '@/api/opentcs/map';
-import { Document, Close, RefreshLeft, RefreshRight, Delete, ZoomIn, ZoomOut, FullScreen, Picture, Location } from '@element-plus/icons-vue';
+import { Document, Close, RefreshLeft, RefreshRight, Delete, ZoomIn, ZoomOut, FullScreen, Picture, Location, Clock } from '@element-plus/icons-vue';
 import { parsePgmToDataUrl } from '@/utils/mapEditor/pgmParser';
 import type { RasterBackground } from '@/types/mapEditor';
+
+// Props
+const props = defineProps<{
+  mapId?: string;
+  mapName?: string;
+}>();
+
+// Emits
+const emit = defineEmits<{
+  (e: 'map-updated', mapName: string): void;
+  (e: 'close'): void;
+}>();
 
 const route = useRoute();
 const router = useRouter();
@@ -544,6 +1009,56 @@ const rasterPgmFileName = ref('');
 const rasterParsedInfo = ref<{ resolution: number; originX: number; originY: number } | null>(null);
 const importRasterLoading = ref(false);
 
+// 栅格坐标校准
+const rasterCalibrateDialogVisible = ref(false);
+const rasterCalibrateForm = reactive({
+  originX: 0,
+  originY: 0,
+  resolution: 0.05
+});
+const rasterBackgroundInfo = computed(() => mapEditorStore.rasterBackground);
+
+// 版本历史
+const versionHistoryDialogVisible = ref(false);
+const versionHistoryList = ref<{
+  id: string;
+  timestamp: number;
+  description: string;
+  pointCount: number;
+  pathCount: number;
+  locationCount: number;
+}[]>([]);
+const maxVersionCount = 20;
+
+// 版本对比
+const versionCompareDialogVisible = ref(false);
+const compareVersionA = ref<string>('');
+const compareVersionB = ref<string>('');
+const compareActiveTab = ref('points');
+const compareResult = ref<{
+  points: { added: any[]; removed: any[]; modified: any[]; all: any[] };
+  paths: { added: any[]; removed: any[]; modified: any[]; all: any[] };
+  locations: { added: any[]; removed: any[]; modified: any[]; all: any[] };
+} | null>(null);
+
+// CSV 导入相关计算属性
+const csvValidCount = computed(() => csvParsedData.value.filter(d => !d.error).length);
+const csvErrorCount = computed(() => csvParsedData.value.filter(d => d.error).length);
+
+// 批量导入点位 CSV
+const importCsvDialogVisible = ref(false);
+const csvInputRef = ref<HTMLInputElement | null>(null);
+const csvFileName = ref('');
+const csvParsedData = ref<{
+  name: string;
+  code?: string;
+  x: number;
+  y: number;
+  type: string;
+  description?: string;
+  error?: string;
+}[]>([]);
+
 // 左侧面板收起状态
 const isLeftPanelCollapsed = ref(false);
 
@@ -564,6 +1079,200 @@ const layerPanelHeight = ref<number | null>(null);
 
 // 工具模式记忆状态（默认不自动切换回选择工具）
 const autoSwitchTool = ref(false);
+
+// 仿真状态
+const isSimulating = ref(false);
+const simulationPathId = ref<string | null>(null);
+const simulationProgress = ref(0); // 0-100
+const simulationSpeed = ref(1); // 仿真速度 0.5x, 1x, 2x, 3x
+
+// 地图问题检测
+interface MapIssue {
+  id: string;
+  type: 'disconnected' | 'intersection' | 'radius' | 'overlap';
+  severity: 'warning' | 'error';
+  message: string;
+  elementIds: string[];
+  position?: { x: number; y: number };
+}
+const mapIssues = ref<MapIssue[]>([]);
+
+// 是否有路径被选中
+const hasPathSelected = computed(() => {
+  const selectedType = mapEditorStore.selection.selectedType;
+  const selectedIds = mapEditorStore.selection.selectedIds;
+  return selectedType === 'path' && selectedIds.size > 0;
+});
+
+// 仿真控制
+const toggleSimulation = () => {
+  if (isSimulating.value) {
+    // 停止仿真
+    isSimulating.value = false;
+    simulationPathId.value = null;
+    simulationProgress.value = 0;
+  } else {
+    // 开始仿真
+    const selectedIds = Array.from(mapEditorStore.selection.selectedIds);
+    if (selectedIds.length > 0) {
+      simulationPathId.value = selectedIds[0];
+      isSimulating.value = true;
+      simulationProgress.value = 0;
+      startSimulation();
+    }
+  }
+};
+
+// 开始仿真动画
+let simulationTimer: ReturnType<typeof setInterval> | null = null;
+const startSimulation = () => {
+  if (simulationTimer) {
+    clearInterval(simulationTimer);
+  }
+  const baseInterval = 50; // 基础间隔
+  simulationTimer = setInterval(() => {
+    if (simulationProgress.value >= 100) {
+      simulationProgress.value = 0;
+    } else {
+      // 根据速度调整增量
+      simulationProgress.value += 2 * simulationSpeed.value;
+    }
+  }, baseInterval);
+};
+
+// 运行地图验证检测
+const runMapValidation = () => {
+  const issues: MapIssue[] = [];
+  const points = mapEditorStore.points;
+  const paths = mapEditorStore.paths;
+  const locations = mapEditorStore.locations;
+
+  // 1. 断连检测 - 找出未连接到任何路径的点
+  const connectedPointIds = new Set<string>();
+  paths.forEach(path => {
+    if (path.startPointId) connectedPointIds.add(String(path.startPointId));
+    if (path.endPointId) connectedPointIds.add(String(path.endPointId));
+  });
+  points.forEach(point => {
+    if (!connectedPointIds.has(point.id)) {
+      issues.push({
+        id: `disconnected-${point.id}`,
+        type: 'disconnected',
+        severity: 'warning',
+        message: `点位 "${point.name}" 未连接到任何路径`,
+        elementIds: [point.id],
+        position: { x: point.x, y: point.y }
+      });
+    }
+  });
+
+  // 2. 路径交叉检测 - 简单的线段交叉检测
+  const pathSegments: { id: string; points: { x: number; y: number }[] }[] = [];
+  paths.forEach(path => {
+    if (path.geometry.controlPoints && path.geometry.controlPoints.length >= 2) {
+      pathSegments.push({
+        id: path.id,
+        points: path.geometry.controlPoints
+      });
+    }
+  });
+
+  // 检查路径是否形成回路
+  for (let i = 0; i < paths.length; i++) {
+    const path1 = paths[i];
+    if (!path1.geometry.controlPoints || path1.geometry.controlPoints.length < 2) continue;
+
+    const start1 = path1.geometry.controlPoints[0];
+    const end1 = path1.geometry.controlPoints[path1.geometry.controlPoints.length - 1];
+
+    // 检查是否形成孤立回路（起点和终点相连但中间没有其他连接）
+    if (String(start1.id) === String(path1.endPointId) && paths.length > 1) {
+      issues.push({
+        id: `loop-${path1.id}`,
+        type: 'intersection',
+        severity: 'warning',
+        message: `路径 "${path1.name}" 形成孤立回路`,
+        elementIds: [path1.id]
+      });
+    }
+  }
+
+  // 3. 转弯半径检测 - 检测路径拐角是否过急
+  paths.forEach(path => {
+    if (path.geometry.controlPoints && path.geometry.controlPoints.length >= 3) {
+      for (let i = 1; i < path.geometry.controlPoints.length - 1; i++) {
+        const prev = path.geometry.controlPoints[i - 1];
+        const curr = path.geometry.controlPoints[i];
+        const next = path.geometry.controlPoints[i + 1];
+
+        // 计算转弯角度
+        const angle1 = Math.atan2(curr.y - prev.y, curr.x - prev.x);
+        const angle2 = Math.atan2(next.y - curr.y, next.x - curr.x);
+        let angleDiff = Math.abs(angle1 - angle2) * 180 / Math.PI;
+        if (angleDiff > 180) angleDiff = 360 - angleDiff;
+
+        // 如果转弯角度大于90度，给出警告
+        if (angleDiff > 90) {
+          issues.push({
+            id: `radius-${path.id}-${i}`,
+            type: 'radius',
+            severity: 'warning',
+            message: `路径 "${path.name}" 转弯角度过大 (${angleDiff.toFixed(1)}°)`,
+            elementIds: [path.id],
+            position: { x: curr.x, y: curr.y }
+          });
+        }
+      }
+    }
+  });
+
+  // 4. 位置区域重叠检测
+  for (let i = 0; i < locations.length; i++) {
+    for (let j = i + 1; j < locations.length; j++) {
+      const loc1 = locations[i];
+      const loc2 = locations[j];
+
+      // 简单的重心距离检测
+      const centroid1 = getLocationCentroid(loc1);
+      const centroid2 = getLocationCentroid(loc2);
+      const distance = Math.hypot(centroid1.x - centroid2.x, centroid1.y - centroid2.y);
+
+      // 假设位置区域大小为40px，如果距离小于40则认为重叠
+      if (distance < 40) {
+        issues.push({
+          id: `overlap-${loc1.id}-${loc2.id}`,
+          type: 'overlap',
+          severity: 'error',
+          message: `位置区域 "${loc1.name}" 与 "${loc2.name}" 重叠`,
+          elementIds: [loc1.id, loc2.id],
+          position: { x: (centroid1.x + centroid2.x) / 2, y: (centroid1.y + centroid2.y) / 2 }
+        });
+      }
+    }
+  }
+
+  mapIssues.value = issues;
+
+  if (issues.length === 0) {
+    ElMessage.success('地图检测通过，未发现问题');
+  } else {
+    ElMessage.warning(`检测到 ${issues.length} 个问题`);
+  }
+};
+
+// 辅助函数：获取位置中心点
+const getLocationCentroid = (location: any) => {
+  const vertices = location.geometry?.vertices || [];
+  if (vertices.length === 0) {
+    return { x: location.x || 0, y: location.y || 0 };
+  }
+  let x = 0, y = 0;
+  vertices.forEach((v: any) => {
+    x += v.x;
+    y += v.y;
+  });
+  return { x: x / vertices.length, y: y / vertices.length };
+};
 
 // 左侧面板宽度
 const LEFT_PANEL_MIN_WIDTH = 200;
@@ -593,6 +1302,123 @@ const scaleY = computed(() => {
   const v = mapEditorStore.mapData?.mapInfo?.scaleY ?? mapEditorStore.mapData?.visualLayout?.scaleY;
   return typeof v === 'number' ? v : (v != null ? parseFloat(String(v)) : null);
 });
+
+// 画布缩放比例
+const canvasScale = computed(() => {
+  return mapEditorStore.canvasState?.scale ?? 1;
+});
+
+// 鹰眼图配置
+const MINI_MAP_SIZE = 150; // 鹰眼图尺寸
+const MINI_MAP_PADDING = 10;
+
+// 计算地图范围
+const mapBounds = computed(() => {
+  const points = mapEditorStore.points;
+  const paths = mapEditorStore.paths;
+  const locations = mapEditorStore.locations;
+
+  let minX = 0, maxX = 1000, minY = 0, maxY = 1000;
+  const allElements = [
+    ...points.map(p => ({ x: p.x, y: p.y })),
+    ...paths.flatMap(p => (p.geometry.controlPoints || []).map(cp => ({ x: cp.x, y: cp.y }))),
+    ...locations.flatMap(l => (l.geometry.vertices || []).map(v => ({ x: v.x, y: v.y })))
+  ];
+
+  if (allElements.length > 0) {
+    const xs = allElements.map(e => e.x);
+    const ys = allElements.map(e => e.y);
+    minX = Math.min(...xs) - 100;
+    maxX = Math.max(...xs) + 100;
+    minY = Math.min(...ys) - 100;
+    maxY = Math.max(...ys) + 100;
+  }
+
+  return { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
+});
+
+// 鹰眼图视口样式
+const miniMapViewportStyle = computed(() => {
+  const bounds = mapBounds.value;
+  const canvasState = mapEditorStore.canvasState || { scale: 1, offsetX: 0, offsetY: 0, width: 1920, height: 1080 };
+  const scale = canvasState.scale || 1;
+  const offsetX = canvasState.offsetX || 0;
+  const offsetY = canvasState.offsetY || 0;
+  const containerWidth = 1920;
+  const containerHeight = 1080;
+
+  if (bounds.width === 0 || bounds.height === 0) {
+    return { display: 'none' };
+  }
+
+  // 计算缩放使地图适应鹰眼图
+  const scaleX = (MINI_MAP_SIZE - MINI_MAP_PADDING * 2) / bounds.width;
+  const scaleY = (MINI_MAP_SIZE - MINI_MAP_PADDING * 2) / bounds.height;
+  const miniScale = Math.min(scaleX, scaleY);
+
+  // 计算视口在鹰眼图中的位置
+  const viewMinX = (0 - offsetX) / scale;
+  const viewMaxX = (containerWidth - offsetX) / scale;
+  const viewMinY = (0 - offsetY) / scale;
+  const viewMaxY = (containerHeight - offsetY) / scale;
+
+  const left = MINI_MAP_PADDING + (viewMinX - bounds.minX) * miniScale;
+  const top = MINI_MAP_PADDING + (viewMinY - bounds.minY) * miniScale;
+  const width = (viewMaxX - viewMinX) * miniScale;
+  const height = (viewMaxY - viewMinY) * miniScale;
+
+  return {
+    left: `${Math.max(MINI_MAP_PADDING, left)}px`,
+    top: `${Math.max(MINI_MAP_PADDING, top)}px`,
+    width: `${Math.min(width, MINI_MAP_SIZE - MINI_MAP_PADDING * 2)}px`,
+    height: `${Math.min(height, MINI_MAP_SIZE - MINI_MAP_PADDING * 2)}px`
+  };
+});
+
+// 获取鹰眼图中点位样式
+const getMiniMapPointStyle = (point: any) => {
+  const bounds = mapBounds.value;
+  if (bounds.width === 0 || bounds.height === 0) {
+    return { display: 'none' };
+  }
+
+  const scaleX = (MINI_MAP_SIZE - MINI_MAP_PADDING * 2) / bounds.width;
+  const scaleY = (MINI_MAP_SIZE - MINI_MAP_PADDING * 2) / bounds.height;
+  const miniScale = Math.min(scaleX, scaleY);
+
+  return {
+    left: `${MINI_MAP_PADDING + (point.x - bounds.minX) * miniScale}px`,
+    top: `${MINI_MAP_PADDING + (point.y - bounds.minY) * miniScale}px`
+  };
+};
+
+// 鹰眼图点击跳转
+const handleMiniMapClick = (event: MouseEvent) => {
+  const target = event.currentTarget as HTMLElement;
+  const rect = target.getBoundingClientRect();
+  const clickX = event.clientX - rect.left - MINI_MAP_PADDING;
+  const clickY = event.clientY - rect.top - MINI_MAP_PADDING;
+
+  const bounds = mapBounds.value;
+  const scaleX = (MINI_MAP_SIZE - MINI_MAP_PADDING * 2) / bounds.width;
+  const scaleY = (MINI_MAP_SIZE - MINI_MAP_PADDING * 2) / bounds.height;
+  const miniScale = Math.min(scaleX, scaleY);
+
+  // 转换到画布坐标
+  const modelX = clickX / miniScale + bounds.minX;
+  const modelY = clickY / miniScale + bounds.minY;
+
+  // 跳转到点击位置（居中）
+  const containerWidth = 1920;
+  const containerHeight = 1080;
+  const scale = mapEditorStore.canvasState?.scale || 1;
+
+  mapEditorStore.updateCanvasState({
+    offsetX: -(modelX - containerWidth / 2 / scale) * scale,
+    offsetY: -(modelY - containerHeight / 2 / scale) * scale
+  });
+};
+
 // 模型坐标 → 实际长度显示（单位 mm，≥1000 时显示为 m）
 const formatModelLength = (modelUnits: number, scaleMmPerUnit: number): string => {
   const mm = modelUnits * scaleMmPerUnit;
@@ -604,6 +1430,48 @@ const hasSelection = computed(() => {
   const { selectedIds, selectedType } = mapEditorStore.selection;
   return selectedIds.size > 0 && selectedType !== 'layout';
 });
+
+// 是否有多个元素被选中
+const hasMultiSelection = computed(() => {
+  return mapEditorStore.selection.selectedIds.size > 1;
+});
+
+// 批量编辑对话框状态
+const batchEditDialogVisible = ref(false);
+const batchEditForm = reactive({
+  layerId: '' as string | null,
+  type: '' as string | null
+});
+
+// 打开批量编辑对话框
+const openBatchEditDialog = () => {
+  batchEditForm.layerId = null;
+  batchEditForm.type = null;
+  batchEditDialogVisible.value = true;
+};
+
+// 执行批量属性修改
+const handleBatchEdit = () => {
+  const selectedIds = mapEditorStore.selection.selectedIds;
+  const selectedType = mapEditorStore.selection.selectedType;
+
+  if (selectedType === 'point' && batchEditForm.layerId) {
+    selectedIds.forEach(id => {
+      mapEditorStore.updatePoint(id, { layerId: batchEditForm.layerId! });
+    });
+  } else if (selectedType === 'path' && batchEditForm.layerId) {
+    selectedIds.forEach(id => {
+      mapEditorStore.updatePath(id, { layerId: batchEditForm.layerId! });
+    });
+  } else if (selectedType === 'location' && batchEditForm.layerId) {
+    selectedIds.forEach(id => {
+      mapEditorStore.updateLocation(id, { layerId: batchEditForm.layerId! });
+    });
+  }
+
+  ElMessage.success(`已批量修改 ${selectedIds.size} 个元素`);
+  batchEditDialogVisible.value = false;
+};
 
 type PathConnectionType = 'direct' | 'orthogonal' | 'curve';
 
@@ -844,6 +1712,35 @@ const toggleGrid = () => {
   }
 };
 
+// 网格设置对话框
+const gridSettingsDialogVisible = ref(false);
+const gridSettingsForm = reactive({
+  size: 20,
+  color: '#dcdfe6',
+  snapEnabled: true
+});
+
+// 打开网格设置对话框
+const openGridSettingsDialog = () => {
+  // 从MapCanvas获取当前网格设置
+  if (mapCanvasRef.value) {
+    const currentGridSize = (mapCanvasRef.value as any).gridSize;
+    if (currentGridSize) gridSettingsForm.size = currentGridSize;
+  }
+  gridSettingsDialogVisible.value = true;
+};
+
+// 应用网格设置
+const applyGridSettings = () => {
+  if (mapCanvasRef.value) {
+    (mapCanvasRef.value as any).setGridSize?.(gridSettingsForm.size);
+    (mapCanvasRef.value as any).setGridColor?.(gridSettingsForm.color);
+    (mapCanvasRef.value as any).setSnapEnabled?.(gridSettingsForm.snapEnabled);
+  }
+  gridSettingsDialogVisible.value = false;
+  ElMessage.success('网格设置已更新');
+};
+
 // 切换标签显示
 const toggleLabels = () => {
   showLabels.value = !showLabels.value;
@@ -1019,12 +1916,13 @@ onMounted(async () => {
   });
   
   // 加载地图数据：
-  // - 如果带有 id（从地图列表“编辑”跳转），则从后端加载对应地图
-  // - 如果没有 id（从左侧菜单直接打开），则进入“空白编辑器”模式，不再强制调用 loadMap，避免报错
-  const mapId = route.query.id as string;
-  if (mapId) {
+  // - 如果带有 id（从地图列表”编辑”跳转），则从后端加载对应地图
+  // - 如果没有 id（从左侧菜单直接打开），则进入”空白编辑器”模式，不再强制调用 loadMap，避免报错
+  // 优先使用 props.mapId，其次使用 route.query.id
+  const loadedMapId = props.mapId || route.query.id as string;
+  if (loadedMapId) {
     try {
-      await mapEditorStore.loadMap(mapId);
+      await mapEditorStore.loadMap(loadedMapId);
       ElMessage.success('地图加载成功');
     } catch (error: any) {
       const errorMessage = error?.response?.data?.msg || error?.message || '加载失败';
@@ -1032,7 +1930,7 @@ onMounted(async () => {
       console.error('加载错误详情:', error);
     }
   } else {
-    // 从菜单直接打开：重置为干净状态，由用户通过“导入地图 / 导入 openTCS 模型”加载数据
+    // 从菜单直接打开：重置为干净状态，由用户通过”导入地图 / 导入 openTCS 模型”加载数据
     mapEditorStore.reset();
   }
   
@@ -1052,6 +1950,9 @@ const handleSave = async () => {
   try {
     await mapEditorStore.saveMap();
     ElMessage.success('保存成功');
+    // 通知父组件地图已更新
+    const mapName = mapEditorStore.mapData?.mapInfo?.name || props.mapName || '未命名';
+    emit('map-updated', mapName);
   } catch (error: any) {
     const errorMessage = error?.response?.data?.msg || error?.message || '保存失败';
     ElMessage.error('保存失败：' + errorMessage);
@@ -1125,6 +2026,17 @@ const handleBatchDelete = async () => {
   } catch (error) {
     // 用户取消删除
   }
+};
+
+// 快速复制选中元素（带偏移粘贴）
+const handleQuickDuplicate = () => {
+  const selectedIds = mapEditorStore.selection.selectedIds;
+  if (selectedIds.size === 0) {
+    ElMessage.warning('请先选择要复制的元素');
+    return;
+  }
+  mapEditorStore.duplicateSelected();
+  ElMessage.success('已复制选中元素');
 };
 
 // 导出地图
@@ -1425,6 +2337,30 @@ const handleImportCommand = (command: 'editor' | 'model') => {
   }
 };
 
+// 导出图片
+const handleExportImage = (format: 'png' | 'svg') => {
+  const mapCanvas = mapCanvasRef.value;
+  if (!mapCanvas) {
+    ElMessage.error('画布组件未就绪');
+    return;
+  }
+
+  // 调用MapCanvas的导出方法
+  mapCanvas.exportAsImage(format).then((dataUrl: string) => {
+    // 创建下载链接
+    const link = document.createElement('a');
+    const mapName = mapEditorStore.mapData?.mapInfo?.name || 'map';
+    link.download = `${mapName}_${Date.now()}.${format}`;
+    link.href = dataUrl;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    ElMessage.success(`已导出 ${format.toUpperCase()} 图片`);
+  }).catch((error: any) => {
+    ElMessage.error('导出失败: ' + error.message);
+  });
+};
+
 // ---------- 导入栅格地图（map.yaml + map.pgm）----------
 function parseMapYaml(text: string): { resolution: number; originX: number; originY: number } | null {
   let resolution = 0.05;
@@ -1526,6 +2462,414 @@ const confirmImportRaster = async () => {
   }
 };
 
+// 栅格坐标校准相关函数
+const openRasterCalibrateDialog = () => {
+  const raster = mapEditorStore.rasterBackground;
+  if (!raster) {
+    ElMessage.warning('请先导入栅格地图');
+    return;
+  }
+  rasterCalibrateForm.originX = raster.originX;
+  rasterCalibrateForm.originY = raster.originY;
+  rasterCalibrateForm.resolution = raster.resolution;
+  rasterCalibrateDialogVisible.value = true;
+};
+
+const applyRasterCalibration = () => {
+  const raster = mapEditorStore.rasterBackground;
+  if (!raster) {
+    ElMessage.warning('没有栅格底图');
+    return;
+  }
+  mapEditorStore.setRasterBackground({
+    ...raster,
+    originX: rasterCalibrateForm.originX,
+    originY: rasterCalibrateForm.originY,
+    resolution: rasterCalibrateForm.resolution
+  });
+  rasterCalibrateDialogVisible.value = false;
+  ElMessage.success('栅格坐标已更新');
+};
+
+const resetRasterOrigin = () => {
+  rasterCalibrateForm.originX = 0;
+  rasterCalibrateForm.originY = 0;
+};
+
+const centerRasterInView = () => {
+  const raster = mapEditorStore.rasterBackground;
+  if (!raster) return;
+
+  // 计算栅格中心在地图坐标中的位置
+  const centerX = raster.originX + (raster.widthPx * raster.resolution) / 2;
+  const centerY = raster.originY + (raster.heightPx * raster.resolution) / 2;
+
+  // 获取画布尺寸
+  const canvasState = mapEditorStore.canvasState || { width: 1920, height: 1080 };
+
+  // 将视图中心移动到栅格中心
+  mapEditorStore.updateCanvasState({
+    offsetX: canvasState.width / 2 - centerX,
+    offsetY: canvasState.height / 2 - centerY
+  });
+  ElMessage.success('已定位到栅格中心');
+};
+
+const removeRasterBackground = async () => {
+  try {
+    await ElMessageBox.confirm('确定要移除栅格底图吗？', '确认', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+    mapEditorStore.setRasterBackground(null);
+    ElMessage.success('栅格底图已移除');
+  } catch {
+    // 用户取消
+  }
+};
+
+// 版本历史相关函数
+const openVersionHistoryDialog = () => {
+  refreshVersionList();
+  versionHistoryDialogVisible.value = true;
+};
+
+const refreshVersionList = () => {
+  versionHistoryList.value = mapEditorStore.getVersionHistory().reverse();
+};
+
+const formatVersionTime = (timestamp: number) => {
+  const date = new Date(timestamp);
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+};
+
+const createVersionSnapshot = async () => {
+  try {
+    const { value } = await ElMessageBox.prompt('请输入版本描述', '创建快照', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputPlaceholder: '例如：添加了工作站点位',
+      inputValue: `手动保存 ${versionHistoryList.value.length + 1}`
+    });
+    if (value) {
+      mapEditorStore.saveVersion(value);
+      refreshVersionList();
+      ElMessage.success('版本快照已保存');
+    }
+  } catch {
+    // 用户取消
+  }
+};
+
+const restoreVersion = async (versionId: string) => {
+  try {
+    await ElMessageBox.confirm('确定要恢复到该版本吗？当前未保存的更改将丢失。', '确认恢复', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    });
+    mapEditorStore.restoreVersion(versionId);
+    refreshVersionList();
+    ElMessage.success('已恢复到指定版本');
+  } catch (err: any) {
+    if (err !== 'cancel') {
+      ElMessage.error('恢复失败：' + (err?.message || '未知错误'));
+    }
+  }
+};
+
+const deleteVersion = (versionId: string) => {
+  const versions = mapEditorStore.versionHistory;
+  const index = versions.findIndex(v => v.id === versionId);
+  if (index !== -1) {
+    versions.splice(index, 1);
+    refreshVersionList();
+    ElMessage.success('版本已删除');
+  }
+};
+
+// 版本对比相关函数
+const openVersionCompareDialog = () => {
+  compareVersionA.value = '';
+  compareVersionB.value = '';
+  compareResult.value = null;
+  versionCompareDialogVisible.value = true;
+};
+
+const runVersionCompare = () => {
+  if (!compareVersionA.value || !compareVersionB.value) {
+    ElMessage.warning('请选择两个版本进行对比');
+    return;
+  }
+
+  const versions = mapEditorStore.versionHistory;
+  const versionA = versions.find(v => v.id === compareVersionA.value);
+  const versionB = versions.find(v => v.id === compareVersionB.value);
+
+  if (!versionA || !versionB) {
+    ElMessage.error('版本不存在');
+    return;
+  }
+
+  // 对比点位
+  const pointsResult = compareElements(versionA.points, versionB.points, 'point');
+
+  // 对比路径
+  const pathsResult = compareElements(versionA.paths, versionB.paths, 'path');
+
+  // 对比位置
+  const locationsResult = compareElements(versionA.locations, versionB.locations, 'location');
+
+  compareResult.value = {
+    points: pointsResult,
+    paths: pathsResult,
+    locations: locationsResult
+  };
+};
+
+interface CompareItem {
+  id: string;
+  name: string;
+  changeType: 'added' | 'removed' | 'modified' | 'unchanged';
+  changes?: Record<string, { from: any; to: any }>;
+  [key: string]: any;
+}
+
+const compareElements = (
+  oldList: any[],
+  newList: any[],
+  type: 'point' | 'path' | 'location'
+): { added: CompareItem[]; removed: CompareItem[]; modified: CompareItem[]; all: CompareItem[] } => {
+  const oldMap = new Map(oldList.map(item => [item.id, item]));
+  const newMap = new Map(newList.map(item => [item.id, item]));
+
+  const added: CompareItem[] = [];
+  const removed: CompareItem[] = [];
+  const modified: CompareItem[] = [];
+  const all: CompareItem[] = [];
+
+  // 查找新增和修改的元素
+  newMap.forEach((newItem, id) => {
+    const oldItem = oldMap.get(id);
+    if (!oldItem) {
+      const item: CompareItem = { ...newItem, changeType: 'added', name: newItem.name || id };
+      added.push(item);
+      all.push(item);
+    } else {
+      // 检查是否修改
+      const changes: Record<string, { from: any; to: any }> = {};
+      const keysToCompare = ['name', 'x', 'y', 'type', 'description', 'status'];
+      if (type === 'path') {
+        keysToCompare.push('startPointId', 'endPointId');
+      }
+
+      keysToCompare.forEach(key => {
+        if (oldItem[key] !== newItem[key]) {
+          changes[key] = { from: oldItem[key], to: newItem[key] };
+        }
+      });
+
+      if (Object.keys(changes).length > 0) {
+        const item: CompareItem = { ...newItem, changeType: 'modified', changes, name: newItem.name || id };
+        modified.push(item);
+        all.push(item);
+      }
+    }
+  });
+
+  // 查找删除的元素
+  oldMap.forEach((oldItem, id) => {
+    if (!newMap.has(id)) {
+      const item: CompareItem = { ...oldItem, changeType: 'removed', name: oldItem.name || id };
+      removed.push(item);
+      all.push(item);
+    }
+  });
+
+  return { added, removed, modified, all };
+};
+
+// CSV 导入相关函数
+const handleImportCsv = () => {
+  importCsvDialogVisible.value = true;
+};
+
+const triggerCsvSelect = () => {
+  csvInputRef.value?.click();
+};
+
+const clearCsvData = () => {
+  csvParsedData.value = [];
+  csvFileName.value = '';
+  if (csvInputRef.value) {
+    csvInputRef.value.value = '';
+  }
+};
+
+const parsePointType = (typeStr: string): string => {
+  if (!typeStr) return 'Halt point';
+  const normalized = typeStr.trim().toLowerCase();
+  const typeMap: Record<string, string> = {
+    'halt': 'Halt point',
+    'halt point': 'Halt point',
+    'park': 'Park point',
+    'park point': 'Park point',
+    'station': 'Station',
+    'charge': 'Charge point',
+    'charge point': 'Charge point'
+  };
+  return typeMap[normalized] || 'Halt point';
+};
+
+const onCsvFileChange = async (e: Event) => {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  csvFileName.value = file.name;
+
+  try {
+    const text = await file.text();
+    const lines = text.split(/\r?\n/).filter(line => line.trim());
+
+    if (lines.length < 2) {
+      ElMessage.warning('CSV 文件内容为空或格式不正确');
+      return;
+    }
+
+    // 解析 CSV 头部
+    const headerLine = lines[0].toLowerCase();
+    const headers = headerLine.split(',').map(h => h.trim());
+
+    // 检查必需列
+    const requiredCols = ['name', 'x', 'y'];
+    const missingCols = requiredCols.filter(col => !headers.includes(col));
+    if (missingCols.length > 0) {
+      ElMessage.warning(`CSV 文件缺少必需列: ${missingCols.join(', ')}`);
+      return;
+    }
+
+    // 解析数据行
+    const data: typeof csvParsedData.value = [];
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      // 简单解析CSV（处理引号内包含逗号的情况）
+      const values: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      for (const char of line) {
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          values.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      values.push(current.trim());
+
+      // 构建对象
+      const row: any = {};
+      headers.forEach((header, idx) => {
+        row[header] = values[idx] || '';
+      });
+
+      // 验证必填字段
+      let error = '';
+      if (!row.name) {
+        error = '缺少名称';
+      } else if (!row.x || isNaN(Number(row.x))) {
+        error = 'X坐标无效';
+      } else if (!row.y || isNaN(Number(row.y))) {
+        error = 'Y坐标无效';
+      }
+
+      data.push({
+        name: row.name || '',
+        code: row.code || undefined,
+        x: Number(row.x) || 0,
+        y: Number(row.y) || 0,
+        type: parsePointType(row.type || ''),
+        description: row.description || undefined,
+        error: error || undefined
+      });
+    }
+
+    csvParsedData.value = data;
+
+    const validCount = data.filter(d => !d.error).length;
+    if (validCount === 0) {
+      ElMessage.warning('CSV 文件中没有有效数据');
+    } else {
+      ElMessage.success(`已解析 ${data.length} 条记录，其中 ${validCount} 条有效`);
+    }
+  } catch (err: any) {
+    ElMessage.error('解析 CSV 文件失败：' + (err?.message || '未知错误'));
+  }
+};
+
+const confirmImportCsv = async () => {
+  const validData = csvParsedData.value.filter(d => !d.error);
+  if (validData.length === 0) {
+    ElMessage.warning('没有有效数据可导入');
+    return;
+  }
+
+  try {
+    // 获取当前激活的图层
+    const activeLayerId = mapEditorStore.activeLayerId || mapEditorStore.layers[0]?.id;
+
+    if (!activeLayerId) {
+      ElMessage.warning('请先创建或选择一个图层');
+      return;
+    }
+
+    // 生成点位
+    const newPoints: MapPoint[] = validData.map((row, index) => ({
+      id: `point_${Date.now()}_${index}`,
+      layerId: activeLayerId,
+      name: row.name,
+      code: row.code,
+      x: row.x,
+      y: row.y,
+      type: row.type,
+      description: row.description,
+      status: 'ACTIVE',
+      editorProps: {
+        radius: 5,
+        color: '#409EFF',
+        labelVisible: true
+      }
+    }));
+
+    // 添加到 store（逐个添加）
+    let addedCount = 0;
+    for (const point of newPoints) {
+      mapEditorStore.addPoint(point);
+      addedCount++;
+    }
+
+    ElMessage.success(`成功导入 ${addedCount} 个点位`);
+
+    // 关闭对话框并清理
+    importCsvDialogVisible.value = false;
+    clearCsvData();
+  } catch (err: any) {
+    ElMessage.error('导入点位失败：' + (err?.message || '未知错误'));
+  }
+};
+
 // 键盘快捷键
 const handleKeyDown = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement | null;
@@ -1545,17 +2889,46 @@ const handleKeyDown = (e: KeyboardEvent) => {
     e.preventDefault();
     undo();
   }
-  
+
   // Ctrl+Shift+Z 重做
   if (e.ctrlKey && e.shiftKey && e.key === 'Z') {
     e.preventDefault();
     redo();
   }
-  
+
   // Ctrl+S 保存
   if (e.ctrlKey && e.key === 's') {
     e.preventDefault();
     handleSave();
+  }
+
+  // Ctrl+A 全选
+  if (e.ctrlKey && e.key === 'a' && !e.shiftKey) {
+    e.preventDefault();
+    mapEditorStore.selectAll();
+  }
+
+  // Ctrl+C 复制选中元素
+  if (e.ctrlKey && e.key === 'c') {
+    e.preventDefault();
+    mapEditorStore.copySelected();
+  }
+
+  // Ctrl+V 粘贴
+  if (e.ctrlKey && e.key === 'v') {
+    e.preventDefault();
+    mapEditorStore.paste(20, 20);
+  }
+
+  // Ctrl+D 快速复制（带偏移粘贴）
+  if (e.ctrlKey && e.key === 'd') {
+    e.preventDefault();
+    handleQuickDuplicate();
+  }
+
+  // Escape 取消选择
+  if (e.key === 'Escape') {
+    mapEditorStore.clearSelection();
   }
 
   // Delete / Backspace 删除选中元素
@@ -1598,16 +2971,22 @@ const handleKeyDown = (e: KeyboardEvent) => {
 onUnmounted(() => {
   // 移除键盘事件
   window.removeEventListener('keydown', handleKeyDown);
-  
+
   // 清理拖拽事件
   document.removeEventListener('mousemove', handleResizeMove);
   document.removeEventListener('mouseup', handleResizeEnd);
   document.body.style.cursor = '';
   document.body.style.userSelect = '';
-  
+
+  // 清理仿真计时器
+  if (simulationTimer) {
+    clearInterval(simulationTimer);
+    simulationTimer = null;
+  }
+
   const appWrapper = document.querySelector('.app-wrapper');
   appWrapper?.classList.remove('map-editor-header-collapsed');
-  
+
   // 重置编辑器
   mapEditorStore.reset();
 });
@@ -1691,7 +3070,142 @@ onUnmounted(() => {
       color: var(--el-text-color-regular);
     }
   }
-  
+
+  .import-csv-form {
+    .import-csv-instructions {
+      margin-bottom: 16px;
+      padding: 12px;
+      background: var(--el-fill-color-light);
+      border-radius: 4px;
+      font-size: 13px;
+
+      p { margin: 0 0 8px 0; }
+
+      .csv-format {
+        background: var(--el-bg-color);
+        padding: 8px 12px;
+        border-radius: 4px;
+        margin-bottom: 8px;
+        code { color: var(--el-color-primary); }
+      }
+
+      .format-notes {
+        margin: 8px 0;
+        padding-left: 20px;
+        li { margin-bottom: 4px; color: var(--el-text-color-regular); }
+      }
+
+      .type-hint {
+        margin: 8px 0 0 0;
+        color: var(--el-text-color-secondary);
+        font-size: 12px;
+      }
+    }
+
+    .import-csv-upload {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      .file-name { color: var(--el-text-color-secondary); font-size: 13px; }
+    }
+
+    .import-csv-preview {
+      .preview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 8px;
+        font-size: 13px;
+        font-weight: 500;
+      }
+
+      .csv-error-summary {
+        margin-top: 12px;
+      }
+    }
+  }
+
+  .raster-calibrate-form {
+    .calibrate-info {
+      padding: 12px;
+      background: var(--el-fill-color-light);
+      border-radius: 4px;
+      margin-bottom: 16px;
+
+      p { margin: 0 0 8px 0; font-weight: 500; }
+
+      .info-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 13px;
+        color: var(--el-text-color-regular);
+        .label { color: var(--el-text-color-secondary); }
+      }
+    }
+
+    .form-tip {
+      font-size: 12px;
+      color: var(--el-text-color-secondary);
+      margin-top: 4px;
+    }
+
+    .quick-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+  }
+
+  .version-history {
+    .version-actions {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .version-tip {
+      margin-top: 12px;
+    }
+  }
+
+  .version-compare {
+    .compare-selector {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+      padding: 12px;
+      background: var(--el-fill-color-light);
+      border-radius: 4px;
+
+      .selector-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+
+        .label { font-size: 13px; color: var(--el-text-color-regular); }
+      }
+    }
+
+    .compare-result {
+      .change-summary {
+        display: flex;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .change-detail {
+        font-size: 12px;
+        color: var(--el-text-color-secondary);
+      }
+    }
+
+    .compare-empty {
+      padding: 40px 0;
+    }
+  }
+
   // 工具栏
   .toolbar {
     height: 50px;
@@ -2064,11 +3578,43 @@ onUnmounted(() => {
         flex: 1;
         position: relative;
         min-height: 0;
-        
+
         // 确保 MapCanvas 占满剩余空间
         :deep(.map-canvas-container) {
           width: 100%;
           height: 100%;
+        }
+      }
+
+      // 鹰眼图
+      .mini-map {
+        position: absolute;
+        right: 16px;
+        bottom: 16px;
+        width: 150px;
+        height: 150px;
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid #dcdfe6;
+        border-radius: 4px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        overflow: hidden;
+        cursor: pointer;
+        z-index: 10;
+
+        .mini-map-viewport {
+          position: absolute;
+          border: 2px solid #409eff;
+          background: rgba(64, 158, 255, 0.1);
+          pointer-events: none;
+        }
+
+        .mini-map-point {
+          position: absolute;
+          width: 3px;
+          height: 3px;
+          background: #409eff;
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
         }
       }
     }
@@ -2092,14 +3638,30 @@ onUnmounted(() => {
     border-top: 1px solid #e4e7ed;
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: space-between;
     padding: 0 16px;
     font-size: 12px;
-    
+
+    .status-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+
+      .selection-info {
+        color: #409eff;
+        font-weight: 500;
+      }
+    }
+
     .status-right {
       display: flex;
       align-items: center;
       gap: 16px;
+
+      .zoom-level {
+        color: #67c23a;
+        font-weight: 500;
+      }
 
       .coordinates {
         color: #909399;
@@ -2111,6 +3673,13 @@ onUnmounted(() => {
       }
     }
   }
+}
+
+// 批量编辑对话框样式
+.batch-type-hint {
+  margin-left: 8px;
+  color: #409eff;
+  font-size: 12px;
 }
 
 

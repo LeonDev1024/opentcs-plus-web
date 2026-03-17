@@ -250,76 +250,158 @@ const handleNodeContextMenu = (event: MouseEvent, data: any) => {
   if (data.type === 'element' && data.elementType === 'point') {
     const point = mapEditorStore.points.find(p => p.id === data.elementId);
     if (point) {
-      // 移除已存在的菜单
-      const existingMenu = document.querySelector('.point-context-menu');
-      if (existingMenu) {
-        document.body.removeChild(existingMenu);
-      }
-      
-      // 创建右键菜单
-      const menu = document.createElement('div');
-      menu.className = 'point-context-menu';
-      menu.innerHTML = '<div class="menu-item">编辑</div>';
-      menu.style.cssText = `
-        position: fixed;
-        left: ${event.clientX}px;
-        top: ${event.clientY}px;
-        background: #fff;
-        border: 1px solid #e4e7ed;
-        border-radius: 4px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-        z-index: 9999;
-        min-width: 120px;
-        padding: 4px 0;
-      `;
-      
-      const menuItem = menu.querySelector('.menu-item') as HTMLElement;
-      menuItem.style.cssText = `
-        padding: 8px 16px;
-        cursor: pointer;
-        font-size: 14px;
-        color: #606266;
-        transition: background-color 0.2s;
-      `;
-      
-      menuItem.addEventListener('mouseenter', () => {
-        menuItem.style.backgroundColor = '#f5f7fa';
-      });
-      
-      menuItem.addEventListener('mouseleave', () => {
-        menuItem.style.backgroundColor = 'transparent';
-      });
-      
-      menuItem.addEventListener('click', () => {
-        currentPoint.value = point;
-        showEditDialog.value = true;
-        if (document.body.contains(menu)) {
-          document.body.removeChild(menu);
-        }
-        document.removeEventListener('click', closeMenu);
-        document.removeEventListener('contextmenu', closeMenu);
-      });
-      
-      document.body.appendChild(menu);
-      
-      // 点击其他地方或右键关闭菜单
-      const closeMenu = (e: MouseEvent) => {
-        if (!menu.contains(e.target as Node)) {
-          if (document.body.contains(menu)) {
-            document.body.removeChild(menu);
-          }
-          document.removeEventListener('click', closeMenu);
-          document.removeEventListener('contextmenu', closeMenu);
-        }
-      };
-      
-      // 使用 nextTick 确保菜单已渲染
-      setTimeout(() => {
-        document.addEventListener('click', closeMenu);
-        document.addEventListener('contextmenu', closeMenu);
-      }, 0);
+      // 选中该点
+      mapEditorStore.selectElement(point.id, 'point', false);
+      // 显示右键菜单
+      showPointContextMenu(event, point);
     }
   }
+};
+
+// 显示点的右键菜单
+const showPointContextMenu = (event: MouseEvent, point: MapPoint) => {
+  // 移除已存在的菜单
+  const existingMenu = document.querySelector('.element-context-menu');
+  if (existingMenu) {
+    document.body.removeChild(existingMenu);
+  }
+
+  // 创建右键菜单
+  const menu = document.createElement('div');
+  menu.className = 'element-context-menu';
+  menu.innerHTML = `
+    <div class="menu-item" data-action="edit">
+      <span class="menu-icon">✏️</span>
+      <span>编辑</span>
+      <span class="menu-shortcut">Enter</span>
+    </div>
+    <div class="menu-item" data-action="copy">
+      <span class="menu-icon">📋</span>
+      <span>复制</span>
+      <span class="menu-shortcut">Ctrl+C</span>
+    </div>
+    <div class="menu-item" data-action="paste">
+      <span class="menu-icon">📝</span>
+      <span>粘贴</span>
+      <span class="menu-shortcut">Ctrl+V</span>
+    </div>
+    <div class="menu-divider"></div>
+    <div class="menu-item" data-action="delete">
+      <span class="menu-icon">🗑️</span>
+      <span>删除</span>
+      <span class="menu-shortcut">Delete</span>
+    </div>
+  `;
+  menu.style.cssText = `
+    position: fixed;
+    left: ${event.clientX}px;
+    top: ${event.clientY}px;
+    background: #fff;
+    border: 1px solid #e4e7ed;
+    border-radius: 4px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+    z-index: 9999;
+    min-width: 160px;
+    padding: 4px 0;
+  `;
+
+  // 菜单项样式
+  const menuItems = menu.querySelectorAll('.menu-item');
+  menuItems.forEach(item => {
+    (item as HTMLElement).style.cssText = `
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #606266;
+      transition: background-color 0.2s;
+    `;
+  });
+
+  // 菜单图标样式
+  const menuIcons = menu.querySelectorAll('.menu-icon');
+  menuIcons.forEach(icon => {
+    (icon as HTMLElement).style.cssText = `
+      margin-right: 8px;
+      font-style: normal;
+    `;
+  });
+
+  // 菜单快捷键样式
+  const shortcuts = menu.querySelectorAll('.menu-shortcut');
+  shortcuts.forEach(shortcut => {
+    (shortcut as HTMLElement).style.cssText = `
+      margin-left: auto;
+      font-size: 12px;
+      color: #909399;
+    `;
+  });
+
+  // 分割线样式
+  const dividers = menu.querySelectorAll('.menu-divider');
+  dividers.forEach(divider => {
+    (divider as HTMLElement).style.cssText = `
+      height: 1px;
+      background: #e4e7ed;
+      margin: 4px 0;
+    `;
+  });
+
+  // 菜单项事件
+  menuItems.forEach(item => {
+    const menuItem = item as HTMLElement;
+    menuItem.addEventListener('mouseenter', () => {
+      menuItem.style.backgroundColor = '#f5f7fa';
+    });
+
+    menuItem.addEventListener('mouseleave', () => {
+      menuItem.style.backgroundColor = 'transparent';
+    });
+
+    menuItem.addEventListener('click', () => {
+      const action = menuItem.dataset.action;
+      switch (action) {
+        case 'edit':
+          currentPoint.value = point;
+          showEditDialog.value = true;
+          break;
+        case 'copy':
+          mapEditorStore.copySelected();
+          break;
+        case 'paste':
+          mapEditorStore.paste(20, 20);
+          break;
+        case 'delete':
+          mapEditorStore.deletePoint(point.id);
+          break;
+      }
+      if (document.body.contains(menu)) {
+        document.body.removeChild(menu);
+      }
+      document.removeEventListener('click', closeMenu);
+      document.removeEventListener('contextmenu', closeMenu);
+    });
+  });
+
+  document.body.appendChild(menu);
+
+  // 点击其他地方或右键关闭菜单
+  const closeMenu = (e: MouseEvent) => {
+    if (!menu.contains(e.target as Node)) {
+      if (document.body.contains(menu)) {
+        document.body.removeChild(menu);
+      }
+      document.removeEventListener('click', closeMenu);
+      document.removeEventListener('contextmenu', closeMenu);
+    }
+  };
+
+  // 使用 nextTick 确保菜单已渲染
+  setTimeout(() => {
+    document.addEventListener('click', closeMenu);
+    document.addEventListener('contextmenu', closeMenu);
+  }, 0);
 };
 
 // 点更新后的回调

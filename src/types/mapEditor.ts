@@ -48,7 +48,7 @@ export interface MapLayer {
 export interface MapPoint {
   id: string;
   layerId: string;
-  
+
   // 基础属性（对应后端 PointVO）
   name: string;
   code?: string;
@@ -58,7 +58,10 @@ export interface MapPoint {
   type?: string;
   description?: string;
   status: string;
-  
+
+  // 锁定状态
+  locked?: boolean;
+
   // 编辑器扩展属性
   editorProps: {
     radius: number;          // 显示半径
@@ -69,7 +72,7 @@ export interface MapPoint {
     label?: string;        // 标签文本
     labelVisible: boolean; // 标签是否显示
   };
-  
+
   // 元数据
   createdAt?: string;
   updatedAt?: string;
@@ -86,7 +89,7 @@ export interface PathControlPoint {
 export interface MapPath {
   id: string;
   layerId: string;
-  
+
   // 基础属性（对应后端 PathVO）
   name: string;
   code?: string;
@@ -96,7 +99,10 @@ export interface MapPath {
   type?: string;
   description?: string;
   status: string;
-  
+
+  // 锁定状态
+  locked?: boolean;
+
   // 路径几何数据
   geometry: {
     // 路径由多个控制点组成
@@ -131,7 +137,7 @@ export interface LocationVertex {
 export interface MapLocation {
   id: string;
   layerId: string;
-  
+
   // 基础属性（对应后端 LocationVO）
   name: string;
   code?: string;
@@ -142,7 +148,10 @@ export interface MapLocation {
   blockId?: string | number;
   description?: string;
   status: string;
-  
+
+  // 锁定状态
+  locked?: boolean;
+
   // 位置几何数据（多边形）
   geometry: {
     // 多边形由多个顶点组成
