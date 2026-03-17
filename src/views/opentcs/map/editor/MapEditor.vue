@@ -955,6 +955,7 @@ import ComponentsPanel from './components/ComponentsPanel.vue';
 import PropertyPanel from './components/PropertyPanel.vue';
 import PointEditDialog from './components/PointEditDialog.vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
+import { useMapEditorTabsStore } from '@/store/modules/mapEditorTabs';
 import { ToolMode, LayerType } from '@/types/mapEditor';
 import type { MapPoint } from '@/types/mapEditor';
 import PathTypeIcon from './components/icons/PathTypeIcon.vue';
@@ -980,6 +981,7 @@ const emit = defineEmits<{
 const route = useRoute();
 const router = useRouter();
 const mapEditorStore = useMapEditorStore();
+const mapEditorTabsStore = useMapEditorTabsStore();
 const mapCanvasRef = ref<InstanceType<typeof MapCanvas>>();
 
 // 网格显示状态
@@ -1918,8 +1920,11 @@ onMounted(async () => {
   // 加载地图数据：
   // - 如果带有 id（从地图列表”编辑”跳转），则从后端加载对应地图
   // - 如果没有 id（从左侧菜单直接打开），则进入”空白编辑器”模式，不再强制调用 loadMap，避免报错
-  // 优先使用 props.mapId，其次使用 route.query.id
-  const loadedMapId = props.mapId || route.query.id as string;
+  // 优先使用：1. props.mapId  2. route.query.id  3. 当前活动标签页的ID
+  let loadedMapId = props.mapId || route.query.id as string;
+  if (!loadedMapId && mapEditorTabsStore.activeTab) {
+    loadedMapId = mapEditorTabsStore.activeTab.id;
+  }
   if (loadedMapId) {
     try {
       await mapEditorStore.loadMap(loadedMapId);

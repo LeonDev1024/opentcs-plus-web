@@ -19,10 +19,12 @@ import IframeToggle from './IframeToggle/index.vue';
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 const route = useRoute();
 const tagsViewStore = useTagsViewStore();
+const settingsStore = useSettingsStore();
 
 // 随机动画集合
 const animate = ref<string>('');
-const animationEnable = ref(useSettingsStore().animationEnable);
+const animationEnable = ref(settingsStore.animationEnable);
+
 watch(
   () => useSettingsStore().animationEnable,
   (val: boolean) => {
@@ -53,34 +55,13 @@ function addIframe() {
 
 <style lang="scss" scoped>
 .app-main {
-  /* 50= navbar  50  */
-  min-height: calc(100vh - 50px);
+  flex: 1;
+  min-height: 0;
   width: 100%;
   position: relative;
-  overflow: hidden;
-}
-
-.fixed-header + .app-main {
-  padding-top: 50px;
-}
-
-.hasTagsView {
-  .app-main {
-    /* 84 = navbar + tags-view = 50 + 34 */
-    min-height: calc(100vh - 84px);
-  }
-
-  .fixed-header + .app-main {
-    padding-top: 84px;
-  }
-}
-</style>
-<style lang="scss">
-// fix css style bug in open el-dialog
-.el-popup-parent--hidden {
-  .fixed-header {
-    padding-right: 6px;
-  }
+  overflow: auto;
+  transition: margin-left 0.3s ease-in-out;
+  background: var(--bg-secondary);
 }
 
 ::-webkit-scrollbar {

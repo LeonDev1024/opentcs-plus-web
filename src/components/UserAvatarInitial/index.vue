@@ -45,7 +45,7 @@ const sizePx = computed(() => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background-color: #409eff;
+  background-color: var(--el-color-primary);
   color: #fff;
   font-weight: 600;
   user-select: none;

@@ -2,13 +2,10 @@
   <div
     class="sidebar-logo-container"
     :class="{ collapse: collapse }"
-    :style="{ backgroundColor: sideTheme === 'theme-dark' ? variables.menuBackground : variables.menuLightBackground }"
+    :style="{ backgroundColor: 'transparent' }"
   >
     <transition :enter-active-class="proxy?.animate.logoAnimate.enter" mode="out-in">
-      <router-link v-if="collapse" key="collapse" class="sidebar-logo-link" to="/">
-        <img v-if="logo" :src="logo" class="sidebar-logo" />
-      </router-link>
-      <router-link v-else key="expand" class="sidebar-logo-link" to="/">
+      <router-link key="expand" class="sidebar-logo-link" to="/">
         <div class="logo-content">
           <img v-if="logo" :src="logo" class="sidebar-logo" />
           <h1 class="sidebar-title" :style="{ color: sideTheme === 'theme-dark' ? variables.logoTitleColor : variables.logoLightTitleColor }">
@@ -48,13 +45,13 @@ const sideTheme = computed(() => settingsStore.sideTheme);
   opacity: 0;
 }
 
-/* 侧边栏Logo容器样式 */
+/* 顶部导航栏Logo容器样式 */
 .sidebar-logo-container {
   position: relative !important;
-  width: 100% !important;
+  width: auto !important;
   height: var(--navbar-height) !important;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(37, 99, 235, 0.05) 100%) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: transparent !important;
+  border: none !important;
   overflow: hidden !important;
   display: flex !important;
   align-items: center !important;
@@ -68,11 +65,11 @@ const sideTheme = computed(() => settingsStore.sideTheme);
     display: flex !important;
     align-items: center !important;
     justify-content: flex-start !important;
-    padding: 0 12px !important;
+    padding: 0 8px !important;
     text-decoration: none !important;
     transition: var(--transition-all) !important;
     height: 100% !important;
-    width: 100% !important;
+    width: auto !important;
     box-sizing: border-box !important;
 
     &:hover {
@@ -89,8 +86,8 @@ const sideTheme = computed(() => settingsStore.sideTheme);
 
     /* Logo图片 */
     .sidebar-logo {
-      width: 28px !important;
-      height: 28px !important;
+      width: 24px !important;
+      height: 24px !important;
       flex-shrink: 0 !important;
       transition: var(--transition-transform) !important;
 
@@ -102,7 +99,7 @@ const sideTheme = computed(() => settingsStore.sideTheme);
     /* Logo标题 */
     .sidebar-title {
       margin: 0 !important;
-      color: #fff !important;
+      color: var(--text-primary) !important;
       font-weight: var(--font-weight-bold) !important;
       font-size: 14px !important;
       letter-spacing: 0.3px !important;

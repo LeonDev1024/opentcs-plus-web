@@ -1,12 +1,19 @@
 <template>
   <div :class="classObj" class="app-wrapper" :style="{ '--current-color': theme }">
     <div v-if="device === 'mobile' && sidebar.opened" class="drawer-bg" @click="handleClickOutside" />
+
+    <!-- 侧边栏 -->
     <side-bar v-if="!sidebar.hide" class="sidebar-container" />
+
+    <!-- 右侧内容区 -->
     <div :class="{ hasTagsView: needTagsView, sidebarHide: sidebar.hide }" class="main-container">
-      <div :class="{ 'fixed-header': fixedHeader }">
+      <!-- 顶部导航（固定，全宽） -->
+      <div class="fixed-header">
         <navbar ref="navbarRef" @set-layout="setLayout" />
-        <tags-view v-if="needTagsView" />
       </div>
+
+      <!-- 标签栏 + 主内容（与内容区同宽，自适应侧边栏） -->
+      <tags-view v-if="needTagsView" class="tags-view-adaptive" />
       <app-main />
       <settings ref="settingRef" />
     </div>
@@ -79,49 +86,59 @@ const setLayout = () => {
 
 <style lang="scss" scoped>
 @use '@/assets/styles/mixin.scss';
-@use '@/assets/styles/variables.module.scss' as *;
 
 .app-wrapper {
   @include mixin.clearfix;
   position: relative;
-  height: 100%;
   width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
 
   &.mobile.openSidebar {
     position: fixed;
     top: 0;
+    left: 0;
+    right: 0;
   }
 }
 
 .drawer-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
   background: #000;
   opacity: 0.3;
-  width: 100%;
-  top: 0;
-  height: 100%;
-  position: absolute;
-  z-index: 999;
 }
 
+// 主内容区（顶部导航下方：侧边栏 + 内容）
+.main-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  padding-top: var(--navbar-height);
+  background: var(--bg-secondary);
+}
+
+// 标签栏：与内容同宽，紧贴内容上方
+.tags-view-adaptive {
+  flex-shrink: 0;
+}
+
+// 固定头部区域（全宽，贯穿视口）
 .fixed-header {
   position: fixed;
   top: 0;
+  left: 0;
   right: 0;
-  z-index: 9;
-  width: calc(100% - #{$base-sidebar-width});
-  transition: width 0.28s;
-  background: $fixed-header-bg;
-}
-
-.hideSidebar .fixed-header {
-  width: calc(100% - 54px);
-}
-
-.sidebarHide .fixed-header {
-  width: 100%;
-}
-
-.mobile .fixed-header {
-  width: 100%;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
 }
 </style>

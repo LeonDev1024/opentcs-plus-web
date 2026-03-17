@@ -240,13 +240,13 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 .tags-view-container {
-  height: 34px;
+  height: var(--tagsview-height);
   width: 100%;
-  background-color: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-light);
-  box-shadow:
-    0 1px 3px 0 rgba(0, 0, 0, 0.12),
-    0 0 3px 0 rgba(0, 0, 0, 0.04);
+  background-color: var(--bg-primary);
+  border-bottom: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
   .tags-view-wrapper {
     .tags-view-item {
       display: inline-block;
@@ -266,15 +266,15 @@ onMounted(() => {
         color: var(--el-color-primary);
       }
       &:first-of-type {
-        margin-left: 15px;
+        margin-left: 8px;
       }
       &:last-of-type {
         margin-right: 15px;
       }
       &.active {
-        background-color: #42b983;
+        background-color: var(--tags-view-active-bg, var(--primary-500));
         color: #fff;
-        border-color: #42b983;
+        border-color: var(--tags-view-active-border-color, var(--primary-500));
         &::before {
           content: '';
           background: #fff;

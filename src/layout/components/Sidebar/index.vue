@@ -1,6 +1,5 @@
 <template>
   <div :class="{ 'has-logo': showLogo }" :style="{ backgroundColor: bgColor }">
-    <logo v-if="showLogo" :collapse="isCollapse" />
     <el-scrollbar :class="sideTheme" wrap-class="scrollbar-wrapper">
       <transition :enter-active-class="proxy?.animate.menuSearchAnimate.enter" mode="out-in">
         <el-menu
@@ -22,7 +21,6 @@
 </template>
 
 <script setup lang="ts">
-import Logo from './Logo.vue';
 import SidebarItem from './SidebarItem.vue';
 import variables from '@/assets/styles/variables.module.scss';
 import { useAppStore } from '@/store/modules/app';
@@ -37,7 +35,7 @@ const appStore = useAppStore();
 const settingsStore = useSettingsStore();
 const permissionStore = usePermissionStore();
 const sidebarRouters = computed<RouteRecordRaw[]>(() => permissionStore.getSidebarRoutes());
-const showLogo = computed(() => settingsStore.sidebarLogo);
+const showLogo = computed(() => false); // Logo 已移至顶部导航栏
 const sideTheme = computed(() => settingsStore.sideTheme);
 const theme = computed(() => settingsStore.theme);
 const isCollapse = computed(() => !appStore.sidebar.opened);

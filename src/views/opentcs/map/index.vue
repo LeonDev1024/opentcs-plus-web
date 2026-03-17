@@ -98,11 +98,13 @@ import { listNavigationMap, addNavigationMap, updateNavigationMap, delNavigation
 import type { NavigationMapVO, NavigationMapForm, NavigationMapQuery } from '@/api/opentcs/factory/map/types';
 import { listFactoryModel } from '@/api/opentcs/factory/model';
 import type { FactoryModelVO } from '@/api/opentcs/factory/model/types';
+import { useMapEditorTabsStore } from '@/store/modules/mapEditorTabs';
 import { ElMessageBox } from 'element-plus';
 import type { FormInstance, ElFormInstance } from 'element-plus';
 
 const router = useRouter();
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
+const mapEditorTabsStore = useMapEditorTabsStore();
 
 const loading = ref(true);
 const showSearch = ref(true);
@@ -181,10 +183,18 @@ const handleAdd = () => {
   dialog.title = '添加地图';
 };
 
-// 编辑（打开地图编辑器）
+// 编辑（打开地图编辑器标签页）
 const handleEdit = (row: NavigationMapVO) => {
-  const url = `/map/mapeditor?id=${row.id}&name=${encodeURIComponent(row.name)}`;
-  window.open(url, '_blank');
+  // 使用标签页方式打开地图编辑器
+  mapEditorTabsStore.addTab({
+    id: String(row.id),
+    name: row.name
+  });
+  // 跳转到地图编辑器页面（带查询参数）
+  router.push({
+    path: '/opentcs/map/mapeditor',
+    query: { id: row.id, name: row.name }
+  });
 };
 
 // 提交

@@ -1,20 +1,22 @@
-// 全局SCSS变量
+// 全局SCSS变量（与 design-system 保持一致）
 :root {
-  --menuBg: #1f2d3d;
-  --menuColor: #bfcbd9;
-  --menuActiveText: #f4f4f5;
-  --menuHover: #263445;
+  // 侧边栏 - 与主色同色系
+  --menuBg: #1e3a5f;
+  --menuColor: #cbd5e1;
+  --menuActiveText: #ffffff;
+  --menuHover: #334155;
 
-  --subMenuBg: #1f2d3d;
-  --subMenuActiveText: #f4f4f5;
-  --subMenuHover: #001528;
-  --subMenuTitleHover: #293444;
+  --subMenuBg: #1e3a5f;
+  --subMenuActiveText: #ffffff;
+  --subMenuHover: #0f172a;
+  --subMenuTitleHover: #334155;
 
   // 菜单栏缩进
   --el-menu-base-level-padding: 12px;
   --el-menu-level-padding: 8px;
   --el-menu-item-height: 50px;
 
+  // 顶部导航栏
   --fixedHeaderBg: #ffffff;
   --tableHeaderBg: #f8f8f9;
   --tableHeaderTextColor: #515a6e;
@@ -28,17 +30,18 @@
 }
 
 html.dark {
-  --menuBg: #1d1e1f;
-  --menuColor: #bfcbd9;
-  --menuActiveText: #f4f4f5;
-  --menuHover: #171819;
+  // 侧边栏 - 暗色主题
+  --menuBg: #0f172a;
+  --menuColor: #94a3b8;
+  --menuActiveText: #ffffff;
+  --menuHover: #1e293b;
 
-  --subMenuBg: #1d1e1f;
-  --subMenuActiveText: #1d1e1f;
-  --subMenuHover: #171819;
-  --subMenuTitleHover: #171819;
+  --subMenuBg: #0f172a;
+  --subMenuActiveText: #ffffff;
+  --subMenuHover: #020617;
+  --subMenuTitleHover: #1e293b;
 
-  --fixedHeaderBg: #171819;
+  --fixedHeaderBg: #1e293b;
   --tableHeaderBg: var(--el-bg-color);
   --tableHeaderTextColor: var(--el-text-color);
 
@@ -111,7 +114,7 @@ $fixed-header-bg: var(--fixedHeaderBg);
 $table-header-bg: var(--tableHeaderBg);
 $table-header-text-color: var(--tableHeaderTextColor);
 
-$--color-primary: #409eff;
+$--color-primary: #2563eb;
 $--color-success: #67c23a;
 $--color-warning: #e6a23c;
 $--color-danger: #f56c6c;

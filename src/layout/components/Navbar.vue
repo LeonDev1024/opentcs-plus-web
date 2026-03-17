@@ -1,7 +1,11 @@
 <template>
   <div class="navbar">
     <div class="navbar-left">
+      <!-- Logo -->
+      <logo :collapse="false" />
+      <!-- 折叠按钮 -->
       <hamburger id="hamburger-container" :is-active="appStore.sidebar.opened" class="hamburger-container" @toggle-click="toggleSideBar" />
+      <!-- 路由标题 -->
       <breadcrumb v-if="!settingsStore.topNav" id="breadcrumb-container" class="breadcrumb-container" />
       <top-nav v-if="settingsStore.topNav" id="topmenu-container" class="topmenu-container" />
     </div>
@@ -82,6 +86,7 @@
 <script setup lang="ts">
 import SearchMenu from './TopBar/search.vue';
 import UserAvatarInitial from '@/components/UserAvatarInitial/index.vue';
+import Logo from './Sidebar/Logo.vue';
 import { useAppStore } from '@/store/modules/app';
 import { useUserStore } from '@/store/modules/user';
 import { useSettingsStore } from '@/store/modules/settings';
@@ -229,15 +234,15 @@ watch(
     display: flex;
     align-items: center;
     height: 100%;
+    gap: var(--spacing-2);
   }
 
   .hamburger-container {
     height: 100%;
     cursor: pointer;
     transition: var(--transition-all);
-    padding: 0 var(--spacing-3);
+    padding: 0 var(--spacing-2);
     border-radius: var(--radius-md);
-    margin: var(--spacing-2);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -246,14 +251,14 @@ watch(
       background: var(--bg-secondary);
       transform: scale(1.05);
     }
-    
+
     &:active {
       transform: scale(0.95);
     }
   }
 
   .breadcrumb-container {
-    padding: 0 var(--spacing-3);
+    padding: 0 var(--spacing-2);
     height: 100%;
     display: flex;
     align-items: center;

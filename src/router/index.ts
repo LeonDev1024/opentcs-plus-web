@@ -86,11 +86,17 @@ export const constantRoutes: RouteRecordRaw[] = [
     ]
   },
   {
-    path: '/map/mapeditor',
-    component: () => import('@/views/opentcs/map/editor/MapEditor.vue'),
-    name: 'MapEditor',
+    path: '/opentcs/map',
+    component: Layout,
     hidden: true,
-    meta: { title: '地图编辑器', icon: 'map', noCache: true }
+    children: [
+      {
+        path: 'mapeditor',
+        component: () => import('@/views/opentcs/map/editor/MapEditorTabs.vue'),
+        name: 'MapEditor',
+        meta: { title: '地图编辑器', icon: 'map', noCache: true }
+      }
+    ]
   },
   {
     path: '/opentcs/map/location',

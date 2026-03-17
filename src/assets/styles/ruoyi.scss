@@ -149,7 +149,7 @@ h6 {
 /** 表格更多操作下拉样式 */
 .el-table .el-dropdown-link {
   cursor: pointer;
-  color: #409eff;
+  color: var(--el-color-primary);
   margin-left: 10px;
 }
 
@@ -275,7 +275,7 @@ h6 {
 .sortable-ghost {
   opacity: 0.8;
   color: #fff !important;
-  background: #42b983 !important;
+  background: var(--el-color-primary) !important;
 }
 
 /* 表格右侧工具栏样式 */

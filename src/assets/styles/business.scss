@@ -9,6 +9,13 @@
   background: var(--bg-secondary);
 }
 
+// 调度状态色（工业场景，可配合图标使用）
+.status-idle { color: var(--status-idle, #64748b); }
+.status-transporting { color: var(--status-transporting, #2563eb); }
+.status-waiting { color: var(--status-waiting, #f59e0b); }
+.status-error { color: var(--status-error, #dc2626); }
+.status-completed { color: var(--status-completed, #16a34a); }
+
 // 搜索表单优化
 .search-form {
   background: var(--bg-primary);
