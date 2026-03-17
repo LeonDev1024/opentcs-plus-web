@@ -80,8 +80,11 @@
           </template>
         </el-table-column>
         <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
-        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="150">
+        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="180">
           <template #default="scope">
+            <el-tooltip content="详情" placement="top">
+              <el-button v-hasPermi="['opentcs:vehicleType:query']" link type="primary" icon="View" @click="handleDetail(scope.row)"></el-button>
+            </el-tooltip>
             <el-tooltip content="修改" placement="top">
               <el-button v-hasPermi="['opentcs:vehicleType:edit']" link type="primary" icon="Edit" @click="handleUpdate(scope.row)"></el-button>
             </el-tooltip>
@@ -183,6 +186,35 @@
         </div>
       </template>
     </el-dialog>
+    <!-- 查看详情对话框 -->
+    <el-dialog v-model="detailDialog.visible" title="车辆类型详情" width="600px" append-to-body>
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="车辆类型名称">{{ detailData.name || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="能量等级">{{ detailData.energyLevel || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="长度(m)">{{ detailData.length || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="宽度(m)">{{ detailData.width || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="高度(m)">{{ detailData.height || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="最大速度(m/s)">{{ detailData.maxVelocity || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="最大倒车速度(m/s)">{{ detailData.maxReverseVelocity || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ detailData.createTime || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="更新时间" :span="1">{{ detailData.updateTime || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="允许的订单类型" :span="2">
+          <el-tag v-for="(order, index) in getOrdersList(detailData.allowedOrders)" :key="index" size="small" style="margin-right: 4px;">
+            {{ order }}
+          </el-tag>
+          <span v-if="!detailData.allowedOrders || detailData.allowedOrders.length === 0" style="color: #909399;">-</span>
+        </el-descriptions-item>
+        <el-descriptions-item label="允许的外设操作" :span="2">
+          <el-tag v-for="(op, index) in getOperationsList(detailData.allowedPeripheralOperations)" :key="index" size="small" type="info" style="margin-right: 4px;">
+            {{ op }}
+          </el-tag>
+          <span v-if="!detailData.allowedPeripheralOperations || detailData.allowedPeripheralOperations.length === 0" style="color: #909399;">-</span>
+        </el-descriptions-item>
+      </el-descriptions>
+      <template #footer>
+        <el-button @click="detailDialog.visible = false">关 闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -208,6 +240,13 @@ const dialog = reactive<DialogOption>({
   visible: false,
   title: ''
 });
+
+const detailDialog = reactive<DialogOption>({
+  visible: false,
+  title: ''
+});
+
+const detailData = ref<any>({});
 
 // 将订单类型数组转换为显示数组
 const getOrdersList = (orders?: string[]): string[] => {
@@ -364,6 +403,14 @@ const handleUpdate = async (row?: TypeVO) => {
   
   dialog.visible = true;
   dialog.title = '修改车辆类型';
+};
+
+/** 查看详情按钮操作 */
+const handleDetail = async (row?: TypeVO) => {
+  const _id = row?.id || ids.value[0];
+  const res = await getType(_id);
+  detailData.value = res.data;
+  detailDialog.visible = true;
 };
 
 /** 提交按钮 */
