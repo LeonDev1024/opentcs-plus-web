@@ -962,9 +962,11 @@ import PathTypeIcon from './components/icons/PathTypeIcon.vue';
 import LocationTypeIcon from './components/icons/LocationTypeIcon.vue';
 import SvgIcon from '@/components/SvgIcon/index.vue';
 import { exportMapFile, importMapFile } from '@/api/opentcs/map';
+import { updateNavigationMap } from '@/api/opentcs/factory/map';
 import { Document, Close, RefreshLeft, RefreshRight, Delete, ZoomIn, ZoomOut, FullScreen, Picture, Location, Clock } from '@element-plus/icons-vue';
 import { parsePgmToDataUrl } from '@/utils/mapEditor/pgmParser';
 import type { RasterBackground } from '@/types/mapEditor';
+import request from '@/utils/request';
 
 // Props
 const props = defineProps<{
@@ -2445,8 +2447,60 @@ const confirmImportRaster = async () => {
     }
     const arrayBuffer = await pgmFile.arrayBuffer();
     const { dataUrl, width, height } = await parsePgmToDataUrl(arrayBuffer);
-    // 为了让导航栅格地图的原点直接对齐到拓扑原点（模型坐标 0,0），
-    // 这里不再使用 YAML 中的 origin，而是将栅格图左下角锚定在模型原点。
+
+    // 获取当前地图的版本号
+    const mapId = props.mapId || route.query.id || (mapEditorTabsStore.activeTab?.id as string);
+    let currentVersion = 0;
+    if (mapId) {
+      try {
+        const mapRes = await request({
+          url: `/factory/map/${mapId}`,
+          method: 'get'
+        });
+        if (mapRes.code === 200 && mapRes.data) {
+          currentVersion = mapRes.data.rasterVersion || 0;
+        }
+      } catch (e) {
+        console.error('获取地图信息失败', e);
+      }
+    }
+
+    // 上传到 OSS
+    const formData = new FormData();
+    formData.append('file', pgmFile);
+    const ossRes = await request({
+      url: '/resource/oss/upload',
+      method: 'post',
+      data: formData,
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+
+    let newRasterUrl = '';
+    if (ossRes.code === 200 && ossRes.data) {
+      newRasterUrl = ossRes.data.url;
+    } else {
+      ElMessage.warning('上传失败，将仅在本地显示');
+    }
+
+    // 更新数据库中的底图信息
+    if (mapId && newRasterUrl) {
+      try {
+        await updateNavigationMap({
+          id: Number(mapId),
+          rasterUrl: newRasterUrl,
+          rasterVersion: currentVersion + 1,
+          rasterWidth: width,
+          rasterHeight: height,
+          rasterResolution: parsed.resolution
+        } as any);
+        ElMessage.success(`底图已更新，版本号: v${currentVersion + 1}`);
+      } catch (e) {
+        console.error('更新底图信息失败', e);
+        ElMessage.warning('底图已上传但更新版本号失败');
+      }
+    }
+
+    // PGM 仅作为背景参考，原点固定在画布 (0,0)
     const payload: RasterBackground = {
       imageDataUrl: dataUrl,
       originX: 0,

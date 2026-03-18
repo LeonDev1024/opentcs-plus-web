@@ -1,78 +1,150 @@
 <template>
-  <div class="map-container">
-    <transition :enter-active-class="proxy?.animate.searchAnimate.enter" :leave-active-class="proxy?.animate.searchAnimate.leave">
-      <div v-show="showSearch" class="search">
-        <el-form ref="queryFormRef" :model="queryParams" :inline="true" label-width="100px">
-          <el-form-item label="地图名称" prop="name">
-            <el-input v-model="queryParams.name" placeholder="请输入地图名称" clearable @keyup.enter="handleQuery" />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
-            <el-button icon="Refresh" @click="resetQuery">重置</el-button>
-          </el-form-item>
-        </el-form>
+  <div class="workbench">
+    <div class="rcs-workbench" v-loading="loading">
+      <!-- 顶部工厂切换 -->
+      <div class="rcs-header">
+        <div class="factory-tabs">
+          <button
+            v-for="factory in factoryList"
+            :key="factory.id"
+            type="button"
+            class="factory-tab"
+            :class="{ active: factory.id === selectedFactoryId }"
+            @click="selectFactory(factory)"
+          >
+            {{ factory.name }}
+          </button>
+        </div>
       </div>
-    </transition>
 
-    <el-card shadow="never">
-      <template #header>
-        <el-row :gutter="10" class="mb8">
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:map:add']" type="primary" plain icon="Plus" @click="handleAdd">新增</el-button>
-          </el-col>
-          <right-toolbar v-model:show-search="showSearch" @query-table="getList"></right-toolbar>
-        </el-row>
-      </template>
+      <div class="rcs-stage2">
+        <div
+          class="stage2-canvas"
+          @mousedown="startDragOrigin"
+          @mousemove="onDragOrigin"
+          @mouseup="endDragOrigin"
+          @mouseleave="endDragOrigin"
+        >
+          <div v-if="activeMap?.rasterUrl" class="canvas-image">
+            <img class="canvas-img" :src="activeMap.rasterUrl" alt="地图底图" />
+          </div>
+          <div v-else class="canvas-empty">
+            <div v-if="!selectedFactoryId" class="muted">请选择工厂</div>
+            <div v-else-if="filteredMaps.length === 0" class="muted">当前工厂暂无地图，请先新建地图</div>
+            <div v-else class="muted">请选择左侧一张地图</div>
+          </div>
 
-      <el-table v-loading="loading" :data="mapList" border>
-        <el-table-column label="地图名称" align="center" prop="name" min-width="150" />
-        <el-table-column label="地图ID" align="center" prop="mapId" width="200" />
-        <el-table-column label="工厂名称" align="center" prop="factoryName" min-width="150" />
-        <el-table-column label="工厂编号" align="center" prop="factoryId" width="180" />
-        <el-table-column label="状态" align="center" width="100">
-          <template #default="{ row }">
-            <el-switch v-model="row.status" active-value="0" inactive-value="1" @change="handleStatusChange(row)" />
-          </template>
-        </el-table-column>
-        <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
-        <el-table-column label="描述" align="center" prop="description" show-overflow-tooltip />
+          <!-- 坐标轴 -->
+          <div class="canvas-axis">
+            <div
+              class="axis-line axis-x"
+              :style="{ left: originPosition.x + '%', bottom: originPosition.y + '%' }"
+            />
+            <div
+              class="axis-line axis-y"
+              :style="{ left: originPosition.x + '%', bottom: originPosition.y + '%' }"
+            />
+            <div
+              class="axis-origin"
+              :style="{ left: originPosition.x + '%', bottom: originPosition.y + '%' }"
+              @mousedown.stop="startDragOrigin"
+            >
+              O(0,0)
+            </div>
+          </div>
 
-        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="150">
-          <template #default="{ row }">
-            <el-tooltip content="编辑地图" placement="top">
-              <el-button v-hasPermi="['opentcs:map:edit']" link type="primary" icon="EditPen" @click="handleEdit(row)"></el-button>
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <el-button v-hasPermi="['opentcs:map:remove']" link type="primary" icon="Delete" @click="handleDelete(row)"></el-button>
-            </el-tooltip>
-          </template>
-        </el-table-column>
-      </el-table>
+          <div class="canvas-footer">
+            <span class="muted">预览模式</span>
+            <span class="footer-sep">，</span>
+            <span class="muted">地图ID：</span>
+            <span class="mono">{{ activeMap?.mapId || '-' }}</span>
+          </div>
 
-      <pagination v-show="total > 0" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" :total="total" @pagination="getList" />
-    </el-card>
+          <div class="stage2-actions">
+            <el-button v-hasPermi="['opentcs:map:add']" type="primary" icon="Plus" :disabled="!selectedFactoryId" @click="handleAdd">
+              新建地图
+            </el-button>
+            <el-button v-hasPermi="['opentcs:map:edit']" type="primary" plain icon="EditPen" :disabled="!activeMap" @click="activeMap && handleEdit(activeMap)">
+              地图编辑
+            </el-button>
+          </div>
+        </div>
 
-    <!-- 添加或修改对话框 -->
-    <el-dialog v-model="dialog.visible" :title="dialog.title" width="600px" append-to-body>
+        <div class="stage2-left">
+          <div class="stage2-left-inner">
+            <div v-if="selectedFactoryId" class="scene-list">
+              <button
+                v-for="m in filteredMaps"
+                :key="m.id"
+                type="button"
+                class="scene-item"
+                :class="{ active: String(m.id) === selectedMapId }"
+                @click="selectMap(m)"
+                @dblclick="handleEdit(m)"
+              >
+                <span class="scene-icon" />
+                <span class="scene-name">{{ m.name }}</span>
+              </button>
+
+              <button type="button" class="scene-item add" :disabled="!selectedFactoryId" @click="handleAdd">
+                <span class="scene-plus" />
+                <span class="scene-name">添加地图</span>
+              </button>
+            </div>
+
+            <div v-else class="left-empty">
+              <span class="muted">请先选择工厂</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 新建/编辑地图（P0：沿用现有弹窗能力） -->
+    <el-dialog v-model="dialog.visible" :title="dialog.title" width="700px" append-to-body>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="所属工厂" prop="factoryModelId">
-          <el-select v-model="form.factoryModelId" placeholder="请选择工厂" style="width: 100%;">
+          <el-select v-model="form.factoryModelId" placeholder="请选择工厂" style="width: 100%;" :disabled="!!selectedFactoryId">
             <el-option v-for="factory in factoryList" :key="factory.id" :label="factory.name" :value="factory.id" />
           </el-select>
+        </el-form-item>
+        <el-form-item label="地图ID" prop="mapId">
+          <el-input v-model="form.mapId" placeholder="请输入地图ID，如：map_001" />
         </el-form-item>
         <el-form-item label="地图名称" prop="name">
           <el-input v-model="form.name" placeholder="请输入地图名称，如：一楼车间" />
         </el-form-item>
-        <el-form-item label="楼层号" prop="floorNumber">
-          <el-input-number v-model="form.floorNumber" :placeholder="'-1表示地下楼层，null表示室外/公共区域'" style="width: 100%;" />
+        <el-form-item label="所属楼层" prop="floorNumber">
+          <el-input-number v-model="form.floorNumber" :placeholder="'-1表示地下楼层，0表示1楼'" style="width: 100%;" />
         </el-form-item>
-        <el-form-item label="地图类型" prop="mapType">
-          <el-select v-model="form.mapType" placeholder="请选择地图类型" style="width: 100%;">
-            <el-option label="室内 (INDOOR)" value="INDOOR" />
-            <el-option label="室外 (OUTDOOR)" value="OUTDOOR" />
-            <el-option label="混合 (MIXED)" value="MIXED" />
+        <el-form-item label="AMR型号" prop="amrModel">
+          <el-select v-model="form.amrModel" placeholder="请选择AMR型号" style="width: 100%;">
+            <el-option v-for="type in amrTypeList" :key="type.id" :label="type.name" :value="type.name" />
           </el-select>
         </el-form-item>
+
+        <el-form-item label="地图原点坐标">
+          <div class="map-position-inputs">
+            <div class="position-item">
+              <span class="label">X坐标(mm)</span>
+              <el-input-number v-model="form.originX" :step="100" :precision="0" controls-position="right" style="width: 120px;" />
+            </div>
+            <div class="position-item">
+              <span class="label">Y坐标(mm)</span>
+              <el-input-number v-model="form.originY" :step="100" :precision="0" controls-position="right" style="width: 120px;" />
+            </div>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="地图旋转角度">
+          <div class="map-position-inputs">
+            <div class="position-item">
+              <span class="label">旋转角度(°)</span>
+              <el-input-number v-model="form.rotation" :step="1" :min="-180" :max="180" controls-position="right" style="width: 120px;" />
+            </div>
+          </div>
+        </el-form-item>
+
         <el-form-item label="描述" prop="description">
           <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" />
         </el-form-item>
@@ -85,7 +157,7 @@
       </el-form>
       <template #footer>
         <div class="dialog-footer">
-          <el-button type="primary" @click="submitForm">确 定</el-button>
+          <el-button type="primary" :loading="dialog.loading" @click="submitForm">确 定</el-button>
           <el-button @click="cancel">取 消</el-button>
         </div>
       </template>
@@ -94,61 +166,155 @@
 </template>
 
 <script setup lang="ts">
-import { listNavigationMap, addNavigationMap, updateNavigationMap, delNavigationMap } from '@/api/opentcs/factory/map';
+import { listMapsByFactory, addNavigationMap, updateNavigationMap, delNavigationMap } from '@/api/opentcs/factory/map';
 import type { NavigationMapVO, NavigationMapForm, NavigationMapQuery } from '@/api/opentcs/factory/map/types';
 import { listFactoryModel } from '@/api/opentcs/factory/model';
 import type { FactoryModelVO } from '@/api/opentcs/factory/model/types';
+import { listType } from '@/api/opentcs/vehicle/type';
+import type { TypeVO } from '@/api/opentcs/vehicle/type/types';
 import { useMapEditorTabsStore } from '@/store/modules/mapEditorTabs';
-import { ElMessageBox } from 'element-plus';
-import type { FormInstance, ElFormInstance } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import type { FormInstance } from 'element-plus';
 
 const router = useRouter();
-const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 const mapEditorTabsStore = useMapEditorTabsStore();
 
 const loading = ref(true);
-const showSearch = ref(true);
-const total = ref(0);
 const mapList = ref<NavigationMapVO[]>([]);
 const factoryList = ref<FactoryModelVO[]>([]);
+const amrTypeList = ref<TypeVO[]>([]);
 
-const queryFormRef = ref<ElFormInstance>();
+const selectedFactoryId = ref<number | undefined>(undefined);
+const selectedMapId = ref<string>('');
 
-const queryParams = reactive<NavigationMapQuery>({
-  pageNum: 1,
-  pageSize: 10,
-  name: undefined
-});
+// 原点拖动状态
+const originPosition = reactive({ x: 20, y: 20 });
+const isDragging = ref(false);
+const dragStart = reactive({ x: 0, y: 0 });
+const originStart = reactive({ x: 0, y: 0 });
+
+// 开始拖动
+const startDragOrigin = (e: MouseEvent) => {
+  isDragging.value = true;
+  // 记录当前原点位置
+  originStart.x = originPosition.x;
+  originStart.y = originPosition.y;
+
+  // 获取鼠标位置
+  const canvasEl = document.querySelector('.stage2-canvas') as HTMLElement;
+  if (!canvasEl) return;
+
+  const rect = canvasEl.getBoundingClientRect();
+  dragStart.x = e.clientX;
+  dragStart.y = e.clientY;
+  document.body.style.cursor = 'move';
+};
+
+// 拖动中
+const onDragOrigin = (e: MouseEvent) => {
+  if (!isDragging.value) return;
+
+  const canvasEl = document.querySelector('.stage2-canvas') as HTMLElement;
+  if (!canvasEl) return;
+
+  const rect = canvasEl.getBoundingClientRect();
+  const deltaX = (e.clientX - dragStart.x) / rect.width * 100;
+  const deltaY = (dragStart.y - e.clientY) / rect.height * 100; // 反转Y方向
+
+  originPosition.x = Math.max(0, Math.min(100, originStart.x + deltaX));
+  originPosition.y = Math.max(0, Math.min(100, originStart.y + deltaY));
+};
+
+// 结束拖动
+const endDragOrigin = () => {
+  if (isDragging.value) {
+    isDragging.value = false;
+    document.body.style.cursor = '';
+  }
+};
+
+// 保留 query 类型，便于后续扩展筛选/分页（P0 暂不使用）
+const _queryParams = reactive<NavigationMapQuery>({});
 
 const dialog = reactive({
   visible: false,
-  title: ''
+  title: '',
+  loading: false
 });
 
 const form = reactive<NavigationMapForm>({
   id: undefined,
   factoryModelId: undefined as number | undefined,
+  mapId: '',
   name: '',
-  floorNumber: undefined,
-  mapType: 'INDOOR',
+  floorNumber: 0,
+  amrModel: '',
+  originX: 0,
+  originY: 0,
+  rotation: 0,
   description: '',
   status: '0'
 });
 
 const rules = {
   factoryModelId: [{ required: true, message: '请选择所属工厂', trigger: 'change' }],
-  name: [{ required: true, message: '地图名称不能为空', trigger: 'blur' }]
+  mapId: [{ required: true, message: '地图ID不能为空', trigger: 'blur' }],
+  name: [{ required: true, message: '地图名称不能为空', trigger: 'blur' }],
+  amrModel: [{ required: true, message: '请选择AMR型号', trigger: 'change' }]
 };
 
 const formRef = ref<FormInstance>();
 
-// 获取列表
-const getList = async () => {
+const activeMap = computed(() => mapList.value.find(m => String(m.id) === selectedMapId.value));
+
+const filteredMaps = computed(() => {
+  return [...mapList.value].sort((a, b) => {
+    const fa = a.floorNumber ?? 9999;
+    const fb = b.floorNumber ?? 9999;
+    if (fa !== fb) return fa - fb;
+    return (a.name || '').localeCompare(b.name || '');
+  });
+});
+
+const groupedMaps = computed(() => {
+  const groups = new Map<string, { key: string; label: string; items: NavigationMapVO[] }>();
+  for (const m of filteredMaps.value) {
+    const floor = m.floorNumber !== null && m.floorNumber !== undefined ? m.floorNumber : null;
+    const key = floor === null ? 'unknown' : String(floor);
+    const label = floor === null ? '未设置楼层' : `${floor}楼`;
+    if (!groups.has(key)) groups.set(key, { key, label, items: [] });
+    groups.get(key)!.items.push(m);
+  }
+  return Array.from(groups.values()).sort((a, b) => {
+    if (a.key === 'unknown') return 1;
+    if (b.key === 'unknown') return -1;
+    return Number(a.key) - Number(b.key);
+  });
+});
+
+const formatMapId = (mapId?: string) => {
+  if (!mapId) return '-';
+  if (mapId.length <= 14) return mapId;
+  return `${mapId.slice(0, 6)}…${mapId.slice(-4)}`;
+};
+
+const noop = () => {};
+
+const loadMaps = async () => {
+  if (!selectedFactoryId.value) {
+    mapList.value = [];
+    selectedMapId.value = '';
+    return;
+  }
   loading.value = true;
   try {
-    const res = await listNavigationMap(queryParams);
-    mapList.value = res.rows;
-    total.value = res.total;
+    const res = await listMapsByFactory(selectedFactoryId.value);
+    // 兼容后端返回格式（有的接口是 { data }，有的是直接数组）
+    const data = (res as any).data ?? res;
+    mapList.value = Array.isArray(data) ? data : [];
+    if (mapList.value.length > 0 && !selectedMapId.value) {
+      selectedMapId.value = String(mapList.value[0].id);
+    }
   } finally {
     loading.value = false;
   }
@@ -164,23 +330,47 @@ const getFactoryList = async () => {
   }
 };
 
-// 搜索
-const handleQuery = () => {
-  queryParams.pageNum = 1;
-  getList();
+// 获取AMR型号列表
+const getAmrTypeList = async () => {
+  try {
+    const res = await listType({ pageNum: 1, pageSize: 100 });
+    amrTypeList.value = res.data || [];
+  } catch (error) {
+    console.error('获取AMR型号列表失败:', error);
+  }
 };
 
-// 重置
-const resetQuery = () => {
-  queryFormRef.value?.resetFields();
-  handleQuery();
+const handleFactoryChange = () => {
+  selectedMapId.value = '';
+  router.replace({
+    query: {
+      ...router.currentRoute.value.query,
+      factoryModelId: selectedFactoryId.value ? String(selectedFactoryId.value) : undefined,
+      mapId: undefined
+    }
+  });
+  loadMaps();
+};
+
+// 选择工厂
+const selectFactory = (factory: FactoryModelVO) => {
+  selectedFactoryId.value = factory.id;
+  selectedMapId.value = '';
+  loadMaps();
 };
 
 // 新增
 const handleAdd = () => {
+  if (!selectedFactoryId.value) {
+    ElMessage.warning('请先选择工厂');
+    return;
+  }
   reset();
   dialog.visible = true;
   dialog.title = '添加地图';
+  if (selectedFactoryId.value) {
+    form.factoryModelId = selectedFactoryId.value;
+  }
 };
 
 // 编辑（打开地图编辑器标签页）
@@ -197,11 +387,26 @@ const handleEdit = (row: NavigationMapVO) => {
   });
 };
 
+const selectMap = (row: NavigationMapVO) => {
+  selectedMapId.value = String(row.id);
+  // 重置原点到画布左下方中间
+  originPosition.x = 20;
+  originPosition.y = 20;
+  router.replace({
+    query: {
+      ...router.currentRoute.value.query,
+      factoryModelId: selectedFactoryId.value ? String(selectedFactoryId.value) : undefined,
+      mapId: selectedMapId.value
+    }
+  });
+};
+
 // 提交
 const submitForm = async () => {
   const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) return;
 
+  dialog.loading = true;
   try {
     if (form.id) {
       await updateNavigationMap(form);
@@ -211,9 +416,11 @@ const submitForm = async () => {
       ElMessage.success('新增成功');
     }
     dialog.visible = false;
-    getList();
+    await loadMaps();
   } catch (error) {
     console.error(error);
+  } finally {
+    dialog.loading = false;
   }
 };
 
@@ -227,9 +434,13 @@ const cancel = () => {
 const reset = () => {
   form.id = undefined;
   form.factoryModelId = undefined;
+  form.mapId = '';
   form.name = '';
-  form.floorNumber = undefined;
-  form.mapType = 'INDOOR';
+  form.floorNumber = 0;
+  form.amrModel = '';
+  form.originX = 0;
+  form.originY = 0;
+  form.rotation = 0;
   form.description = '';
   form.status = '0';
   formRef.value?.resetFields();
@@ -241,36 +452,384 @@ const handleDelete = async (row: NavigationMapVO) => {
     await ElMessageBox.confirm('确认删除地图 "' + row.name + '" 吗？', '警告', { type: 'warning' });
     await delNavigationMap(row.id);
     ElMessage.success('删除成功');
-    getList();
+    await loadMaps();
   } catch (error) {
     console.error(error);
   }
 };
 
-// 状态修改
-const handleStatusChange = async (row: NavigationMapVO) => {
-  try {
-    await ElMessageBox.confirm('确认修改 "' + row.name + '" 状态吗？', '提示', { type: 'warning' });
-    await updateNavigationMap({ ...row, id: row.id } as NavigationMapForm);
-    ElMessage.success('状态修改成功');
-  } catch (error) {
-    row.status = row.status === '0' ? '1' : '0';
-  }
-};
-
 onMounted(() => {
-  getList();
   getFactoryList();
+  getAmrTypeList();
+  const factoryIdFromQuery = Number(router.currentRoute.value.query.factoryModelId);
+  const mapIdFromQuery = router.currentRoute.value.query.mapId ? String(router.currentRoute.value.query.mapId) : '';
+  if (!Number.isNaN(factoryIdFromQuery) && factoryIdFromQuery > 0) {
+    selectedFactoryId.value = factoryIdFromQuery;
+    if (mapIdFromQuery) selectedMapId.value = mapIdFromQuery;
+    loadMaps().then(() => {
+      // 若 query 里的 mapId 在当前工厂不存在，则回退到第一张
+      if (selectedMapId.value && !mapList.value.some(m => String(m.id) === selectedMapId.value)) {
+        selectedMapId.value = mapList.value.length > 0 ? String(mapList.value[0].id) : '';
+      }
+    });
+  } else {
+    loading.value = false;
+  }
 });
 </script>
 
 <style scoped lang="scss">
-.map-container {
+.workbench {
   height: 100%;
   padding: 16px;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-.search {
-  margin-bottom: 16px;
+.rcs-workbench {
+  height: 100%;
+  overflow: hidden;
+}
+
+.rcs-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #e6e8ee;
+  border-bottom: 1px solid #e6e8ee;
+  border-radius: 10px 10px 0 0;
+}
+
+.factory-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.factory-tab {
+  padding: 8px 16px;
+  border: 1px solid #e6e8ee;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  color: #2b2f36;
+  transition: all 0.15s ease;
+
+  &:hover {
+    border-color: rgba(64, 158, 255, 0.5);
+    background: rgba(64, 158, 255, 0.04);
+  }
+
+  &.active {
+    border-color: #409eff;
+    background: rgba(64, 158, 255, 0.1);
+    color: #409eff;
+    font-weight: 500;
+  }
+}
+
+.rcs-stage2 {
+  position: relative;
+  height: calc(100% - 48px);
+  border: 1px solid #e6e8ee;
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.stage2-canvas {
+  position: absolute;
+  inset: 0;
+  padding-left: 170px;
+  background-image: linear-gradient(#eef0f4 1px, transparent 1px), linear-gradient(90deg, #eef0f4 1px, transparent 1px);
+  background-size: 26px 26px;
+}
+
+.canvas-image {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  cursor: crosshair;
+}
+
+.canvas-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.canvas-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+// 坐标轴容器
+.canvas-axis {
+  position: absolute;
+  left: 170px;
+  bottom: 0;
+  right: 0;
+  top: 0;
+  z-index: 10;
+}
+
+.axis-origin {
+  position: absolute;
+  transform: translate(4px, 4px);
+  font-size: 10px;
+  color: #6b7280;
+  cursor: move;
+  user-select: none;
+  pointer-events: auto;
+  padding: 4px;
+
+  &:hover {
+    color: #2563eb;
+    font-weight: 500;
+  }
+}
+
+.axis-line {
+  position: absolute;
+}
+
+.axis-x {
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 20%;
+  min-width: 80px;
+  max-width: 200px;
+  background: #2563eb;
+}
+
+.axis-x::before {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: -4px;
+  border-left: 6px solid #2563eb;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+}
+
+.axis-x::after {
+  content: 'X';
+  position: absolute;
+  right: 4px;
+  top: -18px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #2563eb;
+}
+
+.axis-y {
+  left: 0;
+  bottom: 0;
+  width: 2px;
+  height: 20%;
+  min-height: 80px;
+  max-height: 200px;
+  background: #ef4444;
+}
+
+.axis-y::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -4px;
+  border-bottom: 6px solid #ef4444;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+}
+
+.axis-y::after {
+  content: 'Y';
+  position: absolute;
+  left: 6px;
+  top: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #ef4444;
+}
+
+.canvas-footer {
+  position: absolute;
+  left: 184px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.footer-sep {
+  color: #9ca3af;
+}
+
+.stage2-actions {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stage2-left {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 170px;
+  background: rgba(255, 255, 255, 0.92);
+  border-right: 1px solid #e6e8ee;
+  z-index: 2;
+}
+
+.stage2-left-inner {
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.scene-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+}
+
+.scene-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 8px 8px;
+  background: transparent;
+  cursor: pointer;
+  color: #2b2f36;
+  transition: background 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    background: rgba(64, 158, 255, 0.06);
+    border-color: rgba(64, 158, 255, 0.22);
+  }
+
+  &.active {
+    background: rgba(64, 158, 255, 0.1);
+    border-color: rgba(64, 158, 255, 0.32);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &.add {
+    margin-top: 4px;
+    border-style: dashed;
+    border-color: rgba(64, 158, 255, 0.4);
+    background: rgba(64, 158, 255, 0.04);
+
+    &:hover:not(:disabled) {
+      background: rgba(64, 158, 255, 0.1);
+      border-color: rgba(64, 158, 255, 0.6);
+    }
+  }
+}
+
+.scene-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.9), rgba(56, 189, 248, 0.9));
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.18);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &::after {
+    content: '';
+    width: 6px;
+    height: 5px;
+    border: 1.5px solid white;
+    border-radius: 1px;
+  }
+}
+
+.scene-plus {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px dashed rgba(64, 158, 255, 0.7);
+  background: rgba(64, 158, 255, 0.1);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  &::after {
+    content: '+';
+    font-size: 12px;
+    color: rgba(64, 158, 255, 0.9);
+    font-weight: bold;
+    line-height: 1;
+  }
+}
+
+.scene-name {
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.left-empty {
+  padding: 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.muted {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
+
+.map-position-inputs {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  .position-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .label {
+      font-size: 12px;
+      color: #606266;
+      white-space: nowrap;
+    }
+  }
 }
 </style>

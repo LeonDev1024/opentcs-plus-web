@@ -8,13 +8,22 @@ export interface NavigationMapVO {
   mapId: string;
   name: string;
   floorNumber: number | null;
-  mapType: string;
+  // AMR 型号（必填，对应 vehicle_type.name）
+  amrModel?: string;
+  // 地图定位参数（相对于场景原点，用于多地图统一显示）
   originX?: number;
   originY?: number;
+  rotation?: number;
   properties?: string;
   status: string;
   createTime?: string;
   updateTime?: string;
+  // 栅格底图相关字段（PGM 障碍物地图，仅用于可视化）
+  rasterUrl?: string;
+  rasterVersion?: number;
+  rasterWidth?: number;
+  rasterHeight?: number;
+  rasterResolution?: number;
   // 关联的点数、路径数等统计信息
   pointCount?: number;
   pathCount?: number;
@@ -23,14 +32,23 @@ export interface NavigationMapVO {
 export interface NavigationMapForm {
   id?: number;
   factoryModelId: number;
-  mapId?: string;
+  mapId: string;
   name: string;
   floorNumber?: number | null;
-  mapType?: string;
+  // AMR 型号（必填，对应 vehicle_type.name）
+  amrModel?: string;
+  // 地图定位参数（相对于场景原点）
   originX?: number;
   originY?: number;
+  rotation?: number;
   properties?: string;
   status?: string;
+  // 栅格底图相关字段（创建/更新时传递）
+  rasterUrl?: string;
+  rasterVersion?: number;
+  rasterWidth?: number;
+  rasterHeight?: number;
+  rasterResolution?: number;
 }
 
 export interface NavigationMapQuery {
@@ -40,6 +58,5 @@ export interface NavigationMapQuery {
   name?: string;
   mapId?: string;
   floorNumber?: number;
-  mapType?: string;
   status?: string;
 }
