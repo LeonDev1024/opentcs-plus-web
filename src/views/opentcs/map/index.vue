@@ -325,6 +325,12 @@ const getFactoryList = async () => {
   try {
     const res = await listFactoryModel({ pageNum: 1, pageSize: 100 });
     factoryList.value = res.rows;
+
+    // 自动选择第一个工厂
+    if (factoryList.value.length > 0 && !selectedFactoryId.value) {
+      selectedFactoryId.value = factoryList.value[0].id;
+      loadMaps();
+    }
   } catch (error) {
     console.error('获取工厂列表失败:', error);
   }
@@ -461,8 +467,10 @@ const handleDelete = async (row: NavigationMapVO) => {
 onMounted(() => {
   getFactoryList();
   getAmrTypeList();
+
   const factoryIdFromQuery = Number(router.currentRoute.value.query.factoryModelId);
   const mapIdFromQuery = router.currentRoute.value.query.mapId ? String(router.currentRoute.value.query.mapId) : '';
+
   if (!Number.isNaN(factoryIdFromQuery) && factoryIdFromQuery > 0) {
     selectedFactoryId.value = factoryIdFromQuery;
     if (mapIdFromQuery) selectedMapId.value = mapIdFromQuery;
@@ -472,9 +480,8 @@ onMounted(() => {
         selectedMapId.value = mapList.value.length > 0 ? String(mapList.value[0].id) : '';
       }
     });
-  } else {
-    loading.value = false;
   }
+  // 如果 URL 没有 factoryModelId，getFactoryList 会自动选择第一个工厂
 });
 </script>
 
