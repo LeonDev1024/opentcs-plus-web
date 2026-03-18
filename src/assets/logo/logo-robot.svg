@@ -1,12 +1,13 @@
 <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- AGV ?? -->
-  <rect x="8" y="14" width="32" height="18" rx="4" fill="#2563eb"/>
-  <!-- ??? -->
-  <rect x="12" y="8" width="24" height="8" rx="2" fill="#3b82f6"/>
-  <!-- ?? -->
-  <circle cx="18" cy="22" r="2.5" fill="#1e293b"/>
-  <circle cx="30" cy="22" r="2.5" fill="#1e293b"/>
-  <!-- ?? - ?? -->
-  <circle cx="14" cy="32" r="5" fill="#1d4ed8"/>
-  <circle cx="34" cy="32" r="5" fill="#1d4ed8"/>
+  <!-- AGV 机器人 - 天蓝色方案 -->
+  <!-- 身体 -->
+  <rect x="8" y="14" width="32" height="18" rx="4" fill="#38BDF8"/>
+  <!-- 头部 -->
+  <rect x="12" y="8" width="24" height="8" rx="2" fill="#7DD3FC"/>
+  <!-- 眼睛 -->
+  <circle cx="18" cy="22" r="2.5" fill="#1E293B"/>
+  <circle cx="30" cy="22" r="2.5" fill="#1E293B"/>
+  <!-- 轮子 -->
+  <circle cx="14" cy="32" r="5" fill="#0EA5E9"/>
+  <circle cx="34" cy="32" r="5" fill="#0EA5E9"/>
 </svg>

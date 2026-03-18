@@ -78,7 +78,6 @@ desktop.ini
 # Nuxt.js
 .nuxt/
 .static
-
 # Temporary files
 *.tmp
 *.temp
