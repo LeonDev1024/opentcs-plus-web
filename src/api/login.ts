@@ -1,6 +1,6 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { LoginData, LoginResult, VerifyCodeResult, TenantInfo } from './types';
+import { LoginData, LoginResult, VerifyCodeResult } from './types';
 import { UserInfo } from '@/api/system/user/types';
 
 // pc端固定客户端授权id
@@ -78,17 +78,6 @@ export function callback(data: LoginData): AxiosPromise<any> {
 export function getInfo(): AxiosPromise<UserInfo> {
   return request({
     url: '/system/user/getInfo',
-    method: 'get'
-  });
-}
-
-// 获取租户列表
-export function getTenantList(isToken: boolean): AxiosPromise<TenantInfo> {
-  return request({
-    url: '/auth/tenant/list',
-    headers: {
-      isToken: isToken
-    },
     method: 'get'
   });
 }

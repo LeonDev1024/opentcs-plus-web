@@ -2,7 +2,6 @@
  * 注册
  */
 export type RegisterForm = {
-  tenantId: string;
   username: string;
   password: string;
   confirmPassword?: string;
@@ -15,7 +14,6 @@ export type RegisterForm = {
  * 登录请求
  */
 export interface LoginData {
-  tenantId?: string;
   username?: string;
   password?: string;
   rememberMe?: boolean;
@@ -42,18 +40,4 @@ export interface VerifyCodeResult {
   captchaEnabled: boolean;
   uuid?: string;
   img?: string;
-}
-
-/**
- * 租户
- */
-export interface TenantVO {
-  companyName: string;
-  domain: any;
-  tenantId: string;
-}
-
-export interface TenantInfo {
-  tenantEnabled: boolean;
-  voList: TenantVO[];
 }

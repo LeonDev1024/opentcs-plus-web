@@ -6,7 +6,6 @@ export default {
   },
   // 登录页面国际化
   login: {
-    selectPlaceholder: 'Please select/enter a company name',
     username: 'Username',
     password: 'Password',
     login: 'Login',
@@ -15,9 +14,6 @@ export default {
     rememberPassword: 'Remember me',
     switchRegisterPage: 'Sign up now',
     rule: {
-      tenantId: {
-        required: 'Please enter your tenant id'
-      },
       username: {
         required: 'Please enter your account'
       },
@@ -38,7 +34,6 @@ export default {
   },
   // 注册页面国际化
   register: {
-    selectPlaceholder: 'Please select/enter a company name',
     username: 'Username',
     password: 'Password',
     confirmPassword: 'Confirm Password',
@@ -48,9 +43,6 @@ export default {
     code: 'Verification Code',
     switchLoginPage: 'Log in with an existing account',
     rule: {
-      tenantId: {
-        required: 'Please enter your tenant id'
-      },
       username: {
         required: 'Please enter your account',
         length: 'The length of the user account must be between {min} and {max}'
@@ -77,7 +69,6 @@ export default {
     document: 'Document',
     message: 'Message',
     layoutSize: 'Layout Size',
-    selectTenant: 'Select Tenant',
     layoutSetting: 'Layout Setting',
     personalCenter: 'Personal Center',
     logout: 'Logout'
