@@ -1,92 +1,98 @@
-# Dependencies
-node_modules/
-.pnpm-store/
+# ========================
+# 依赖目录
+# ========================
+node_modules/              # npm/pnpm 安装的依赖包
+.pnpm-store/               # pnpm 本地缓存
 
-# Production builds
-dist/
-dist-*/
+# ========================
+# 构建产物
+# ========================
+dist/                     # 生产环境构建输出
+dist-*/                   # 其他构建输出目录
 
-# Environment variables
-.env*
+# ========================
+# 环境变量文件
+# ========================
+.env*                     # 所有环境变量文件（.env, .env.local, .env.production 等）
 
-# Logs
-*.log
-logs/
+# ========================
+# 日志文件
+# ========================
+*.log                      # 日志文件
+logs/                     # 日志目录
 
-# Coverage
-coverage/
+# ========================
+# 测试覆盖率
+# ========================
+coverage/                  # 测试覆盖率报告
+.nyc_output/              # NYC 测试输出
 
-# Testing
-.nyc_output/
-coverage/
+# ========================
+# Vite 构建缓存
+# ========================
+.vite/                    # Vite 依赖预构建缓存
+.vite-inspect/            # Vite 调试缓存
 
-# Nuxt
-.nuxt
-.output
-# Vue
-.vuepress/dist
+# ========================
+# GitHub 配置
+# ========================
+.github/                 # GitHub Actions 工作流配置（本项目不需要）
 
-# System files
-.DS_Store
-Thumbs.db
-ehthumbs.db
-.Spotlight-V100
-.Trashes
-Icon?
-VolumeIcon.icns
+# ========================
+# 系统文件（ macOS/Windows/Linux ）
+# ========================
+.DS_Store                # macOS 文件夹元数据
+.DS_Store?               # macOS 临时文件
+._*                      # macOS 临时文件
+.Thumbs.db               # Windows 缩略图缓存
+ehthumbs.db              # Windows Media Center 缩略图
+Desktop.ini              # Windows 桌面配置
+.DS_Store               # macOS 系统文件
+.DS_Store?              # macOS 临时文件
+._*                     # macOS 临时文件
+.Spotlight-V100          # macOS Spotlight 索引
+.Trashes                 # macOS 废纸篓
+Icon?                   # macOS 隐藏文件
+VolumeIcon.icns          # macOS 卷标图标
 
-# IDE files
-.idea/
-.vscode
-*.swp
-*.swo
-*~
-.project
-.c9revisions
-.c9properties
-*.code-workspace
-.settings/
+# ========================
+# IDE 开发工具配置
+# ========================
+.idea/                   # IntelliJ IDEA 配置
+.vscode/                 # VS Code 配置
+*.swp                    # Vim 临时文件
+*.swo                    # Vim 临时文件
+*~                       # 临时备份文件
+.project                 # Eclipse 项目文件
+.c9revisions            # Cloud9 IDE 配置文件
+.c9properties           # Cloud9 IDE 配置文件
+*.code-workspace        # VS Code 多工作区文件
+.settings/              # Eclipse 设置目录
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-desktop.ini
+# ========================
+# 前端框架缓存（通用）
+# ========================
+.cache/                  # 通用缓存目录
+.parcel-cache/          # Parcel 构建缓存
+.next/                  # Next.js 构建缓存
+.nuxt/                  # Nuxt.js 构建缓存
+.nuxt/                  # Nuxt.js
+.static/                # Nuxt.js 静态文件输出
+.vuepress/dist          # VuePress 构建输出
 
-# local env files
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# ========================
+# 临时文件
+# ========================
+*.tmp                    # 临时文件
+*.temp                   # 临时文件
 
-# Serverless
-.serverless/
+# ========================
+# CLAUDE AI 配置文件
+# ========================
+CLAUDE.md               # Claude Code 项目说明文件
 
-# FuseBox cache
-.fusebox/
-
-# Parcel cache
-.cache/
-
-# Next.js
-.next
-
-# Nuxt.js
-.nuxt/
-.static
-# Temporary files
-*.tmp
-*.temp
-
-# CLAUDE Documentation
-CLAUDE.md
-
-# Vite cache
-.vite/
-
-# GitHub workflows
-.github/
+# ========================
+# 其他
+# ========================
+serverless/              # Serverless 框架输出
+fusebox/                # FuseBox 缓存
