@@ -559,12 +559,8 @@ const rasterBackgroundConfig = computed(() => {
 
 // 网格配置：画布上按固定步长绘制，保证网格线密度可见；比例尺由 scaleX/scaleY 在状态栏换算
 const gridSize = ref(18);
-const showGrid = ref(true);
 
 const gridLines = computed(() => {
-  if (!showGrid.value) {
-    return [];
-  }
   const lines: any[] = [];
   const width = canvasState.value.width || 1920;
   const height = canvasState.value.height || 1080;
@@ -3229,11 +3225,6 @@ const getDefaultLayerId = (type: 'point' | 'path' | 'location'): string => {
   throw new Error('没有可用的图层，请先在后端创建地图模型');
 };
 
-// 设置网格可见性（供父组件调用）
-const setGridVisible = (visible: boolean) => {
-  showGrid.value = visible;
-};
-
 // 设置网格大小（供父组件调用）
 const setGridSize = (size: number) => {
   gridSize.value = Math.max(5, Math.min(100, size)); // 限制在 5-100 之间
@@ -3308,14 +3299,12 @@ watch(currentTool, (tool) => {
 
 // 暴露方法供父组件调用
 defineExpose({
-  setGridVisible,
   setGridSize,
   setGridColor,
   setSnapEnabled,
   setLabelsVisible,
   setBlocksVisible,
   gridSize,
-  showGrid,
   showLabels,
   showBlocks,
   getMousePosition: () => mousePosition.value,

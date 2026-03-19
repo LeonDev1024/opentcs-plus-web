@@ -179,75 +179,6 @@
           </el-tooltip>
         </el-button-group>
         <el-divider direction="vertical" />
-        <el-button-group>
-          <el-tooltip content="批量删除" :show-after="50" placement="bottom">
-            <el-button
-              size="small"
-              icon="Delete"
-              :disabled="!hasSelection"
-              @click="handleBatchDelete"
-            />
-          </el-tooltip>
-          <el-tooltip content="批量属性编辑" :show-after="50" placement="bottom">
-            <el-button
-              size="small"
-              icon="Edit"
-              :disabled="!hasMultiSelection"
-              @click="openBatchEditDialog"
-            />
-          </el-tooltip>
-        </el-button-group>
-        <el-divider direction="vertical" />
-        <div class="export-import-group">
-          <el-dropdown @command="handleExportCommand" trigger="click">
-            <el-button size="small" icon="Download" />
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="editor">导出编辑器 JSON</el-dropdown-item>
-                <el-dropdown-item command="model">导出 openTCS 模型</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-          <el-dropdown @command="handleImportCommand" trigger="click">
-            <el-button size="small" icon="Upload" />
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="editor">导入编辑器 JSON</el-dropdown-item>
-                <el-dropdown-item command="model">导入 openTCS 模型</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </div>
-        <el-divider direction="vertical" />
-        <span class="zoom-level">{{ Math.round(canvasState.scale * 100) }}%</span>
-        <el-button-group size="small">
-          <el-tooltip content="放大" :show-after="50" placement="bottom">
-            <el-button icon="ZoomIn" @click="zoomIn" :circle="true" />
-          </el-tooltip>
-          <el-tooltip content="缩小" :show-after="50" placement="bottom">
-            <el-button icon="ZoomOut" @click="zoomOut" :circle="true" />
-          </el-tooltip>
-          <el-tooltip content="重置缩放" :show-after="50" placement="bottom">
-            <el-button icon="FullScreen" @click="resetZoom" :circle="true" />
-          </el-tooltip>
-        </el-button-group>
-        <el-tooltip content="显示/隐藏网格" :show-after="50" placement="bottom">
-          <el-button
-            :type="showGrid ? 'primary' : 'default'"
-            size="small"
-            icon="Grid"
-            @click="toggleGrid"
-            :circle="true"
-          />
-        </el-tooltip>
-        <el-tooltip content="网格设置" :show-after="50" placement="bottom">
-          <el-button
-            size="small"
-            icon="Setting"
-            @click="openGridSettingsDialog"
-            :circle="true"
-          />
-        </el-tooltip>
         <el-tooltip content="显示/隐藏标签" :show-after="50" placement="bottom">
           <el-button 
             :type="showLabels ? 'primary' : 'default'"
@@ -373,61 +304,6 @@
       </div>
 
     </div>
-
-    <!-- 批量属性编辑对话框 -->
-    <el-dialog
-      v-model="batchEditDialogVisible"
-      title="批量属性编辑"
-      width="400"
-      destroy-on-close
-    >
-      <el-form label-width="100px">
-        <el-form-item label="选中元素">
-          <span>{{ mapEditorStore.selection.selectedIds.size }} 个元素</span>
-          <span class="batch-type-hint">({{ mapEditorStore.selection.selectedType }})</span>
-        </el-form-item>
-        <el-form-item label="修改图层">
-          <el-select v-model="batchEditForm.layerId" placeholder="选择图层" clearable>
-            <el-option
-              v-for="layer in mapEditorStore.layers"
-              :key="layer.id"
-              :label="layer.name"
-              :value="layer.id"
-            />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="batchEditDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleBatchEdit">确定</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 网格设置对话框 -->
-    <el-dialog
-      v-model="gridSettingsDialogVisible"
-      title="网格设置"
-      width="350"
-      destroy-on-close
-    >
-      <el-form label-width="80px">
-        <el-form-item label="网格间距">
-          <el-input-number v-model="gridSettingsForm.size" :min="5" :max="100" :step="5" />
-          <span style="margin-left: 8px; color: #909399;">像素</span>
-        </el-form-item>
-        <el-form-item label="网格颜色">
-          <el-color-picker v-model="gridSettingsForm.color" />
-        </el-form-item>
-        <el-form-item label="智能吸附">
-          <el-switch v-model="gridSettingsForm.snapEnabled" />
-          <span style="margin-left: 8px; color: #909399;">拖拽时自动吸附到网格</span>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="gridSettingsDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="applyGridSettings">应用</el-button>
-      </template>
-    </el-dialog>
 
     <!-- 导入栅格地图对话框（选择 map.yaml + map.pgm） -->
     <el-dialog
@@ -818,7 +694,6 @@ const mapEditorTabsStore = useMapEditorTabsStore();
 const mapCanvasRef = ref<InstanceType<typeof MapCanvas>>();
 
 // 网格显示状态
-const showGrid = ref(true);
 
 // 标签显示状态
 const showLabels = ref(true);
@@ -1142,48 +1017,6 @@ const hasSelection = computed(() => {
   return selectedIds.size > 0 && selectedType !== 'layout';
 });
 
-// 是否有多个元素被选中
-const hasMultiSelection = computed(() => {
-  return mapEditorStore.selection.selectedIds.size > 1;
-});
-
-// 批量编辑对话框状态
-const batchEditDialogVisible = ref(false);
-const batchEditForm = reactive({
-  layerId: '' as string | null,
-  type: '' as string | null
-});
-
-// 打开批量编辑对话框
-const openBatchEditDialog = () => {
-  batchEditForm.layerId = null;
-  batchEditForm.type = null;
-  batchEditDialogVisible.value = true;
-};
-
-// 执行批量属性修改
-const handleBatchEdit = () => {
-  const selectedIds = mapEditorStore.selection.selectedIds;
-  const selectedType = mapEditorStore.selection.selectedType;
-
-  if (selectedType === 'point' && batchEditForm.layerId) {
-    selectedIds.forEach(id => {
-      mapEditorStore.updatePoint(id, { layerId: batchEditForm.layerId! });
-    });
-  } else if (selectedType === 'path' && batchEditForm.layerId) {
-    selectedIds.forEach(id => {
-      mapEditorStore.updatePath(id, { layerId: batchEditForm.layerId! });
-    });
-  } else if (selectedType === 'location' && batchEditForm.layerId) {
-    selectedIds.forEach(id => {
-      mapEditorStore.updateLocation(id, { layerId: batchEditForm.layerId! });
-    });
-  }
-
-  ElMessage.success(`已批量修改 ${selectedIds.size} 个元素`);
-  batchEditDialogVisible.value = false;
-};
-
 type PathConnectionType = 'direct' | 'orthogonal' | 'curve';
 
 const pathTypeOptions: Array<{ value: PathConnectionType; label: string }> = [
@@ -1396,43 +1229,6 @@ const resetZoom = () => {
 };
 
 // 切换网格显示
-const toggleGrid = () => {
-  showGrid.value = !showGrid.value;
-  // 通过 ref 调用子组件的方法
-  if (mapCanvasRef.value) {
-    (mapCanvasRef.value as any).setGridVisible(showGrid.value);
-  }
-};
-
-// 网格设置对话框
-const gridSettingsDialogVisible = ref(false);
-const gridSettingsForm = reactive({
-  size: 20,
-  color: '#dcdfe6',
-  snapEnabled: true
-});
-
-// 打开网格设置对话框
-const openGridSettingsDialog = () => {
-  // 从MapCanvas获取当前网格设置
-  if (mapCanvasRef.value) {
-    const currentGridSize = (mapCanvasRef.value as any).gridSize;
-    if (currentGridSize) gridSettingsForm.size = currentGridSize;
-  }
-  gridSettingsDialogVisible.value = true;
-};
-
-// 应用网格设置
-const applyGridSettings = () => {
-  if (mapCanvasRef.value) {
-    (mapCanvasRef.value as any).setGridSize?.(gridSettingsForm.size);
-    (mapCanvasRef.value as any).setGridColor?.(gridSettingsForm.color);
-    (mapCanvasRef.value as any).setSnapEnabled?.(gridSettingsForm.snapEnabled);
-  }
-  gridSettingsDialogVisible.value = false;
-  ElMessage.success('网格设置已更新');
-};
-
 // 切换标签显示
 const toggleLabels = () => {
   showLabels.value = !showLabels.value;
@@ -1683,44 +1479,6 @@ const handlePointDoubleClick = (point: MapPoint) => {
 // 处理点更新后的回调
 const handlePointUpdated = () => {
   // 刷新视图
-};
-
-// 批量删除选中元素
-const handleBatchDelete = async () => {
-  const selectedIds = mapEditorStore.selection.selectedIds;
-  const selectedType = mapEditorStore.selection.selectedType;
-
-  if (selectedIds.size === 0 || selectedType === 'layout') {
-    return;
-  }
-
-  try {
-    await ElMessageBox.confirm(
-      `确定要删除选中的 ${selectedIds.size} 个元素吗？`,
-      '确认删除',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    );
-    
-    // 根据选中的类型删除元素
-    if (selectedType === 'point') {
-      selectedIds.forEach(id => mapEditorStore.deletePoint(id));
-    } else if (selectedType === 'path') {
-      selectedIds.forEach(id => mapEditorStore.deletePath(id));
-    } else if (selectedType === 'location') {
-      selectedIds.forEach(id => mapEditorStore.deleteLocation(id));
-    }
-    
-    // 清除选择
-    mapEditorStore.clearSelection();
-    
-    ElMessage.success(`成功删除 ${selectedIds.size} 个元素`);
-  } catch (error) {
-    // 用户取消删除
-  }
 };
 
 // 快速复制选中元素（带偏移粘贴）
