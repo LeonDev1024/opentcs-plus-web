@@ -268,67 +268,6 @@
         </el-tooltip>
       </div>
       <div class="toolbar-right">
-        <!-- 仿真控制面板 -->
-        <template v-if="isSimulating">
-          <el-tooltip content="仿真速度" :show-after="50" placement="bottom">
-            <el-select v-model="simulationSpeed" size="small" style="width: 80px">
-              <el-option label="0.5x" :value="0.5" />
-              <el-option label="1x" :value="1" />
-              <el-option label="2x" :value="2" />
-              <el-option label="3x" :value="3" />
-            </el-select>
-          </el-tooltip>
-          <el-progress
-            :percentage="simulationProgress"
-            :stroke-width="8"
-            :show-text="false"
-            style="width: 100px"
-          />
-          <span class="simulation-progress-text">{{ simulationProgress }}%</span>
-        </template>
-        <!-- 仿真控制按钮 -->
-        <el-tooltip content="路径仿真 (选中路径后点击)" :show-after="50" placement="bottom">
-          <el-button
-            size="small"
-            :type="isSimulating ? 'warning' : 'default'"
-            :icon="isSimulating ? 'VideoPause' : 'VideoPlay'"
-            @click="toggleSimulation"
-            :disabled="!hasPathSelected && !isSimulating"
-          >
-            {{ isSimulating ? '停止' : '仿真' }}
-          </el-button>
-        </el-tooltip>
-        <el-divider direction="vertical" />
-        <!-- 地图检测按钮 -->
-        <el-tooltip content="检测地图问题" :show-after="50" placement="bottom">
-          <el-button
-            size="small"
-            :type="mapIssues.length > 0 ? 'danger' : 'default'"
-            :icon="Location"
-            @click="runMapValidation"
-          >
-            检测 {{ mapIssues.length > 0 ? `(${mapIssues.length})` : '' }}
-          </el-button>
-        </el-tooltip>
-        <el-divider direction="vertical" />
-        <el-tooltip :content="isLeftPanelCollapsed ? '展开侧边栏' : '收起侧边栏'" :show-after="50" placement="bottom">
-          <el-button
-            class="collapse-toggle"
-            size="small"
-            @click="toggleLeftPanelCollapse"
-          >
-            <el-icon>
-              <component :is="isLeftPanelCollapsed ? 'CaretRight' : 'CaretLeft'" />
-            </el-icon>
-          </el-button>
-        </el-tooltip>
-        <el-tooltip content="自动切换工具" :show-after="50" placement="bottom">
-          <el-switch
-            v-model="autoSwitchTool"
-            size="small"
-          />
-        </el-tooltip>
-        <el-divider direction="vertical" />
         <el-button type="primary" size="small" icon="Document" @click="handleSave" :loading="loading">保存</el-button>
         <el-button size="small" icon="Close" @click="handleClose">关闭</el-button>
       </div>
@@ -338,7 +277,6 @@
     <div class="editor-content">
       <!-- 左侧面板：视图、属性 -->
       <div 
-        v-show="!isLeftPanelCollapsed"
         class="left-panels" 
         :style="{ width: leftPanelWidth + 'px' }"
       >
@@ -395,7 +333,6 @@
       
       <!-- 左侧可拖拽的分隔条 -->
       <div 
-        v-show="!isLeftPanelCollapsed"
         class="panel-resizer" 
         @mousedown="handleResizeStart"
         :class="{ 'resizing': isResizing }"
@@ -407,11 +344,6 @@
           <MapCanvas
             ref="mapCanvasRef"
             @point-double-click="handlePointDoubleClick"
-            :auto-switch-tool="autoSwitchTool"
-            :is-simulating="isSimulating"
-            :simulation-path-id="simulationPathId"
-            :simulation-progress="simulationProgress"
-            :map-issues="mapIssues"
           />
         </div>
         <!-- 坐标轴 -->
@@ -965,9 +897,6 @@ const csvParsedData = ref<{
   error?: string;
 }[]>([]);
 
-// 左侧面板收起状态
-const isLeftPanelCollapsed = ref(false);
-
 // 图层面板折叠状态（默认收起）
 const isLayerPanelCollapsed = ref(true);
 
@@ -983,25 +912,12 @@ const DEFAULT_LAYER_PANEL_HEIGHT = 200; // 图层面板默认展开高度，避�
 const propertyPanelHeight = ref<number | null>(null);
 const layerPanelHeight = ref<number | null>(null);
 
-// 工具模式记忆状态（默认不自动切换回选择工具）
-const autoSwitchTool = ref(false);
-
-// 仿真状态
+// 仿真与地图检测相关状态（已下线仿真与检测功能，保留接口方便后续扩展）
 const isSimulating = ref(false);
 const simulationPathId = ref<string | null>(null);
-const simulationProgress = ref(0); // 0-100
-const simulationSpeed = ref(1); // 仿真速度 0.5x, 1x, 2x, 3x
-
-// 地图问题检测
-interface MapIssue {
-  id: string;
-  type: 'disconnected' | 'intersection' | 'radius' | 'overlap';
-  severity: 'warning' | 'error';
-  message: string;
-  elementIds: string[];
-  position?: { x: number; y: number };
-}
-const mapIssues = ref<MapIssue[]>([]);
+const simulationProgress = ref(0);
+const simulationSpeed = ref(1);
+const mapIssues = ref<any[]>([]);
 
 // 是否有路径被选中
 const hasPathSelected = computed(() => {
@@ -1301,13 +1217,6 @@ const setTool = (tool: ToolMode) => {
   ElMessage.success(`已切换到${toolNames[tool]}`);
 };
 
-// 自动切换工具
-const autoSwitchToSelect = () => {
-  if (autoSwitchTool.value) {
-    mapEditorStore.setTool(ToolMode.SELECT);
-  }
-};
-
 const getPointTypeIconClass = (type: string) => {
   return type === 'Park point' ? 'park-point' : 'halt-point';
 };
@@ -1343,18 +1252,6 @@ const handlePointDropdownVisible = (visible: boolean) => {
   if (visible && currentTool.value !== ToolMode.POINT) {
     setTool(ToolMode.POINT);
   }
-};
-
-// 连线下拉菜单显示状态
-const handlePathDropdownVisible = (visible: boolean) => {
-  if (visible && currentTool.value !== ToolMode.PATH) {
-    setTool(ToolMode.PATH);
-  }
-};
-
-// 左侧面板收起/展开
-const toggleLeftPanelCollapse = () => {
-  isLeftPanelCollapsed.value = !isLeftPanelCollapsed.value;
 };
 
 // 图层面板折叠/展开（带状态记忆）
@@ -1711,10 +1608,10 @@ onMounted(async () => {
   });
   
   // 加载地图数据：
-  // - 如果带有 id（从地图列表”编辑”跳转），则从后端加载对应地图
-  // - 如果没有 id（从左侧菜单直接打开），则进入”空白编辑器”模式，不再强制调用 loadMap，避免报错
-  // 优先使用：1. props.mapId  2. route.query.id  3. 当前活动标签页的ID
-  let loadedMapId = props.mapId || route.query.id as string;
+  // - 如果带有 mapId（从地图列表”编辑”跳转），则从后端加载对应地图
+  // - 如果没有 mapId（从左侧菜单直接打开），则进入”空白编辑器”模式，不再强制调用 loadMap，避免报错
+  // 优先使用：1. props.mapId  2. route.query.mapId  3. 当前活动标签页的ID
+  let loadedMapId = props.mapId || route.query.mapId as string;
   if (!loadedMapId && mapEditorTabsStore.activeTab) {
     loadedMapId = mapEditorTabsStore.activeTab.id;
   }
@@ -2240,12 +2137,13 @@ const confirmImportRaster = async () => {
     const { dataUrl, width, height } = await parsePgmToDataUrl(arrayBuffer);
 
     // 获取当前地图的版本号
-    const mapId = props.mapId || route.query.id || (mapEditorTabsStore.activeTab?.id as string);
+    const mapId = props.mapId || route.query.mapId || (mapEditorTabsStore.activeTab?.id as string);
+    const dbId = mapEditorStore.mapData?.mapInfo?.id;
     let currentVersion = 0;
-    if (mapId) {
+    if (dbId) {
       try {
         const mapRes = await request({
-          url: `/factory/map/${mapId}`,
+          url: `/factory/map/${dbId}`,
           method: 'get'
         });
         if (mapRes.code === 200 && mapRes.data) {
@@ -2274,10 +2172,10 @@ const confirmImportRaster = async () => {
     }
 
     // 更新数据库中的底图信息
-    if (mapId && newRasterUrl) {
+    if (dbId && newRasterUrl) {
       try {
         await updateNavigationMap({
-          id: Number(mapId),
+          id: Number(dbId),
           rasterUrl: newRasterUrl,
           rasterVersion: currentVersion + 1,
           rasterWidth: width,

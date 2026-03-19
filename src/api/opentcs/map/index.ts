@@ -83,11 +83,11 @@ export const saveMapEditorData = (mapId: string | number, data: MapEditorSaveDat
  * 加载地图编辑器数据
  * 后端返回标准响应包装：R<MapEditorBO>
  */
-export const loadMapEditorData = (navMapId: string | number): AxiosPromise<MapEditorResponse> => {
+export const loadMapEditorData = (mapId: string | number): AxiosPromise<MapEditorResponse> => {
   return request({
     url: `/map/editor/load`,
     method: 'post',
-    data: { navMapId }
+    data: { mapId }
   });
 };
 

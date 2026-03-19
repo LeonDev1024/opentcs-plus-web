@@ -12,9 +12,9 @@ export function listNavigationMap(query?: NavigationMapQuery): AxiosPromise<Navi
 }
 
 // 查询工厂下所有导航地图
-export function listMapsByFactory(factoryModelId: number | string): AxiosPromise<NavigationMapVO[]> {
+export function listMapsByFactory(factoryId: number | string): AxiosPromise<NavigationMapVO[]> {
   return request({
-    url: '/factory/map/list/' + factoryModelId,
+    url: '/factory/map/list/' + factoryId,
     method: 'get'
   });
 }

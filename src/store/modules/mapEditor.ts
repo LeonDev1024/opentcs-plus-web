@@ -397,21 +397,31 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       
       try {
         const response = await loadMapEditorData(mapId);
-        // loadMapEditorData 返回的数据已经被响应拦截器处理，直接是业务数据
-        // 后端返回的数据结构：{ code: 200, msg: "操作成功", data: { name, mapId, modelVersion, points, paths, locations, visualLayout: { name, scaleX, scaleY, layers, layerGroups } } }
-        // 或者已经是 { name, mapId, modelVersion, ... } 格式
-        const apiData = (response as MapEditorResponse);
+        // 兼容两种返回格式：
+        // 1) 经过拦截器处理后的纯业务数据：{ name, mapId, ... }
+        // 2) 原始 R 包装：{ code, msg, data: { name, mapId, ... } }
+        const raw = response as unknown as MapEditorResponse & { data?: MapEditorResponse };
+        const apiData: MapEditorResponse =
+          raw && (raw as any).data && ((raw as any).data as any).mapId !== undefined
+            ? ((raw as any).data as MapEditorResponse)
+            : raw;
 
-        if (apiData && (apiData.name || apiData.visualLayout)) {
+        if (apiData && (apiData.name || apiData.visualLayout || apiData.layerGroups || apiData.layers)) {
           const visualLayout = apiData.visualLayout || {};
-          const rawLayerGroups = Array.isArray(visualLayout.layerGroups) ? visualLayout.layerGroups : [];
-          const rawLayers = Array.isArray(visualLayout.layers) ? visualLayout.layers : [];
+          // 图层/图层组优先取顶层的 layerGroups/layers；如果没有再退到 visualLayout 里的配置
+          const rawLayerGroups =
+            (Array.isArray((apiData as any).layerGroups) && (apiData as any).layerGroups) ||
+            (Array.isArray(visualLayout.layerGroups) ? visualLayout.layerGroups : []);
+          const rawLayers =
+            (Array.isArray((apiData as any).layers) && (apiData as any).layers) ||
+            (Array.isArray(visualLayout.layers) ? visualLayout.layers : []);
 
           let normalizedGroups = normalizeLayerGroups(rawLayerGroups);
           const layerGroupIdMap = new Map(rawLayerGroups.map((g: Record<string, any>) => [g?.id, g?.id != null ? String(g.id) : null]).filter(([, v]) => v != null) as [string | number, string][]);
           let normalizedLayers = normalizeLayers(rawLayers, layerGroupIdMap);
 
-          if (normalizedGroups.length === 0 || normalizedLayers.length === 0) {
+          // 只有当前端/后端都没有提供任何图层信息时，才创建默认图层结构
+          if ((rawLayerGroups.length === 0 && rawLayers.length === 0) && (normalizedGroups.length === 0 || normalizedLayers.length === 0)) {
             const { layerGroups: defaultGroups, layers: defaultLayers } = createDefaultLayerStructure();
             if (normalizedGroups.length === 0) normalizedGroups = defaultGroups;
             if (normalizedLayers.length === 0) normalizedLayers = defaultLayers;
@@ -427,7 +437,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
 
           data = {
             mapInfo: {
-              id: apiData.mapId || mapId,
+              id: apiData.id || apiData.mapId || mapId,
               name: apiData.name || '新地图',
               mapVersion: apiData.modelVersion || '1.0',
               description: apiData.description || '',
@@ -471,8 +481,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           const rloc = Array.isArray(apiData.elements?.locations) ? apiData.elements.locations : (Array.isArray(apiData.locations) ? apiData.locations : []);
           data = {
             mapInfo: {
-              id: apiData.mapInfo.id || mapId,
-              name: apiData.mapInfo.name || '新地图',
+              id: apiData.id || apiData.mapInfo?.id || mapId,
+              name: apiData.mapInfo?.name || '新地图',
               mapVersion: apiData.mapInfo.modelVersion || '1.0',
               description: apiData.mapInfo.description || '',
               width: parseFloat(apiData.mapInfo.layoutWidth) || 1920,
