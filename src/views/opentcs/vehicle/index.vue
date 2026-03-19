@@ -170,7 +170,9 @@ const { queryParams, form, rules } = toRefs(data);
 /** 查询车辆类型列表 */
 const getVehicleTypes = async () => {
   const res = await listType({ pageNum: 1, pageSize: 100 });
-  vehicleTypes.value = (res.data as any).rows || [];
+  // 兼容两种返回格式：1) 经过拦截器处理的 { rows, total }；2) 原始 { data: { rows, total } }
+  const rows = (res as any).rows ?? (res as any).data?.rows ?? [];
+  vehicleTypes.value = rows;
 };
 
 /** 查询车辆列表 */
@@ -178,8 +180,10 @@ const getList = async () => {
   loading.value = true;
   try {
     const res = await listVehicle(queryParams.value);
-    vehicleList.value = res.data.rows || [];
-    total.value = res.data.total || 0;
+    const rows = (res as any).rows ?? (res as any).data?.rows ?? [];
+    const totalCount = (res as any).total ?? (res as any).data?.total ?? 0;
+    vehicleList.value = rows;
+    total.value = totalCount;
   } catch (error) {
     console.error('Error fetching vehicle list:', error);
     vehicleList.value = [];
