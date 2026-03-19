@@ -3070,6 +3070,7 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     padding: 0 8px;
+    z-index: 100;
 
     .top-menu {
       flex: 1;
@@ -3274,6 +3275,7 @@ onUnmounted(() => {
     align-items: center;
     justify-content: space-between;
     padding: 0 24px;
+    z-index: 100;
     
     .toolbar-left {
       display: flex;
