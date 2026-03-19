@@ -19,8 +19,7 @@
                   @dblclick="handleNodeDoubleClick(data)"
                   @contextmenu.prevent="handleNodeContextMenu($event, data)"
                 >
-                  <el-icon v-if="data.type === 'layout'" class="node-icon"><Grid /></el-icon>
-                  <el-icon v-else-if="data.type === 'folder'" class="node-icon"><Folder /></el-icon>
+                  <el-icon v-if="data.type === 'folder'" class="node-icon"><Folder /></el-icon>
                   <span
                     v-else-if="data.type === 'element' && data.elementType === 'path'"
                     class="tree-element-icon path-icon"

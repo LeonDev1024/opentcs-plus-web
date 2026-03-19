@@ -140,7 +140,7 @@
                 :key="m.id"
                 type="button"
                 class="scene-item"
-                :class="{ active: String(m.id) === selectedMapId }"
+                :class="{ active: String(m.mapId) === selectedMapId }"
                 @click="selectMap(m)"
                 @dblclick="handleEdit(m)"
               >
@@ -339,7 +339,7 @@ const rules = {
 
 const formRef = ref<FormInstance>();
 
-const activeMap = computed(() => mapList.value.find(m => String(m.id) === selectedMapId.value));
+const activeMap = computed(() => mapList.value.find(m => String(m.mapId) === selectedMapId.value));
 
 // 计算地图元素的范围，确定 SVG viewBox
 const mapBounds = computed(() => {
@@ -432,7 +432,7 @@ const loadMaps = async () => {
     const data = (res as any).data ?? res;
     mapList.value = Array.isArray(data) ? data : [];
     if (mapList.value.length > 0 && !selectedMapId.value) {
-      selectedMapId.value = String(mapList.value[0].id);
+      selectedMapId.value = String(mapList.value[0].mapId);
     }
   } finally {
     loading.value = false;
@@ -470,7 +470,7 @@ const handleFactoryChange = () => {
   router.replace({
     query: {
       ...router.currentRoute.value.query,
-      factoryModelId: selectedFactoryId.value ? String(selectedFactoryId.value) : undefined,
+      factoryId: selectedFactoryId.value ? String(selectedFactoryId.value) : undefined,
       mapId: undefined
     }
   });
@@ -502,13 +502,13 @@ const handleAdd = () => {
 const handleEdit = (row: NavigationMapVO) => {
   // 使用标签页方式打开地图编辑器
   mapEditorTabsStore.addTab({
-    id: String(row.id),
+    id: String(row.mapId),
     name: row.name
   });
   // 跳转到地图编辑器页面（带查询参数）
   router.push({
     path: '/opentcs/map/mapeditor',
-    query: { id: row.id, name: row.name }
+    query: { mapId: row.mapId }
   });
 };
 
@@ -559,19 +559,19 @@ watch(
 );
 
 const selectMap = (row: NavigationMapVO) => {
-  selectedMapId.value = String(row.id);
+  selectedMapId.value = String(row.mapId);
   // 重置原点到画布左下方中间
   originPosition.x = 20;
   originPosition.y = 20;
   router.replace({
     query: {
       ...router.currentRoute.value.query,
-      factoryModelId: selectedFactoryId.value ? String(selectedFactoryId.value) : undefined,
+      factoryId: selectedFactoryId.value ? String(selectedFactoryId.value) : undefined,
       mapId: selectedMapId.value
     }
   });
   // 加载地图元素
-  loadMapElements(row.id);
+  loadMapElements(row.mapId);
 };
 
 // 提交
@@ -635,7 +635,7 @@ onMounted(() => {
   getFactoryList();
   getAmrTypeList();
 
-  const factoryIdFromQuery = Number(router.currentRoute.value.query.factoryModelId);
+  const factoryIdFromQuery = Number(router.currentRoute.value.query.factoryId);
   const mapIdFromQuery = router.currentRoute.value.query.mapId ? String(router.currentRoute.value.query.mapId) : '';
 
   if (!Number.isNaN(factoryIdFromQuery) && factoryIdFromQuery > 0) {
@@ -643,8 +643,8 @@ onMounted(() => {
     if (mapIdFromQuery) selectedMapId.value = mapIdFromQuery;
     loadMaps().then(() => {
       // 若 query 里的 mapId 在当前工厂不存在，则回退到第一张
-      if (selectedMapId.value && !mapList.value.some(m => String(m.id) === selectedMapId.value)) {
-        selectedMapId.value = mapList.value.length > 0 ? String(mapList.value[0].id) : '';
+      if (selectedMapId.value && !mapList.value.some(m => String(m.mapId) === selectedMapId.value)) {
+        selectedMapId.value = mapList.value.length > 0 ? String(mapList.value[0].mapId) : '';
       }
       // 加载地图元素
       if (selectedMapId.value) {
@@ -652,7 +652,7 @@ onMounted(() => {
       }
     });
   }
-  // 如果 URL 没有 factoryModelId，getFactoryList 会自动选择第一个工厂
+  // 如果 URL 没有 factoryId，getFactoryList 会自动选择第一个工厂
 });
 </script>
 

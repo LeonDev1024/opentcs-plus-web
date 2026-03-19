@@ -21,17 +21,22 @@
               @row-click="handleRowClick"
               highlight-current-row
             >
-              <el-table-column width="60" align="center" label="激活">
+              <!-- 名称放在最前面 -->
+              <el-table-column prop="name" label="名称" min-width="140" />
+
+              <el-table-column width="70" align="center" label="激活">
                 <template #default="{ row }">
                   <el-radio
-                    :model-value="isActiveLayer(row.id)"
+                    class="layer-active-radio"
+                    :model-value="String(activeLayerId || '')"
+                    :label="String(row.id)"
                     @click.stop
                     @change="() => setActiveLayer(row.id)"
                   />
                 </template>
               </el-table-column>
               
-              <el-table-column width="60" align="center" label="可见">
+              <el-table-column width="70" align="center" label="可见">
                 <template #default="{ row }">
                   <el-checkbox
                     v-model="row.visible"
@@ -40,8 +45,6 @@
                   />
                 </template>
               </el-table-column>
-              
-              <el-table-column prop="name" label="名称" min-width="120" />
               
               <el-table-column prop="layerGroupId" label="图层组" width="140">
                 <template #default="{ row }">
@@ -147,12 +150,6 @@ const getLayerGroupName = (layerGroupId?: string) => {
 
 const selectLayer = (layerId: string) => {
   selectedLayerId.value = layerId;
-};
-
-const isActiveLayer = (layerId: string) => {
-  const activeId = activeLayerId.value;
-  if (!activeId || !layerId) return false;
-  return String(activeId) === String(layerId);
 };
 
 const setActiveLayer = (layerId: string) => {
@@ -421,6 +418,11 @@ watch(
           padding: 6px 0;
         }
       }
+    }
+
+    /* 隐藏激活单选框右侧的数字标签，只保留圆圈 */
+    :deep(.layer-active-radio .el-radio__label) {
+      display: none;
     }
   }
   

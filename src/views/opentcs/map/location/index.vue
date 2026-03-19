@@ -200,8 +200,8 @@ const { queryParams, form, rules } = toRefs(data);
 const getList = async () => {
   loading.value = true;
   const res = await listLocation(queryParams.value);
-  locationList.value = res.data.rows || [];
-  total.value = res.data.total || 0;
+  locationList.value = res.rows || [];
+  total.value = res.total || 0;
   loading.value = false;
 };
 

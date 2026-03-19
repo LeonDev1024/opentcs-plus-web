@@ -35,11 +35,11 @@ const mapEditorTabsStore = useMapEditorTabsStore();
 
 // 处理路由参数，打开对应地图
 const handleRouteParams = () => {
-  const mapId = route.query.id as string;
+  const mapId = route.query.mapId as string;
   if (mapId) {
     mapEditorTabsStore.addTab({
       id: mapId,
-      name: route.query.name as string || '地图'
+      name: '地图'
     });
   }
 };
@@ -69,10 +69,10 @@ onMounted(() => {
 watch(
   () => route.query,
   (newQuery) => {
-    if (newQuery.id) {
+    if (newQuery.mapId) {
       mapEditorTabsStore.addTab({
-        id: newQuery.id as string,
-        name: (newQuery.name as string) || '地图'
+        id: newQuery.mapId as string,
+        name: '地图'
       });
     }
   }

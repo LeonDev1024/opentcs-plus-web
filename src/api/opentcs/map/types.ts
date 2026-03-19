@@ -83,7 +83,9 @@ export interface MapEditorResponse {
   code?: number;
   /** 响应消息 */
   msg?: string;
-  /** 地图ID */
+  /** 数据库ID */
+  id?: number;
+  /** 地图编号（业务标识） */
   mapId?: string | number;
   /** 地图名称 */
   name?: string;
