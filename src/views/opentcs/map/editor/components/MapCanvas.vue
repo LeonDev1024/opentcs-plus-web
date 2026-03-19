@@ -8,49 +8,12 @@
       @wheel="handleWheel"
       @contextmenu.prevent
     >
-      <!-- 背景层：仅灰色扩展区，去掉白色主工作区，方便在整张导航栅格图上自由布点 -->
-      <v-layer ref="backgroundLayerRef" :config="{ name: 'background', listening: false }">
-        <v-rect :config="backgroundExtendedConfig" />
-      </v-layer>
-      
       <!-- 栅格底图层（导航地图）：始终在所有可见图层的最底部，仅内容按 config 显示 -->
       <v-layer ref="rasterLayerRef" :config="{ name: 'raster-background', listening: false }">
         <v-image v-if="rasterBackgroundConfig" :config="rasterBackgroundConfig" />
       </v-layer>
-      
-      <!-- 中心标记层 -->
-      <v-layer :config="{ name: 'center-marker', listening: false }">
-        <v-line
-          v-if="showGrid"
-          :config="centerLineConfig.horizontal"
-        />
-        <v-line
-          v-if="showGrid"
-          :config="centerLineConfig.vertical"
-        />
-        <v-circle
-          :config="centerPointConfig"
-        />
-      </v-layer>
-      
-      <!-- 网格层（在背景层与导航栅格之上，其他层之下） -->
-      <v-layer 
-        ref="gridLayerRef" 
-        :config="{ 
-          name: 'grid', 
-          listening: false,
-          perfectDrawEnabled: false,
-          clearBeforeDraw: true
-        }"
-      >
-        <v-line
-          v-for="(line, index) in gridLines"
-          :key="`grid-${index}`"
-          :config="line"
-        />
-      </v-layer>
-      
-      <!-- 空白区域层：仅用于接收“点击空白处”的 mousedown（框选/添加点等），不拦截点与位置上的拖拽 -->
+
+      <!-- 空白区域层：仅用于接收"点击空白处"的 mousedown（框选/添加点等），不拦截点与位置上的拖拽 -->
       <v-layer :config="{ name: 'stage-area', listening: true }">
         <v-rect
           :config="stageAreaRectConfig"
@@ -382,7 +345,6 @@ type PathConnectionType = 'direct' | 'orthogonal' | 'curve';
 // Refs
 const containerRef = ref<HTMLDivElement>();
 const stageRef = ref<any>();
-const backgroundLayerRef = ref<any>();
 const gridLayerRef = ref<any>();
 const rasterLayerRef = ref<any>();
 const pointLayerRef = ref<any>();
@@ -529,70 +491,15 @@ const stageConfig = computed(() => {
   };
 });
 
-const centerPointConfig = computed(() => {
-  const width = canvasState.value.width || 1920;
-  const height = canvasState.value.height || 1080;
-  const centerX = Math.round(width / 2 / (gridSize.value || 20)) * (gridSize.value || 20);
-  const centerY = Math.round(height / 2 / (gridSize.value || 20)) * (gridSize.value || 20);
-  return {
-    x: centerX,
-    y: centerY,
-    radius: 6,
-    stroke: '#ff4d4f',
-    strokeWidth: 2,
-    fill: '#ffffff',
-    listening: false
-  };
-});
-
-const centerLineConfig = computed(() => {
-  const width = canvasState.value.width || 1920;
-  const height = canvasState.value.height || 1080;
-  const grid = gridSize.value || 20;
-  const centerX = Math.round(width / 2 / grid) * grid;
-  const centerY = Math.round(height / 2 / grid) * grid;
-  return {
-    horizontal: {
-      points: [0, centerY, width, centerY],
-      stroke: '#ff7875',
-      strokeWidth: 1.5,
-      dash: [8, 6],
-      listening: false
-    },
-    vertical: {
-      points: [centerX, 0, centerX, height],
-      stroke: '#ff7875',
-      strokeWidth: 1.5,
-      dash: [8, 6],
-      listening: false
-    }
-  };
-});
-
-// 扩展区背景（灰色，与 openTCS 一致：主工作区外的区域）
-const BACKGROUND_EXTEND = 8000; // 扩展像素，平移时可见灰色区域
-const backgroundExtendedConfig = computed(() => {
-  const w = canvasState.value.width || 1920;
-  const h = canvasState.value.height || 1080;
-  return {
-    x: -BACKGROUND_EXTEND,
-    y: -BACKGROUND_EXTEND,
-    width: w + BACKGROUND_EXTEND * 2,
-    height: h + BACKGROUND_EXTEND * 2,
-    fill: '#e8e8e8',
-    listening: false
-  };
-});
-
-// 空白区域矩形：覆盖整块可点击区域，仅用于接收“点击空白处”的 mousedown，点/位置在上层可正常拖拽
+// 空白区域矩形：覆盖整块可点击区域，仅用于接收"点击空白处"的 mousedown，点/位置在上层可正常拖拽
 const stageAreaRectConfig = computed(() => {
   const w = canvasState.value.width || 1920;
   const h = canvasState.value.height || 1080;
   return {
-    x: -BACKGROUND_EXTEND,
-    y: -BACKGROUND_EXTEND,
-    width: w + BACKGROUND_EXTEND * 2,
-    height: h + BACKGROUND_EXTEND * 2,
+    x: 0,
+    y: 0,
+    width: w,
+    height: h,
     fill: 'transparent',
     listening: true
   };
@@ -651,7 +558,7 @@ const rasterBackgroundConfig = computed(() => {
 });
 
 // 网格配置：画布上按固定步长绘制，保证网格线密度可见；比例尺由 scaleX/scaleY 在状态栏换算
-const gridSize = ref(20);
+const gridSize = ref(18);
 const showGrid = ref(true);
 
 const gridLines = computed(() => {
@@ -1973,7 +1880,7 @@ const handleStageMouseDown = (e: any) => {
   }
 };
 
-// 仅当点击在“空白区域层”时调用（点/位置在上层，会先收到事件，可正常拖拽）
+// 仅当点击在"空白区域层"时调用（点/位置在上层，会先收到事件，可正常拖拽）
 const handleStageAreaMouseDown = (e: any) => {
   const stage = e.target.getStage();
   if (!stage) return;
@@ -2327,7 +2234,7 @@ const handleMouseUp = (e: any) => {
     }, 100);
   }
   
-  // 不再在 PATH/LOCATION/DASHED_LINK/RULE_REGION 下因“未设置 shouldSwitchToSelectAfterOther”就 100ms 后强切回选择工具，
+  // 不再在 PATH/LOCATION/DASHED_LINK/RULE_REGION 下因"未设置 shouldSwitchToSelectAfterOther"就 100ms 后强切回选择工具，
   // 否则点击工具栏切换到连线后，任意 mouseup 都会很快把工具切回选择，导致点对点连线无法使用。
 
   // 平移模式结束
@@ -3179,7 +3086,7 @@ const handlePathControlPointDragEnd = (path: MapPath, cp: any, index: number) =>
   updatedControlPoints[index] = { ...updatedControlPoints[index], x: newX, y: newY };
   mapEditorStore.updatePath(path.id, { geometry: { ...path.geometry, controlPoints: updatedControlPoints } });
 
-  // 若拖的是端点且该端点绑定了“点”，则同步更新点的坐标，避免红点（路径端点）与蓝点（地图点）分离
+  // 若拖的是端点且该端点绑定了"点"，则同步更新点的坐标，避免红点（路径端点）与蓝点（地图点）分离
   const syncPointId = isFirst ? path.startPointId != null ? String(path.startPointId) : null : isLast ? path.endPointId != null ? String(path.endPointId) : null : null;
   if (syncPointId && pointIds.has(syncPointId)) {
     mapEditorStore.updatePoint(syncPointId, { x: newX, y: newY });
@@ -3325,23 +3232,11 @@ const getDefaultLayerId = (type: 'point' | 'path' | 'location'): string => {
 // 设置网格可见性（供父组件调用）
 const setGridVisible = (visible: boolean) => {
   showGrid.value = visible;
-  nextTick(() => {
-    const layer = getKonvaNode(gridLayerRef.value);
-    if (layer) {
-      layer.draw();
-    }
-  });
 };
 
 // 设置网格大小（供父组件调用）
 const setGridSize = (size: number) => {
   gridSize.value = Math.max(5, Math.min(100, size)); // 限制在 5-100 之间
-  nextTick(() => {
-    const layer = getKonvaNode(gridLayerRef.value);
-    if (layer) {
-      layer.draw();
-    }
-  });
 };
 
 // 网格颜色
@@ -3350,12 +3245,6 @@ const gridColor = ref('#dcdfe6');
 // 设置网格颜色（供父组件调用）
 const setGridColor = (color: string) => {
   gridColor.value = color;
-  nextTick(() => {
-    const layer = getKonvaNode(gridLayerRef.value);
-    if (layer) {
-      layer.draw();
-    }
-  });
 };
 
 // 吸附功能
@@ -3402,33 +3291,6 @@ const setBlocksVisible = (visible: boolean) => {
 };
 
 // 监听画布状态变化，更新网格
-watch(
-  () => [canvasState.value.scale, canvasState.value.offsetX, canvasState.value.offsetY, canvasState.value.width, canvasState.value.height, showGrid.value, gridSize.value],
-  () => {
-    // 网格线会自动通过 computed 更新，但需要强制重绘
-    nextTick(() => {
-      const layer = getKonvaNode(gridLayerRef.value);
-      if (layer) {
-        layer.batchDraw();
-      }
-    });
-  },
-  { deep: true, immediate: true }
-);
-
-// 监听网格线变化
-watch(
-  () => gridLines.value.length,
-  () => {
-    nextTick(() => {
-      const layer = getKonvaNode(gridLayerRef.value);
-      if (layer) {
-        layer.batchDraw();
-      }
-    });
-  }
-);
-
 watch(currentTool, (tool) => {
   if (tool !== ToolMode.PATH) {
     cancelPathDrag();
@@ -3526,21 +3388,9 @@ onMounted(() => {
       });
       
       resizeObserver.observe(containerRef.value);
-      
-      // 强制绘制网格层
-      setTimeout(() => {
-        const layer = getKonvaNode(gridLayerRef.value);
-        if (layer) {
-          layer.batchDraw();
-          // 再次强制绘制，确保渲染
-          setTimeout(() => {
-            layer.batchDraw();
-          }, 50);
-        }
-      }, 100);
     }
   });
-  
+
   // 使用 load 接口返回的图层，不创建新的默认图层
   // 如果没有激活图层，选择第一个图层作为激活图层
   if (!mapEditorStore.activeLayerId || !mapEditorStore.layers.some(l => l.id === mapEditorStore.activeLayerId)) {
@@ -3575,8 +3425,12 @@ onUnmounted(() => {
   height: 100%;
   position: relative;
   overflow: hidden;
-  background: #f5f5f5;
-  
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(to right, #eef0f4 1px, transparent 1px),
+    linear-gradient(to bottom, #eef0f4 1px, transparent 1px);
+  background-size: 18px 18px;
+
   // 确保 Konva Stage 占满容器
   :deep(canvas) {
     display: block;

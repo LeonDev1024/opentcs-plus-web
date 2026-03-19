@@ -1,101 +1,5 @@
 <template>
   <div class="map-editor">
-    <!-- 顶部菜单栏：文件、编辑、视图 | 模型名称、保存、关闭 -->
-    <div class="menu-bar">
-      <el-menu mode="horizontal" :ellipsis="false" class="top-menu" default-active="">
-        <el-sub-menu index="file" :show-timeout="0" :hide-timeout="0">
-          <template #title>文件</template>
-          <el-menu-item index="save" @click="handleSave">
-            <el-icon><Document /></el-icon>
-            <span>保存</span>
-          </el-menu-item>
-          <el-menu-item index="close" @click="handleClose">
-            <el-icon><Close /></el-icon>
-            <span>关闭</span>
-          </el-menu-item>
-          <el-divider style="margin: 4px 0" />
-          <el-sub-menu index="export" popper-class="nested-sub-menu">
-            <template #title>导出</template>
-            <el-menu-item index="export-editor" @click="handleExportCommand('editor')">导出编辑器 JSON</el-menu-item>
-            <el-menu-item index="export-model" @click="handleExportCommand('model')">导出 openTCS 模型</el-menu-item>
-            <el-divider style="margin: 4px 0" />
-            <el-menu-item index="export-png" @click="handleExportImage('png')">导出 PNG 图片</el-menu-item>
-            <el-menu-item index="export-svg" @click="handleExportImage('svg')">导出 SVG 图片</el-menu-item>
-          </el-sub-menu>
-          <el-sub-menu index="import" popper-class="nested-sub-menu">
-            <template #title>导入</template>
-            <el-menu-item index="import-editor" @click="handleImportCommand('editor')">导入编辑器 JSON</el-menu-item>
-            <el-menu-item index="import-model" @click="handleImportCommand('model')">导入 openTCS 模型</el-menu-item>
-            <el-divider style="margin: 4px 0" />
-            <el-menu-item index="import-raster" @click="importRasterDialogVisible = true">导入栅格地图</el-menu-item>
-            <el-menu-item index="import-csv" @click="handleImportCsv">批量导入点位 (CSV)</el-menu-item>
-          </el-sub-menu>
-        </el-sub-menu>
-        <el-sub-menu index="edit" :show-timeout="0" :hide-timeout="0">
-          <template #title>编辑</template>
-          <el-menu-item index="undo" :disabled="!canUndo" @click="undo">
-            <el-icon><RefreshLeft /></el-icon>
-            <span>撤销</span>
-          </el-menu-item>
-          <el-menu-item index="redo" :disabled="!canRedo" @click="redo">
-            <el-icon><RefreshRight /></el-icon>
-            <span>重做</span>
-          </el-menu-item>
-          <el-divider style="margin: 4px 0" />
-          <el-menu-item index="delete" :disabled="!hasSelection" @click="handleBatchDelete">
-            <el-icon><Delete /></el-icon>
-            <span>删除</span>
-          </el-menu-item>
-          <el-divider style="margin: 4px 0" />
-          <el-menu-item index="version-history" @click="openVersionHistoryDialog">
-            <el-icon><Clock /></el-icon>
-            <span>版本历史</span>
-          </el-menu-item>
-        </el-sub-menu>
-        <el-sub-menu index="insert" :show-timeout="0" :hide-timeout="0">
-          <template #title>插入</template>
-          <el-menu-item index="raster-map" @click="openImportRasterDialog">
-            <el-icon><Picture /></el-icon>
-            <span>导航栅格地图</span>
-          </el-menu-item>
-          <el-menu-item index="nav-stations" @click="handleImportStations">
-            <el-icon><Location /></el-icon>
-            <span>导航站点</span>
-          </el-menu-item>
-        </el-sub-menu>
-        <el-sub-menu index="view" :show-timeout="0" :hide-timeout="0">
-          <template #title>视图</template>
-          <el-menu-item index="zoom-in" @click="zoomIn">
-            <el-icon><ZoomIn /></el-icon>
-            <span>放大</span>
-          </el-menu-item>
-          <el-menu-item index="zoom-out" @click="zoomOut">
-            <el-icon><ZoomOut /></el-icon>
-            <span>缩小</span>
-          </el-menu-item>
-          <el-menu-item index="zoom-reset" @click="resetZoom">
-            <el-icon><FullScreen /></el-icon>
-            <span>重置缩放</span>
-          </el-menu-item>
-          <el-divider style="margin: 4px 0" />
-          <el-menu-item index="raster-calibrate" :disabled="!mapEditorStore.rasterBackground" @click="openRasterCalibrateDialog">
-            <el-icon><Location /></el-icon>
-            <span>栅格坐标校准</span>
-          </el-menu-item>
-          <el-menu-item index="raster-remove" :disabled="!mapEditorStore.rasterBackground" @click="removeRasterBackground">
-            <el-icon><Delete /></el-icon>
-            <span>移除栅格底图</span>
-          </el-menu-item>
-        </el-sub-menu>
-      </el-menu>
-      <div class="menu-bar-right">
-        <span class="menu-bar-model-name">地图编辑器-{{ mapEditorStore.mapData?.mapInfo?.name || '未命名' }}</span>
-        <el-tag size="small" type="info" class="menu-bar-version">v{{ mapEditorStore.mapData?.mapInfo?.mapVersion || '1.0' }}</el-tag>
-        <el-button type="primary" size="small" icon="Document" @click="handleSave" :loading="loading">保存</el-button>
-        <el-button size="small" icon="Close" @click="handleClose">关闭</el-button>
-      </div>
-    </div>
-    
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="toolbar-left">
@@ -424,6 +328,9 @@
             size="small"
           />
         </el-tooltip>
+        <el-divider direction="vertical" />
+        <el-button type="primary" size="small" icon="Document" @click="handleSave" :loading="loading">保存</el-button>
+        <el-button size="small" icon="Close" @click="handleClose">关闭</el-button>
       </div>
     </div>
     
@@ -507,40 +414,32 @@
             :map-issues="mapIssues"
           />
         </div>
-        <!-- 鹰眼图 -->
-        <div class="mini-map" @click="handleMiniMapClick">
-          <div class="mini-map-viewport" :style="miniMapViewportStyle"></div>
+        <!-- 坐标轴 -->
+        <div class="canvas-axis">
           <div
-            v-for="point in mapEditorStore.points.slice(0, 50)"
-            :key="point.id"
-            class="mini-map-point"
-            :style="getMiniMapPointStyle(point)"
-          ></div>
+            class="axis-line axis-x"
+            :style="{ left: originPosition.x + '%', bottom: originPosition.y + '%' }"
+          />
+          <div
+            class="axis-line axis-y"
+            :style="{ left: originPosition.x + '%', bottom: originPosition.y + '%' }"
+          />
+          <div
+            class="axis-origin"
+            :style="{ left: originPosition.x + '%', bottom: originPosition.y + '%' }"
+          >
+            O(0,0)
+          </div>
+        </div>
+        <!-- 底部信息 -->
+        <div class="canvas-footer">
+          <span class="mode-info">编辑模式</span>
+          <span class="footer-sep">，</span>
+          <span class="muted">地图ID：</span>
+          <span class="mono">{{ mapId || '-' }}</span>
         </div>
       </div>
-      
-    </div>
-    
-    <!-- 底部状态栏（模型坐标 + scaleX/scaleY 换算为 mm/m，与 openTCS 一致） -->
-    <div class="status-bar">
-      <div class="status-left">
-        <span class="selection-info" v-if="mapEditorStore.selectedCount > 0">
-          已选择: {{ mapEditorStore.selectedCount }} 个元素
-        </span>
-        <span class="selection-info" v-else>
-          未选择元素
-        </span>
-      </div>
-      <div class="status-right">
-        <span class="zoom-level">缩放: {{ (canvasScale * 100).toFixed(0) }}%</span>
-        <span class="coordinates">
-          坐标: X: {{ mousePosition.x.toFixed(0) }}, Y: {{ mousePosition.y.toFixed(0) }}
-          <template v-if="scaleX != null && scaleY != null">
-            ({{ formatModelLength(mousePosition.x, scaleX) }}, {{ formatModelLength(mousePosition.y, scaleY) }})
-          </template>
-        </span>
-        <span v-if="scaleX != null" class="scale-hint">Scale: {{ scaleX }} mm/unit</span>
-      </div>
+
     </div>
 
     <!-- 批量属性编辑对话框 -->
@@ -995,6 +894,9 @@ const showLabels = ref(true);
 // Block显示状态
 const showBlocks = ref(true);
 
+// 坐标原点位置（百分比）
+const originPosition = ref({ x: 10, y: 10 });
+
 // 鼠标位置（从画布组件获取）
 const mousePosition = ref({ x: 0, y: 0 });
 
@@ -1311,117 +1213,6 @@ const scaleY = computed(() => {
 const canvasScale = computed(() => {
   return mapEditorStore.canvasState?.scale ?? 1;
 });
-
-// 鹰眼图配置
-const MINI_MAP_SIZE = 150; // 鹰眼图尺寸
-const MINI_MAP_PADDING = 10;
-
-// 计算地图范围
-const mapBounds = computed(() => {
-  const points = mapEditorStore.points;
-  const paths = mapEditorStore.paths;
-  const locations = mapEditorStore.locations;
-
-  let minX = 0, maxX = 1000, minY = 0, maxY = 1000;
-  const allElements = [
-    ...points.map(p => ({ x: p.x, y: p.y })),
-    ...paths.flatMap(p => (p.geometry.controlPoints || []).map(cp => ({ x: cp.x, y: cp.y }))),
-    ...locations.flatMap(l => (l.geometry.vertices || []).map(v => ({ x: v.x, y: v.y })))
-  ];
-
-  if (allElements.length > 0) {
-    const xs = allElements.map(e => e.x);
-    const ys = allElements.map(e => e.y);
-    minX = Math.min(...xs) - 100;
-    maxX = Math.max(...xs) + 100;
-    minY = Math.min(...ys) - 100;
-    maxY = Math.max(...ys) + 100;
-  }
-
-  return { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY };
-});
-
-// 鹰眼图视口样式
-const miniMapViewportStyle = computed(() => {
-  const bounds = mapBounds.value;
-  const canvasState = mapEditorStore.canvasState || { scale: 1, offsetX: 0, offsetY: 0, width: 1920, height: 1080 };
-  const scale = canvasState.scale || 1;
-  const offsetX = canvasState.offsetX || 0;
-  const offsetY = canvasState.offsetY || 0;
-  const containerWidth = 1920;
-  const containerHeight = 1080;
-
-  if (bounds.width === 0 || bounds.height === 0) {
-    return { display: 'none' };
-  }
-
-  // 计算缩放使地图适应鹰眼图
-  const scaleX = (MINI_MAP_SIZE - MINI_MAP_PADDING * 2) / bounds.width;
-  const scaleY = (MINI_MAP_SIZE - MINI_MAP_PADDING * 2) / bounds.height;
-  const miniScale = Math.min(scaleX, scaleY);
-
-  // 计算视口在鹰眼图中的位置
-  const viewMinX = (0 - offsetX) / scale;
-  const viewMaxX = (containerWidth - offsetX) / scale;
-  const viewMinY = (0 - offsetY) / scale;
-  const viewMaxY = (containerHeight - offsetY) / scale;
-
-  const left = MINI_MAP_PADDING + (viewMinX - bounds.minX) * miniScale;
-  const top = MINI_MAP_PADDING + (viewMinY - bounds.minY) * miniScale;
-  const width = (viewMaxX - viewMinX) * miniScale;
-  const height = (viewMaxY - viewMinY) * miniScale;
-
-  return {
-    left: `${Math.max(MINI_MAP_PADDING, left)}px`,
-    top: `${Math.max(MINI_MAP_PADDING, top)}px`,
-    width: `${Math.min(width, MINI_MAP_SIZE - MINI_MAP_PADDING * 2)}px`,
-    height: `${Math.min(height, MINI_MAP_SIZE - MINI_MAP_PADDING * 2)}px`
-  };
-});
-
-// 获取鹰眼图中点位样式
-const getMiniMapPointStyle = (point: any) => {
-  const bounds = mapBounds.value;
-  if (bounds.width === 0 || bounds.height === 0) {
-    return { display: 'none' };
-  }
-
-  const scaleX = (MINI_MAP_SIZE - MINI_MAP_PADDING * 2) / bounds.width;
-  const scaleY = (MINI_MAP_SIZE - MINI_MAP_PADDING * 2) / bounds.height;
-  const miniScale = Math.min(scaleX, scaleY);
-
-  return {
-    left: `${MINI_MAP_PADDING + (point.x - bounds.minX) * miniScale}px`,
-    top: `${MINI_MAP_PADDING + (point.y - bounds.minY) * miniScale}px`
-  };
-};
-
-// 鹰眼图点击跳转
-const handleMiniMapClick = (event: MouseEvent) => {
-  const target = event.currentTarget as HTMLElement;
-  const rect = target.getBoundingClientRect();
-  const clickX = event.clientX - rect.left - MINI_MAP_PADDING;
-  const clickY = event.clientY - rect.top - MINI_MAP_PADDING;
-
-  const bounds = mapBounds.value;
-  const scaleX = (MINI_MAP_SIZE - MINI_MAP_PADDING * 2) / bounds.width;
-  const scaleY = (MINI_MAP_SIZE - MINI_MAP_PADDING * 2) / bounds.height;
-  const miniScale = Math.min(scaleX, scaleY);
-
-  // 转换到画布坐标
-  const modelX = clickX / miniScale + bounds.minX;
-  const modelY = clickY / miniScale + bounds.minY;
-
-  // 跳转到点击位置（居中）
-  const containerWidth = 1920;
-  const containerHeight = 1080;
-  const scale = mapEditorStore.canvasState?.scale || 1;
-
-  mapEditorStore.updateCanvasState({
-    offsetX: -(modelX - containerWidth / 2 / scale) * scale,
-    offsetY: -(modelY - containerHeight / 2 / scale) * scale
-  });
-};
 
 // 模型坐标 → 实际长度显示（单位 mm，≥1000 时显示为 m）
 const formatModelLength = (modelUnits: number, scaleMmPerUnit: number): string => {
@@ -3053,64 +2844,14 @@ onUnmounted(() => {
 
 <style scoped lang="scss">
 .map-editor {
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: #f5f7fa;
   margin: 0 !important;
   padding: 0 !important;
-  
-  // 顶部菜单栏
-  .menu-bar {
-    height: 40px;
-    background: #fff;
-    border-bottom: 1px solid #e4e7ed;
-    display: flex;
-    align-items: center;
-    padding: 0 8px;
-    z-index: 100;
-
-    .top-menu {
-      flex: 1;
-      border-bottom: none;
-      height: 40px;
-      :deep(.el-sub-menu__title),
-      :deep(.el-menu-item) {
-        height: 36px;
-        line-height: 36px;
-      }
-      /* 菜单项间距调小 */
-      :deep(.el-sub-menu__title) {
-        padding-left: 10px;
-        padding-right: 10px;
-      }
-      :deep(.el-menu--horizontal > .el-sub-menu .el-sub-menu__title) {
-        padding-left: 10px;
-        padding-right: 10px;
-      }
-      /* 隐藏菜单项右侧下拉三角，仅左键点击展开 */
-      :deep(.el-sub-menu__icon-arrow) {
-        display: none;
-      }
-    }
-    .menu-bar-right {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      margin-left: auto;
-      flex-shrink: 0;
-      .menu-bar-model-name {
-        font-size: 13px;
-        color: var(--el-text-color-regular);
-        margin-right: 6px;
-      }
-      .menu-bar-version {
-        margin-right: 4px;
-      }
-    }
-  }
 
   .import-raster-form {
     .import-raster-row {
@@ -3269,6 +3010,8 @@ onUnmounted(() => {
   // 工具栏
   .toolbar {
     height: 50px;
+    min-height: 50px;
+    flex-shrink: 0;
     background: linear-gradient(0deg, #fafbfc 0%, #fff 100%);
     border-bottom: 1px solid #e4e7ed;
     display: flex;
@@ -3466,13 +3209,13 @@ onUnmounted(() => {
       }
     }
   }
-  
   // 主内容区
   .editor-content {
     flex: 1;
     display: flex;
     overflow: hidden;
-    
+    min-width: 0;
+
     // 左侧面板组
     .left-panels {
       background: #fff;
@@ -3481,47 +3224,48 @@ onUnmounted(() => {
       flex-direction: column;
       overflow: hidden;
       flex-shrink: 0;
-      
+      min-width: 0;
+
       .panel-container {
         display: flex;
         flex-direction: column;
         border-bottom: 1px solid #e4e7ed;
         min-height: 0;
-        
+
         // 视图面板始终占据剩余空间
         &:first-child {
           flex: 1;
           min-height: 150px;
         }
-        
+
         // 属性面板可调整高度（通过自定义拖拽条）
         &.property-panel-container {
           flex-shrink: 0;
           overflow: hidden;
-          
+
           .panel-content {
             min-height: 80px;
             max-height: none;
           }
         }
-        
+
         // 图层面板可调整高度（通过自定义拖拽条），默认高度由 JS 设置，限制最大高度避免占满
         &.layer-panel-container {
           flex-shrink: 0;
           overflow: hidden;
           max-height: 50vh;
-          
+
           .panel-content {
             min-height: 60px;
             max-height: none;
           }
         }
-        
+
         // 最后一个面板没有底部边框
         &:last-child {
           border-bottom: none;
         }
-        
+
         .panel-header {
           height: 30px;
           padding: 0 12px;
@@ -3563,6 +3307,7 @@ onUnmounted(() => {
         .panel-content {
           flex: 1;
           overflow-y: auto;
+          overflow-x: hidden;
           padding: 8px;
         }
       }
@@ -3624,17 +3369,19 @@ onUnmounted(() => {
     .panel-resizer-right {
       order: 3;
     }
-    
+
     // 画布区域
     .canvas-area {
       flex: 1;
       display: flex;
       flex-direction: column;
-      background: #f0f0f0;
+      background-image: linear-gradient(#eef0f4 1px, transparent 1px), linear-gradient(90deg, #eef0f4 1px, transparent 1px);
+      background-size: 18px 18px;
+      background-color: #fff;
       overflow: hidden;
       min-width: 0;
       position: relative;
-      
+
       .canvas-wrapper {
         flex: 1;
         position: relative;
@@ -3647,35 +3394,121 @@ onUnmounted(() => {
         }
       }
 
-      // 鹰眼图
-      .mini-map {
+      // 坐标轴容器
+      .canvas-axis {
         position: absolute;
-        right: 16px;
-        bottom: 16px;
-        width: 150px;
-        height: 150px;
-        background: rgba(255, 255, 255, 0.95);
-        border: 1px solid #dcdfe6;
-        border-radius: 4px;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-        overflow: hidden;
-        cursor: pointer;
-        z-index: 10;
+        left: 0;
+        bottom: 0;
+        right: 0;
+        top: 0;
+        z-index: 5;
+        pointer-events: none;
+      }
 
-        .mini-map-viewport {
+      .axis-origin {
+        position: absolute;
+        transform: translate(4px, 4px);
+        font-size: 10px;
+        color: #6b7280;
+        pointer-events: auto;
+        padding: 4px;
+
+        &:hover {
+          color: #2563eb;
+          font-weight: 500;
+        }
+      }
+
+      .axis-line {
+        position: absolute;
+      }
+
+      .axis-x {
+        left: 0;
+        bottom: 0;
+        height: 2px;
+        width: 20%;
+        min-width: 80px;
+        max-width: 200px;
+        background: #2563eb;
+
+        &::before {
+          content: '';
           position: absolute;
-          border: 2px solid #409eff;
-          background: rgba(64, 158, 255, 0.1);
-          pointer-events: none;
+          right: 0;
+          top: -4px;
+          border-left: 6px solid #2563eb;
+          border-top: 4px solid transparent;
+          border-bottom: 4px solid transparent;
         }
 
-        .mini-map-point {
+        &::after {
+          content: 'X';
           position: absolute;
-          width: 3px;
-          height: 3px;
-          background: #409eff;
-          border-radius: 50%;
-          transform: translate(-50%, -50%);
+          right: 4px;
+          top: -18px;
+          font-size: 12px;
+          font-weight: bold;
+          color: #2563eb;
+        }
+      }
+
+      .axis-y {
+        left: 0;
+        bottom: 0;
+        width: 2px;
+        height: 20%;
+        min-height: 80px;
+        max-height: 200px;
+        background: #ef4444;
+
+        &::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: -4px;
+          border-bottom: 6px solid #ef4444;
+          border-left: 4px solid transparent;
+          border-right: 4px solid transparent;
+        }
+
+        &::after {
+          content: 'Y';
+          position: absolute;
+          left: -16px;
+          top: 4px;
+          font-size: 12px;
+          font-weight: bold;
+          color: #ef4444;
+        }
+      }
+
+      // 底部信息
+      .canvas-footer {
+        position: absolute;
+        left: 16px;
+        bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        z-index: 10;
+
+        .mode-info {
+          color: #f56c6c;
+          font-weight: 500;
+        }
+
+        .footer-sep {
+          color: #9ca3af;
+        }
+
+        .muted {
+          color: #909399;
+        }
+
+        .mono {
+          font-family: monospace;
         }
       }
     }
@@ -3706,7 +3539,20 @@ onUnmounted(() => {
     .status-left {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 8px;
+
+      .edit-mode {
+        color: #f56c6c;
+        font-weight: 500;
+      }
+
+      .divider {
+        color: #dcdfe6;
+      }
+
+      .map-id {
+        color: #606266;
+      }
 
       .selection-info {
         color: #409eff;
