@@ -114,7 +114,7 @@ const handleClose = () => {
     query: undefined,
     redirectedFrom: undefined
   };
-  proxy?.$tab.closeOpenPage(obj);
+  proxy?.$tab.closeOpenPage('/system/role');
 };
 /** 搜索按钮操作 */
 const handleQuery = () => {

@@ -630,7 +630,23 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       loading.value = false;
     }
   };
-  
+
+  /**
+   * 更新布局属性
+   */
+  const updateLayoutProperties = (properties: { name?: string; scaleX?: number; scaleY?: number }) => {
+    if (!mapData.value) return;
+    if (properties.name !== undefined) {
+      mapData.value.visualLayout.name = properties.name;
+    }
+    if (properties.scaleX !== undefined) {
+      mapData.value.visualLayout.scaleX = properties.scaleX;
+    }
+    if (properties.scaleY !== undefined) {
+      mapData.value.visualLayout.scaleY = properties.scaleY;
+    }
+  };
+
   /**
    * 设置工具模式
    */
@@ -969,6 +985,14 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   };
 
   /**
+   * 选择布局（清除元素选择）
+   */
+  const selectLayout = () => {
+    selection.selectedIds.clear();
+    selection.selectedType = 'layout';
+  };
+
+  /**
    * 复制选中的元素到剪贴板
    */
   const copySelected = () => {
@@ -1029,36 +1053,37 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     });
 
     // 复制位置
+    const copyTimestamp = Date.now();
     clipboard.value.locations.forEach(location => {
-      const newId = `location_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const newId = `location_${copyTimestamp}_${Math.random().toString(36).substr(2, 9)}`;
       locationIdMap.set(location.id, newId);
-      const newVertices = (location.geometry.vertices || []).map(v => ({
+      const newVertices = (location.geometry.vertices || []).map((v, index) => ({
+        id: v.id || `vertex_${copyTimestamp}_${index}`,
         x: v.x + offsetX,
-        y: v.y + offsetY
+        y: v.y + offsetY,
+        z: v.z
       }));
       addLocation({
         ...location,
         id: newId,
         geometry: {
           ...location.geometry,
-          vertices: newVertices,
-          position: location.geometry.position ? {
-            x: location.geometry.position.x + offsetX,
-            y: location.geometry.position.y + offsetY
-          } : undefined
+          vertices: newVertices
         },
         name: `${location.name}_copy`
-      });
+      } as Omit<MapLocation, 'id'>);
     });
 
     // 复制路径（需要更新起点和终点ID）
     clipboard.value.paths.forEach(path => {
-      const newId = `path_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const newId = `path_${copyTimestamp}_${Math.random().toString(36).substr(2, 9)}`;
       const newStartPointId = pointIdMap.get(String(path.startPointId)) || path.startPointId;
       const newEndPointId = pointIdMap.get(String(path.endPointId)) || path.endPointId;
-      const newControlPoints = (path.geometry.controlPoints || []).map(cp => ({
+      const newControlPoints = (path.geometry.controlPoints || []).map((cp, index) => ({
+        id: cp.id || `cp_${copyTimestamp}_${index}`,
         x: cp.x + offsetX,
-        y: cp.y + offsetY
+        y: cp.y + offsetY,
+        z: cp.z
       }));
       addPath({
         ...path,
@@ -1069,7 +1094,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           ...path.geometry,
           controlPoints: newControlPoints
         }
-      });
+      } as Omit<MapPath, 'id'>);
     });
 
     return true;
@@ -1369,6 +1394,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     // Actions
     loadMap,
     saveMap,
+    updateLayoutProperties,
     setTool,
     setPointType,
     setPathConnectionType,
@@ -1393,6 +1419,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     selectElements,
     selectAll,
     clearSelection,
+    selectLayout,
     copySelected,
     paste,
     duplicateSelected,

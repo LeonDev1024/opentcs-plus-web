@@ -170,7 +170,7 @@ const { queryParams, form, rules } = toRefs(data);
 /** 查询车辆类型列表 */
 const getVehicleTypes = async () => {
   const res = await listType({ pageNum: 1, pageSize: 100 });
-  vehicleTypes.value = res.rows;
+  vehicleTypes.value = (res.data as any).rows || [];
 };
 
 /** 查询车辆列表 */
@@ -178,8 +178,8 @@ const getList = async () => {
   loading.value = true;
   try {
     const res = await listVehicle(queryParams.value);
-    vehicleList.value = res.rows;
-    total.value = res.total;
+    vehicleList.value = res.data.rows || [];
+    total.value = res.data.total || 0;
   } catch (error) {
     console.error('Error fetching vehicle list:', error);
     vehicleList.value = [];

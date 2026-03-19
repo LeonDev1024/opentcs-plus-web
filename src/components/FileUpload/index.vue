@@ -92,7 +92,7 @@ watch(
       let list: any[] = [];
       if (Array.isArray(val)) {
         list = val;
-      } else {
+      } else if (typeof val === 'string' || typeof val === 'number') {
         const res = await listByIds(val);
         list = res.data.map((oss) => {
           return {

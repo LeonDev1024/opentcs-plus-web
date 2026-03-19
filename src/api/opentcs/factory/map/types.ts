@@ -16,6 +16,7 @@ export interface NavigationMapVO {
   rotation?: number;
   properties?: string;
   status: string;
+  description?: string;
   createTime?: string;
   updateTime?: string;
   // 栅格底图相关字段（PGM 障碍物地图，仅用于可视化）
@@ -43,6 +44,8 @@ export interface NavigationMapForm {
   rotation?: number;
   properties?: string;
   status?: string;
+  // 描述
+  description?: string;
   // 栅格底图相关字段（创建/更新时传递）
   rasterUrl?: string;
   rasterVersion?: number;

@@ -240,7 +240,7 @@ const handleClose = () => {
     redirectedFrom: undefined,
     path: '/system/dict'
   };
-  proxy?.$tab.closeOpenPage(obj);
+  proxy?.$tab.closeOpenPage('/system/dict');
 };
 /** 重置按钮操作 */
 const resetQuery = () => {

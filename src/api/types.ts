@@ -22,6 +22,7 @@ export interface LoginData {
   source?: string;
   code?: string;
   uuid?: string;
+  tenantId?: string;
   clientId: string;
   grantType: string;
 }

@@ -400,7 +400,7 @@
           <el-button
             size="small"
             :type="mapIssues.length > 0 ? 'danger' : 'default'"
-            :icon="MapLocation"
+            :icon="Location"
             @click="runMapValidation"
           >
             检测 {{ mapIssues.length > 0 ? `(${mapIssues.length})` : '' }}

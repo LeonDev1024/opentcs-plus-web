@@ -83,8 +83,6 @@ const options = ref<any>({
           if (value) {
             // 调用element图片上传
             uploadRef.value.click();
-          } else {
-            Quill.format('image', true);
           }
         }
       }

@@ -159,6 +159,11 @@ export interface OrderQuery extends PageQuery {
   vehicleId?: string | number;
 
   /**
+   * 车辆VIN码
+   */
+  vehicleVin?: string;
+
+  /**
    * 起始位置ID
    */
   startLocationId?: string | number;

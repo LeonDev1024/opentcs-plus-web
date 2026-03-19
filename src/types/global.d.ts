@@ -59,7 +59,7 @@ declare global {
   declare interface DictDataOption {
     label: string;
     value: string;
-    elTagType?: ElTagType;
+    elTagType?: ElTagType | 'default' | '';
     elTagClass?: string;
   }
 

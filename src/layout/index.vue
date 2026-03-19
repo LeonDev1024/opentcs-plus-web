@@ -61,12 +61,6 @@ const navbarRef = ref<InstanceType<typeof Navbar>>();
 const settingRef = ref<InstanceType<typeof Settings>>();
 
 onMounted(() => {
-  nextTick(() => {
-    navbarRef.value?.initTenantList();
-  });
-});
-
-onMounted(() => {
   const protocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
   initWebSocket(protocol + window.location.host + import.meta.env.VITE_APP_BASE_API + '/resource/websocket');
 });

@@ -111,7 +111,7 @@ const close = () => {
     redirectedFrom: undefined,
     path: '/system/user'
   };
-  proxy?.$tab.closeOpenPage(obj);
+  proxy?.$tab.closeOpenPage('/system/user');
 };
 /** 提交按钮 */
 const submitForm = async () => {

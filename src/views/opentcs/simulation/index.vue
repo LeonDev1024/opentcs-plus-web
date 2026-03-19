@@ -147,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import VehicleStatus from './components/VehicleStatus.vue'
 import OrderStatus from './components/OrderStatus.vue'
@@ -159,6 +159,9 @@ const simulationStatus = ref('STOPPED')
 const currentTick = ref(0)
 const tickRate = ref(10)
 const startTime = ref(0)
+
+// 轮询定时器
+let pollingInterval: ReturnType<typeof setInterval> | null = null
 
 // 数据
 const vehicles = ref<any[]>([])
@@ -180,9 +183,9 @@ const sceneForm = reactive({
 // 方法
 const startSimulation = async () => {
   try {
-    const response = await simulationApi.start()
-    if (response.success) {
-      ElMessage.success(response.message)
+    const res = await simulationApi.start()
+    if (res.data.success) {
+      ElMessage.success(res.data.message)
       simulationStatus.value = 'RUNNING'
       startTime.value = Date.now()
       startPolling()
@@ -194,9 +197,9 @@ const startSimulation = async () => {
 
 const pauseSimulation = async () => {
   try {
-    const response = await simulationApi.pause()
-    if (response.success) {
-      ElMessage.success(response.message)
+    const res = await simulationApi.pause()
+    if (res.data.success) {
+      ElMessage.success(res.data.message)
       simulationStatus.value = 'PAUSED'
     }
   } catch (error) {
@@ -206,9 +209,9 @@ const pauseSimulation = async () => {
 
 const resumeSimulation = async () => {
   try {
-    const response = await simulationApi.resume()
-    if (response.success) {
-      ElMessage.success(response.message)
+    const res = await simulationApi.resume()
+    if (res.data.success) {
+      ElMessage.success(res.data.message)
       simulationStatus.value = 'RUNNING'
     }
   } catch (error) {
@@ -218,11 +221,12 @@ const resumeSimulation = async () => {
 
 const stopSimulation = async () => {
   try {
-    const response = await simulationApi.stop()
-    if (response.success) {
-      ElMessage.success(response.message)
+    const res = await simulationApi.stop()
+    if (res.data.success) {
+      ElMessage.success(res.data.message)
       simulationStatus.value = 'STOPPED'
       currentTick.value = 0
+      stopPolling()
     }
   } catch (error) {
     ElMessage.error('停止仿真失败')
@@ -298,8 +302,8 @@ const showCreateSceneDialog = () => {
 
 const createScene = async () => {
   try {
-    const response = await simulationApi.createScene(sceneForm)
-    if (response.success) {
+    const res = await simulationApi.createScene(sceneForm)
+    if (res.data.success) {
       ElMessage.success('场景创建成功')
       createSceneDialogVisible.value = false
       loadScenes()
@@ -311,8 +315,8 @@ const createScene = async () => {
 
 const setCurrentScene = async (scene: any) => {
   try {
-    const response = await simulationApi.setCurrentScene(scene.name)
-    if (response.success) {
+    const res = await simulationApi.setCurrentScene(scene.name)
+    if (res.data.success) {
       ElMessage.success('场景设置成功')
     }
   } catch (error) {
@@ -330,18 +334,31 @@ const formatDate = (timestamp: number) => {
 }
 
 const startPolling = () => {
-  setInterval(() => {
+  if (pollingInterval) return
+  pollingInterval = setInterval(() => {
     loadVehicles()
     loadOrders()
     loadSimulationStatus()
   }, 1000)
 }
 
+const stopPolling = () => {
+  if (pollingInterval) {
+    clearInterval(pollingInterval)
+    pollingInterval = null
+  }
+}
+
+// 组件卸载时清理
+onUnmounted(() => {
+  stopPolling()
+})
+
 const loadVehicles = async () => {
   try {
-    const response = await simulationApi.getVehicles()
-    if (response.success) {
-      vehicles.value = response.vehicles
+    const res = await simulationApi.getVehicles()
+    if (res.data.success) {
+      vehicles.value = res.data.data || []
     }
   } catch (error) {
     console.error('加载车辆数据失败')
@@ -350,9 +367,9 @@ const loadVehicles = async () => {
 
 const loadOrders = async () => {
   try {
-    const response = await simulationApi.getOrders()
-    if (response.success) {
-      orders.value = response.orders
+    const res = await simulationApi.getOrders()
+    if (res.data.success) {
+      orders.value = res.data.data || []
     }
   } catch (error) {
     console.error('加载订单数据失败')
@@ -361,11 +378,11 @@ const loadOrders = async () => {
 
 const loadSimulationStatus = async () => {
   try {
-    const response = await simulationApi.getStatus()
-    if (response.success) {
-      simulationStatus.value = response.status
-      currentTick.value = response.currentTick
-      tickRate.value = response.tickRate
+    const res = await simulationApi.getStatus()
+    if (res.data.success) {
+      simulationStatus.value = res.data.data?.status || 'STOPPED'
+      currentTick.value = res.data.data?.currentTick || 0
+      tickRate.value = res.data.data?.tickRate || 0
     }
   } catch (error) {
     console.error('加载仿真状态失败')
@@ -374,9 +391,9 @@ const loadSimulationStatus = async () => {
 
 const loadScenes = async () => {
   try {
-    const response = await simulationApi.getScenes()
-    if (response.success) {
-      scenes.value = response.scenes
+    const res = await simulationApi.getScenes()
+    if (res.data.success) {
+      scenes.value = res.data.data?.scenes || []
     }
   } catch (error) {
     console.error('加载场景数据失败')

@@ -292,14 +292,15 @@ const handleDeleteSelectedLayerGroup = async () => {
 watch(
   () => [mapEditorStore.layers, mapEditorStore.activeLayerId],
   ([layers, activeId]) => {
-    if (layers.length > 0) {
+    const layerList = layers as MapLayer[];
+    if (layerList.length > 0) {
       // 如果当前激活的图层不存在，或者没有激活的图层
-      const activeLayerExists = activeId && layers.some(l => String(l.id) === String(activeId));
+      const activeLayerExists = activeId && layerList.some(l => String(l.id) === String(activeId));
       if (!activeLayerExists) {
         // 优先激活名为 "Default layer" 或 "默认图层" 的图层
-        const defaultLayer = layers.find(l => 
+        const defaultLayer = layerList.find(l =>
           l.name === 'Default layer' || l.name === '默认图层'
-        ) || layers[0];
+        ) || layerList[0];
         if (defaultLayer) {
           setActiveLayer(defaultLayer.id);
         }

@@ -83,7 +83,7 @@
           <el-input v-model="form.factoryId" placeholder="自动生成" disabled />
         </el-form-item>
         <el-form-item label="比例尺" prop="scale">
-          <el-input-number v-model="form.scale" :min="1" :max="100" :step="1" precision="0" />
+          <el-input-number v-model="form.scale as number" :min="1" :max="100" :step="1" :precision="0" />
           <span style="margin-left: 8px; color: #909399;">mm/px</span>
         </el-form-item>
         <el-form-item label="描述" prop="description">
@@ -110,7 +110,7 @@
 import { listFactoryModel, getFactoryModel, addFactoryModel, updateFactoryModel, delFactoryModel } from '@/api/opentcs/factory/model';
 import type { FactoryModelVO, FactoryModelForm, FactoryModelQuery } from '@/api/opentcs/factory/model/types';
 import { ElMessageBox } from 'element-plus';
-import type { FormInstance, ElFormInstance } from 'element-plus';
+import type { FormInstance } from 'element-plus';
 
 const router = useRouter();
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
@@ -120,7 +120,7 @@ const showSearch = ref(true);
 const total = ref(0);
 const factoryList = ref<FactoryModelVO[]>([]);
 
-const queryFormRef = ref<ElFormInstance>();
+const queryFormRef = ref<FormInstance>();
 
 const queryParams = reactive<FactoryModelQuery>({
   pageNum: 1,

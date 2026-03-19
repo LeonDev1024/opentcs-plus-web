@@ -17,11 +17,12 @@
 </template>
 
 <script setup lang="ts">
+import type { FormInstance } from 'element-plus';
 import { updateUserPwd } from '@/api/system/user';
 import type { ResetPwdForm } from '@/api/system/user/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
-const pwdRef = ref<ElFormInstance>();
+const pwdRef = ref<FormInstance>();
 const user = ref<ResetPwdForm>({
   oldPassword: '',
   newPassword: '',
@@ -35,7 +36,7 @@ const equalToPassword = (rule: any, value: string, callback: any) => {
     callback();
   }
 };
-const rules = ref({
+const rules = ref<any>({
   oldPassword: [{ required: true, message: '旧密码不能为空', trigger: 'blur' }],
   newPassword: [
     { required: true, message: '新密码不能为空', trigger: 'blur' },
@@ -45,7 +46,7 @@ const rules = ref({
       message: '长度在 6 到 20 个字符',
       trigger: 'blur'
     },
-    { pattern: /^[^<>"'|\\]+$/, message: '不能包含非法字符：< > " \' \\ |', trigger: 'blur' }
+    { pattern: /^[^<>"'|\\]+$/ as any, message: '不能包含非法字符：< > " \' \\ |', trigger: 'blur' }
   ],
   confirmPassword: [
     { required: true, message: '确认密码不能为空', trigger: 'blur' },

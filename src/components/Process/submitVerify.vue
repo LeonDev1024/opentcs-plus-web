@@ -146,7 +146,7 @@ import {
   currentTaskAllUser,
   getNextNodeList
 } from '@/api/workflow/task';
-import UserSelect from '@/components/UserSelect';
+import UserSelect from '@/components/UserSelect/index.vue';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 import { FlowCopyVo, FlowTaskVO, TaskOperationBo } from '@/api/workflow/task/types';
@@ -174,7 +174,7 @@ const selectCopyUserList = ref<FlowCopyVo[]>([]);
 //抄送人id
 const selectCopyUserIds = ref<string>(undefined);
 //自定义节点变量
-const varNodeList = ref<Map<string, string>>(undefined);
+const varNodeList = ref<any[]>([]);
 //可减签的人员
 const deleteUserList = ref<any>([]);
 //弹窗可选择的人员id
@@ -263,8 +263,8 @@ const openDialog = async (id?: string) => {
     buttonObj.value[e.code] = e.show;
   });
   selectCopyUserList.value = task.value.copyList;
-  selectCopyUserIds.value = task.value.copyList.map((e) => e.userId).join(',');
-  varNodeList.value = task.value.varList;
+  selectCopyUserIds.value = task.value.copyList?.map((e: any) => e.userId).join(',') || '';
+  varNodeList.value = task.value.varList || [];
   buttonDisabled.value = false;
   try {
     const data = {
@@ -336,7 +336,7 @@ const handleBackProcessOpen = async () => {
   backVisible.value = true;
   backLoading.value = true;
   backButtonDisabled.value = true;
-  const data = await getBackTaskNode(task.value.id, task.value.nodeCode);
+  const data = await getBackTaskNode(task.value.id as string | number);
   taskNodeList.value = data.data;
   backLoading.value = false;
   backButtonDisabled.value = false;

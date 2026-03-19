@@ -131,13 +131,13 @@
           <el-input v-model="form.name" placeholder="请输入订单名称" />
         </el-form-item>
         <el-form-item label="车辆ID" prop="vehicleId">
-          <el-input-number v-model="form.vehicleId" placeholder="请输入车辆ID" style="width: 100%" />
+          <el-input-number v-model="form.vehicleId as number" placeholder="请输入车辆ID" style="width: 100%" />
         </el-form-item>
         <el-form-item label="起始位置ID" prop="startLocationId">
-          <el-input-number v-model="form.startLocationId" placeholder="请输入起始位置ID" style="width: 100%" />
+          <el-input-number v-model="form.startLocationId as number" placeholder="请输入起始位置ID" style="width: 100%" />
         </el-form-item>
         <el-form-item label="目标位置ID" prop="targetLocationId">
-          <el-input-number v-model="form.targetLocationId" placeholder="请输入目标位置ID" style="width: 100%" />
+          <el-input-number v-model="form.targetLocationId as number" placeholder="请输入目标位置ID" style="width: 100%" />
         </el-form-item>
         <el-form-item label="订单状态" prop="status">
           <el-radio-group v-model="form.status">
@@ -176,7 +176,7 @@
     <el-dialog v-model="assignDialog.visible" title="分配车辆" width="400px" append-to-body>
       <el-form ref="assignFormRef" :model="assignForm" label-width="100px">
         <el-form-item label="车辆ID" prop="vehicleId">
-          <el-input-number v-model="assignForm.vehicleId" placeholder="请输入车辆ID" style="width: 100%" />
+          <el-input-number v-model="assignForm.vehicleId as number" placeholder="请输入车辆ID" style="width: 100%" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -190,6 +190,7 @@
 </template>
 
 <script setup name="Order" lang="ts">
+import { ElMessage } from 'element-plus';
 import { listOrder, getOrder, delOrder, addOrder, updateOrder, assignOrder, cancelOrder } from '@/api/opentcs/order';
 import { OrderVO, OrderQuery, OrderForm } from '@/api/opentcs/order/types';
 
@@ -367,12 +368,12 @@ const submitAssign = async () => {
 
 /** 开始运输按钮操作 */
 const handleStart = async (row?: OrderVO) => {
-  proxy?.$modal.msgInfo('开始运输功能暂未实现');
+  ElMessage.info('开始运输功能暂未实现');
 };
 
 /** 完成订单按钮操作 */
 const handleComplete = async (row?: OrderVO) => {
-  proxy?.$modal.msgInfo('完成订单功能暂未实现');
+  ElMessage.info('完成订单功能暂未实现');
 };
 
 /** 取消订单按钮操作 */
