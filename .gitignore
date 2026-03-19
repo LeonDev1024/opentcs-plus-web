@@ -96,3 +96,4 @@ CLAUDE.md               # Claude Code 项目说明文件
 # ========================
 serverless/              # Serverless 框架输出
 fusebox/                # FuseBox 缓存
+node_modules
