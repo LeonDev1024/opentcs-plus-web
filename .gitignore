@@ -84,3 +84,9 @@ desktop.ini
 
 # CLAUDE Documentation
 CLAUDE.md
+
+# Vite cache
+.vite/
+
+# GitHub workflows
+.github/
