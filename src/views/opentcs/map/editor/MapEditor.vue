@@ -3,26 +3,22 @@
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="toolbar-left">
-        <el-button-group>
-          <el-tooltip content="选择工具 (1)" :show-after="50" placement="bottom">
-            <el-button
-              :type="currentTool === 'select' ? 'primary' : 'default'"
-              size="small"
-              icon="Pointer"
-              @click="setTool(ToolMode.SELECT)"
-            />
-          </el-tooltip>
-          <el-tooltip content="平移工具 (2)" :show-after="50" placement="bottom">
+        <el-button-group class="creation-tool-group">
+          <el-tooltip
+            content="漫游 (1)：空白处拖移画布；悬停点/线/位置可选中拖动；Ctrl+空白拖移可框选；Shift 参与框选追加"
+            :show-after="50"
+            placement="bottom"
+          >
             <el-button
               :type="currentTool === 'pan' ? 'primary' : 'default'"
               size="small"
-              icon="Rank"
               @click="setTool(ToolMode.PAN)"
-            />
+            >
+              <template #icon>
+                <SvgIcon icon-class="manyou" class="pan-hand-icon" />
+              </template>
+            </el-button>
           </el-tooltip>
-        </el-button-group>
-        <el-divider direction="vertical" />
-        <el-button-group class="creation-tool-group">
           <div class="point-tool-wrapper toolbar-tool toolbar-tool-point">
             <el-tooltip content="绘制点 (3)" :show-after="50" placement="bottom">
               <el-button
@@ -32,115 +28,44 @@
                 class="point-tool-main"
               >
                 <template #icon>
-                  <SvgIcon :icon-class="getPointTypeIconClass(mapEditorStore.pointType)" class="point-type-svg-icon" />
+                  <SvgIcon icon-class="diandian" class="point-type-svg-icon" />
                 </template>
               </el-button>
             </el-tooltip>
-            <el-dropdown 
-              @command="handlePointTypeChange"
-              trigger="click"
-              placement="bottom"
-              @visible-change="handlePointDropdownVisible"
-            >
-              <el-button
-                :type="currentTool === 'point' ? 'primary' : 'default'"
-                size="small"
-                class="point-tool-dropdown"
-                @click.stop
-              >
-                <el-icon><ArrowDown /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item 
-                    command="Halt point"
-                    :class="{ 'is-selected': mapEditorStore.pointType === 'Halt point' }"
-                  >
-                    <div class="point-type-option">
-                      <SvgIcon icon-class="halt-point" class="point-type-svg-icon" />
-                  <span>临时停车 (Halt point)</span>
-                    </div>
-                  </el-dropdown-item>
-                  <el-dropdown-item 
-                    command="Park point"
-                    :class="{ 'is-selected': mapEditorStore.pointType === 'Park point' }"
-                  >
-                    <div class="point-type-option">
-                      <SvgIcon icon-class="park-point" class="point-type-svg-icon" />
-                    <span>长时间停车 (Park point)</span>
-                    </div>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
           </div>
-          <div class="path-tool-wrapper toolbar-tool toolbar-tool-path">
-            <el-tooltip content="创建连线 (4)" :show-after="50" placement="bottom">
-              <el-button
-                :type="currentTool === 'path' ? 'primary' : 'default'"
-                size="small"
-                @click="setTool(ToolMode.PATH)"
-                class="path-tool-main"
-              >
-                <template #icon>
-                  <PathTypeIcon :type="mapEditorStore.pathConnectionType" :active="currentTool === 'path'" />
-                </template>
-              </el-button>
-            </el-tooltip>
-            <el-dropdown 
-              @command="handlePathTypeChange"
-              trigger="click"
-              placement="bottom"
-              @visible-change="handlePathDropdownVisible"
-            >
-              <el-button
-                :type="currentTool === 'path' ? 'primary' : 'default'"
-                size="small"
-                class="path-tool-dropdown"
-                @click.stop
-              >
-                <el-icon><ArrowDown /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    v-for="option in pathTypeOptions"
-                    :key="option.value"
-                    :command="option.value"
-                    :class="{ 'is-selected': mapEditorStore.pathConnectionType === option.value }"
-                  >
-                    <PathTypeIcon
-                      class="path-type-icon"
-                      :type="option.value"
-                      :active="mapEditorStore.pathConnectionType === option.value"
-                    />
-                    <span>{{ option.label }}</span>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
-          <el-tooltip content="绘制位置 (5)" :show-after="50" placement="bottom">
+          <el-tooltip content="直线 (4)" :show-after="50" placement="bottom">
             <el-button
-              class="toolbar-tool toolbar-tool-location"
-              :type="currentTool === 'location' ? 'primary' : 'default'"
+              class="toolbar-tool toolbar-tool-path toolbar-tool-path-direct"
+              :type="currentTool === 'path' && mapEditorStore.pathConnectionType === 'direct' ? 'primary' : 'default'"
               size="small"
-              @click="setTool(ToolMode.LOCATION)"
+              @click="handlePathToolClick('direct')"
             >
               <template #icon>
-                <LocationTypeIcon :active="currentTool === 'location'" symbol="L" />
+                <PathTypeIcon type="direct" :active="currentTool === 'path' && mapEditorStore.pathConnectionType === 'direct'" />
               </template>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="虚线路径 (6)" :show-after="50" placement="bottom">
+          <el-tooltip content="直角连线 (4)" :show-after="50" placement="bottom">
             <el-button
-              class="toolbar-tool toolbar-tool-dashed"
-              :type="currentTool === 'dashedLink' ? 'primary' : 'default'"
+              class="toolbar-tool toolbar-tool-path toolbar-tool-path-orthogonal"
+              :type="currentTool === 'path' && mapEditorStore.pathConnectionType === 'orthogonal' ? 'primary' : 'default'"
               size="small"
-              @click="setTool(ToolMode.DASHED_LINK)"
+              @click="handlePathToolClick('orthogonal')"
             >
               <template #icon>
-                <svg-icon icon-class="dashed-link" style="font-size: 16px;" />
+                <PathTypeIcon type="orthogonal" :active="currentTool === 'path' && mapEditorStore.pathConnectionType === 'orthogonal'" />
+              </template>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="贝塞尔曲线 (4)" :show-after="50" placement="bottom">
+            <el-button
+              class="toolbar-tool toolbar-tool-path toolbar-tool-path-curve"
+              :type="currentTool === 'path' && mapEditorStore.pathConnectionType === 'curve' ? 'primary' : 'default'"
+              size="small"
+              @click="handlePathToolClick('curve')"
+            >
+              <template #icon>
+                <SvgIcon icon-class="bezier2" class="path-bezier-icon" />
               </template>
             </el-button>
           </el-tooltip>
@@ -156,11 +81,6 @@
               </template>
             </el-button>
           </el-tooltip>
-          
-        </el-button-group>
-        <el-divider direction="vertical" />
-        
-        <el-button-group>
           <el-tooltip content="撤销 (Ctrl+Z)" :show-after="50" placement="bottom">
             <el-button
               size="small"
@@ -177,26 +97,25 @@
               @click="redo"
             />
           </el-tooltip>
+          <el-tooltip content="显示/隐藏标签" :show-after="50" placement="bottom">
+            <el-button
+              :type="showLabels ? 'primary' : 'default'"
+              size="small"
+              icon="PriceTag"
+              @click="toggleLabels"
+              :circle="true"
+            />
+          </el-tooltip>
+          <el-tooltip content="显示/隐藏Block" :show-after="50" placement="bottom">
+            <el-button 
+              :type="showBlocks ? 'primary' : 'default'"
+              size="small"
+              icon="Box"
+              @click="toggleBlocks"
+              :circle="true"
+            />
+          </el-tooltip>
         </el-button-group>
-        <el-divider direction="vertical" />
-        <el-tooltip content="显示/隐藏标签" :show-after="50" placement="bottom">
-          <el-button 
-            :type="showLabels ? 'primary' : 'default'"
-            size="small"
-            icon="PriceTag"
-            @click="toggleLabels"
-            :circle="true"
-          />
-        </el-tooltip>
-        <el-tooltip content="显示/隐藏Block" :show-after="50" placement="bottom">
-          <el-button 
-            :type="showBlocks ? 'primary' : 'default'"
-            size="small"
-            icon="Box"
-            @click="toggleBlocks"
-            :circle="true"
-          />
-        </el-tooltip>
       </div>
       <div class="toolbar-right">
         <el-button type="primary" size="small" icon="Document" @click="handleSave" :loading="loading">保存</el-button>
@@ -666,7 +585,6 @@ import { useMapEditorTabsStore } from '@/store/modules/mapEditorTabs';
 import { ToolMode, LayerType } from '@/types/mapEditor';
 import type { MapPoint } from '@/types/mapEditor';
 import PathTypeIcon from './components/icons/PathTypeIcon.vue';
-import LocationTypeIcon from './components/icons/LocationTypeIcon.vue';
 import SvgIcon from '@/components/SvgIcon/index.vue';
 import { exportMapFile, importMapFile } from '@/api/opentcs/map';
 import { updateNavigationMap } from '@/api/opentcs/factory/map';
@@ -1019,18 +937,6 @@ const hasSelection = computed(() => {
 
 type PathConnectionType = 'direct' | 'orthogonal' | 'curve';
 
-const pathTypeOptions: Array<{ value: PathConnectionType; label: string }> = [
-  { value: 'direct', label: '直接连线' },
-  { value: 'orthogonal', label: '直角连线' },
-  { value: 'curve', label: '圆角连线' }
-];
-
-const pathTypeLabels: Record<PathConnectionType, string> = {
-  direct: '直接连线',
-  orthogonal: '直角连线',
-  curve: '圆角连线'
-};
-
 // 工具切换
 const setTool = (tool: ToolMode) => {
   mapEditorStore.setTool(tool);
@@ -1038,7 +944,7 @@ const setTool = (tool: ToolMode) => {
   // 显示中文提示
   const toolNames: Partial<Record<ToolMode, string>> = {
     [ToolMode.SELECT]: '选择工具',
-    [ToolMode.PAN]: '平移工具',
+    [ToolMode.PAN]: '漫游工具',
     [ToolMode.POINT]: '绘制点',
     [ToolMode.PATH]: '绘制路径',
     [ToolMode.LOCATION]: '绘制位置',
@@ -1073,10 +979,10 @@ const handlePointTypeChange = (type: string) => {
   ElMessage.success(`点位类型已切换为：${typeNames[type]}`);
 };
 
-// 连线类型切换
-const handlePathTypeChange = (type: PathConnectionType) => {
+// 连线工具点击：同时切换工具和连线类型
+const handlePathToolClick = (type: PathConnectionType) => {
   mapEditorStore.setPathConnectionType(type);
-  ElMessage.success(`连线类型已切换为：${pathTypeLabels[type]}`);
+  setTool(ToolMode.PATH);
 };
 
 // 点位类型下拉菜单显示状态
@@ -2439,9 +2345,24 @@ const handleKeyDown = (e: KeyboardEvent) => {
 
   // Delete / Backspace 删除选中元素
   if (!e.ctrlKey && !e.metaKey && (e.key === 'Delete' || e.key === 'Backspace')) {
-    if (hasSelection.value) {
-      e.preventDefault();
-      handleBatchDelete();
+    if (!hasSelection.value) {
+      // noop
+    } else {
+      const selectedIds = mapEditorStore.selection.selectedIds;
+      const selectedType = mapEditorStore.selection.selectedType;
+      if (selectedType === 'layout' || selectedIds.size === 0) {
+        // noop
+      } else {
+        e.preventDefault();
+        if (selectedType === 'point') {
+          selectedIds.forEach((id) => mapEditorStore.deletePoint(id));
+        } else if (selectedType === 'path') {
+          selectedIds.forEach((id) => mapEditorStore.deletePath(id));
+        } else if (selectedType === 'location') {
+          selectedIds.forEach((id) => mapEditorStore.deleteLocation(id));
+        }
+        mapEditorStore.clearSelection();
+      }
     }
   }
 
@@ -2449,8 +2370,6 @@ const handleKeyDown = (e: KeyboardEvent) => {
   if (!e.ctrlKey && !e.metaKey && !e.altKey) {
     switch (e.key) {
       case '1':
-        setTool(ToolMode.SELECT);
-        break;
       case '2':
         setTool(ToolMode.PAN);
         break;
@@ -2459,12 +2378,6 @@ const handleKeyDown = (e: KeyboardEvent) => {
         break;
       case '4':
         setTool(ToolMode.PATH);
-        break;
-      case '5':
-        setTool(ToolMode.LOCATION);
-        break;
-      case '6':
-        setTool(ToolMode.DASHED_LINK);
         break;
       case '7':
         setTool(ToolMode.RULE_REGION);
@@ -2681,6 +2594,12 @@ onUnmounted(() => {
       align-items: center;
       gap: 12px;
       flex-wrap: nowrap;
+
+      .pan-hand-icon {
+        width: 1em;
+        height: 1em;
+        display: block;
+      }
       
       :deep(.el-divider--vertical) {
         height: 24px;
@@ -2825,16 +2744,8 @@ onUnmounted(() => {
         order: 0;
       }
       
-      .creation-tool-group .toolbar-tool-location {
-        order: 1;
-      }
-      
       .creation-tool-group .toolbar-tool-path {
         order: 2;
-      }
-      
-      .creation-tool-group .toolbar-tool-dashed {
-        order: 3;
       }
       
       .creation-tool-group .toolbar-tool-rule {

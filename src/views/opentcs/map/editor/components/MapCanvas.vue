@@ -24,6 +24,12 @@
       <!-- 点位层 -->
       <v-layer ref="pointLayerRef" :config="{ name: 'point' }">
         <template v-for="point in visiblePoints" :key="`${point.id}-${currentTool}`">
+          <!-- 外圈：与工具栏图标一致的蓝色圆环 -->
+          <v-circle
+            :config="getPointRingConfig(point)"
+            __use-strict-mode
+          />
+          <!-- 内圈：可交互的实心圆点 -->
           <v-circle
             :config="getPointConfig(point)"
             __use-strict-mode
@@ -65,11 +71,12 @@
             :config="getPathConfig(path)"
             @click="handlePathClick(path, $event)"
           />
-          <v-arrow
-            v-if="shouldShowPathArrow(path)"
-            :config="getPathArrowConfig(path)"
-            @click="handlePathClick(path, $event)"
-          />
+          <template v-if="shouldShowPathArrow(path)" v-for="(arrowCfg, ai) in getPathArrowConfigs(path)" :key="`${path.id}-arrow-${ai}`">
+            <v-line
+              :config="arrowCfg"
+              @click="handlePathClick(path, $event)"
+            />
+          </template>
           <!-- 路径控制点（仅在路径被选中时显示） -->
           <v-circle
             v-if="mapEditorStore.selection.selectedIds.has(path.id)"
@@ -181,7 +188,11 @@
         />
         <template v-if="tempPathPreview && pathDragState.startPoint">
           <v-line :key="`preview-line-${pathDragState.startPoint.id}`" :config="tempPathPreview.line" />
-          <v-arrow :key="`preview-arrow-${pathDragState.startPoint.id}`" :config="tempPathPreview.arrow" />
+          <v-line
+            v-for="(arr, ai) in tempPathPreview.arrows"
+            :key="`preview-arrow-${pathDragState.startPoint.id}-${ai}`"
+            :config="arr"
+          />
           <v-circle :key="`preview-start-${pathDragState.startPoint.id}`" :config="tempPathPreview.startMarker" />
           <v-circle :key="`preview-end-${pathDragState.startPoint.id}`" :config="tempPathPreview.endMarker" />
         </template>
@@ -471,6 +482,11 @@ const exportAsImage = async (format: 'png' | 'svg'): Promise<string> => {
 // 画布配置
 const canvasState = computed(() => mapEditorStore.canvasState);
 const currentTool = computed(() => mapEditorStore.currentTool);
+
+/** 漫游（PAN）：空白拖移画布；点/线/位置可选中、拖动（合并原「选择」与「平移」） */
+const isRoamInteractionTool = computed(
+  () => currentTool.value === ToolMode.PAN || currentTool.value === ToolMode.SELECT
+);
 
 // 容器视口尺寸（仅用于 Stage 显示大小，与模型空间 canvasState.width/height 分离，避免拖拽左侧面板时覆盖逻辑画布导致点位偏移）
 const containerSize = ref({ width: 1920, height: 1080 });
@@ -1004,25 +1020,33 @@ const tempPathPreview = computed(() => {
   });
   const line = {
     points,
-    stroke: '#409eff',
-    strokeWidth: 2,
+    stroke: '#d8e6ff',
+    strokeWidth: 4,
     lineCap: 'round',
-    lineJoin: 'round',
-    dash: [8, 8]
+    lineJoin: 'round'
   };
-  const arrow = {
-    points: [
-      controlPoints[controlPoints.length - 2].x,
-      controlPoints[controlPoints.length - 2].y,
-      end.x,
-      end.y
-    ],
-    pointerLength: PATH_ARROW.radius * 2.5,
-    pointerWidth: PATH_ARROW.radius * 1.6,
-    fill: PATH_ARROW.color,
-    stroke: PATH_ARROW.color,
-    strokeWidth: 2
-  };
+  const prev = controlPoints[controlPoints.length - 2];
+  const dx = end.x - prev.x;
+  const dy = end.y - prev.y;
+  const len = 6;
+  const w = 3;
+  const arrows = [{ t: 0.75, angle: Math.atan2(dy, dx) }].map(({ t, angle }) => {
+    const cx = prev.x + dx * t;
+    const cy = prev.y + dy * t;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    const localPoints: [number, number][] = [
+      [len / 2, 0],
+      [-len / 2, w / 2],
+      [-len / 2, 0],
+      [-len / 2, -w / 2]
+    ];
+    const pts: number[] = [];
+    for (const [lx, ly] of localPoints) {
+      pts.push(cx + lx * cos - ly * sin, cy + lx * sin + ly * cos);
+    }
+    return { points: pts, closed: true, fill: PATH_ARROW.color, stroke: undefined, lineCap: 'round', lineJoin: 'round' };
+  });
   const startMarker = {
     x: start.x,
     y: start.y,
@@ -1039,7 +1063,7 @@ const tempPathPreview = computed(() => {
     strokeWidth: 2,
     fill: 'rgba(94, 200, 255, 0.2)'
   };
-  return { line, arrow, startMarker, endMarker };
+  return { line, arrows, startMarker, endMarker };
 });
 
 const findPointAtPosition = (x: number, y: number, toleranceMultiplier = 1.6) => {
@@ -1115,12 +1139,14 @@ const setStageCursor = (cursor: string) => {
 
 // 选择工具下，鼠标移入可拖拽元素时显示十字箭头（move）
 const handlePointMouseEnter = () => {
-  if (currentTool.value === ToolMode.SELECT && !isDragging.value) {
+  if (isRoamInteractionTool.value && !isDragging.value) {
     setStageCursor('move');
   }
 };
 const handlePointMouseOut = () => {
-  if (!isDragging.value) setStageCursor('default');
+  if (!isDragging.value) {
+    setStageCursor(isRoamInteractionTool.value ? 'grab' : 'default');
+  }
 };
 // 虚线链接拖拽状态（从 location 连接到 point）
 const dashedLinkDragState = reactive<{
@@ -1170,7 +1196,7 @@ const isPointConnected = (point: MapPoint): boolean => {
   });
 };
 
-// 获取点的 Konva 配置
+// 获取点的 Konva 配置（内圈实心圆点）
 const getPointConfig = (point: MapPoint) => {
   const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
   const isPathStart = currentTool.value === ToolMode.PATH && pathDragState.startPoint?.id === point.id;
@@ -1178,11 +1204,16 @@ const getPointConfig = (point: MapPoint) => {
   const isDashedLinkTarget = currentTool.value === ToolMode.DASHED_LINK && dashedLinkDragState.startLocation && hoveredPointId.value === point.id;
   const isConnected = isPointConnected(point);
   const visual = getPointVisualMeta(point);
-  
-  let fill = visual.fill;
-  let stroke = visual.stroke;
-  let strokeWidth = visual.strokeWidth;
-  
+
+  // 基础配色：与工具栏 diandian 图标一致
+  const baseFill = '#2563EB';
+  const baseStroke = '#2563EB';
+  const radiusInner = visual.radius * 0.55;
+
+  let fill = baseFill;
+  let stroke = baseStroke;
+  let strokeWidth = 0;
+
   if (isSelected) {
     fill = '#ff4d4f';
     stroke = '#ff7875';
@@ -1200,10 +1231,10 @@ const getPointConfig = (point: MapPoint) => {
     stroke = '#f5d48f';
     strokeWidth = Math.max(2, strokeWidth);
   } else if (isConnected) {
-    // 如果点被连线，使用淡蓝色
-    fill = '#73c0ff';
-    stroke = '#73c0ff';
-    strokeWidth = Math.max(1.5, strokeWidth);
+    // 如果点被连线，使用淡蓝色增强对比
+    fill = '#4c8dff';
+    stroke = '#4c8dff';
+    strokeWidth = 0;
   }
 
   // 选中状态添加发光效果
@@ -1218,7 +1249,7 @@ const getPointConfig = (point: MapPoint) => {
     id: point.id,
     x: point.x,
     y: point.y,
-    radius: visual.radius,
+    radius: radiusInner,
     fill,
     stroke,
     strokeWidth,
@@ -1226,6 +1257,26 @@ const getPointConfig = (point: MapPoint) => {
     listening: true,
     hitStrokeWidth: 8,
     ...shadowConfig
+  };
+};
+
+// 外圈圆环（与工具栏 diandian.svg 匹配）
+const getPointRingConfig = (point: MapPoint) => {
+  const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
+  const visual = getPointVisualMeta(point);
+  const radiusOuter = visual.radius;
+  const strokeColor = isSelected ? '#2563EB' : '#2563EB';
+
+  return {
+    id: `${point.id}-ring`,
+    x: point.x,
+    y: point.y,
+    radius: radiusOuter,
+    fill: '#ffffff',
+    stroke: strokeColor,
+    strokeWidth: 2.2,
+    listening: false,
+    hitStrokeWidth: 0
   };
 };
 
@@ -1249,11 +1300,16 @@ const getPathConfig = (path: MapPath) => {
     shadowOpacity: 0.5
   } : {};
 
+  // 主行驶连线：默认很淡的蓝色，选中时加深
+  const baseStroke = '#d8e6ff';
+  const selectedStroke = '#2563EB';
+
   return {
     id: path.id,
     points,
-    stroke: isSelected ? '#ff4d4f' : (path.editorProps?.strokeColor || '#73c0ff'),
-    strokeWidth: path.editorProps?.strokeWidth || 2,
+    stroke: isSelected ? selectedStroke : (path.editorProps?.strokeColor || baseStroke),
+    strokeWidth: 4,
+    opacity: isSelected ? 1 : 0.85,
     lineCap: 'round',
     lineJoin: isOrthogonal ? 'miter' : 'round',
     tension: isCurve ? 0.5 : 0,
@@ -1268,31 +1324,61 @@ const shouldShowPathArrow = (path: MapPath) => {
   return path.editorProps?.arrowVisible !== false;
 };
 
-const getPathArrowConfig = (path: MapPath) => {
+/** 在指定位置和方向绘制一个 chevron 箭头的 Konva 配置 */
+const buildChevronConfig = (
+  cx: number,
+  cy: number,
+  angle: number,
+  opts: { arrowColor: string; len: number; w: number; opacity: number; listening?: boolean }
+) => {
+  const { arrowColor, len, w, opacity, listening = true } = opts;
+  const localPoints: [number, number][] = [
+    [len / 2, 0],
+    [-len / 2, w / 2],
+    [-len / 2, 0],
+    [-len / 2, -w / 2]
+  ];
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const points: number[] = [];
+  for (const [lx, ly] of localPoints) {
+    points.push(cx + lx * cos - ly * sin, cy + lx * sin + ly * cos);
+  }
+  return {
+    points,
+    closed: true,
+    fill: arrowColor,
+    stroke: undefined,
+    lineCap: 'round',
+    lineJoin: 'round',
+    opacity,
+    listening
+  };
+};
+
+const getPathArrowConfigs = (path: MapPath) => {
   const controlPoints = path.geometry.controlPoints;
   if (!controlPoints || controlPoints.length < 2) {
-    return null;
+    return [];
   }
-  const end = controlPoints[controlPoints.length - 1];
-  const prev = controlPoints[controlPoints.length - 2];
   const isSelected = mapEditorStore.selection.selectedIds.has(path.id);
+  const arrowColor = '#b8bbc2';
+  const opacity = isSelected ? 0.95 : 0.85;
+  const len = 6;
+  const w = 3;
 
-  // 选中时显示红色箭头，未选中时显示与路径相同的颜色
-  const stroke = isSelected ? '#ff4d4f' : (path.editorProps?.strokeColor || '#73c0ff');
-
-  // 箭头大小根据路径宽度调整
-  const arrowSize = Math.max(8, (path.editorProps?.strokeWidth || 2) * 4);
-
-  return {
-    points: [prev.x, prev.y, end.x, end.y],
-    pointerLength: arrowSize,
-    pointerWidth: arrowSize * 0.7,
-    fill: stroke,
-    stroke: stroke,
-    strokeWidth: path.editorProps?.strokeWidth || 2,
-    // 选中时箭头更明显
-    opacity: isSelected ? 1 : 0.85
-  };
+  const configs: ReturnType<typeof buildChevronConfig>[] = [];
+  for (let i = 0; i < controlPoints.length - 1; i++) {
+    const a = controlPoints[i];
+    const b = controlPoints[i + 1];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const cx = a.x + dx * 0.75;
+    const cy = a.y + dy * 0.75;
+    const angle = Math.atan2(dy, dx);
+    configs.push(buildChevronConfig(cx, cy, angle, { arrowColor, len, w, opacity }));
+  }
+  return configs;
 };
 
 type PointLike = { x: number; y: number };
@@ -1347,8 +1433,8 @@ const createConnectionBetweenPoints = (start: MapPoint, end: MapPoint) => {
       pathType: connectionType === 'curve' ? 'curve' : 'line'
     },
     editorProps: {
-      strokeColor: '#fa8c16', // 橙色
-      strokeWidth: 2,
+      strokeColor: '#d8e6ff', // 淡蓝，与设计一致
+      strokeWidth: 4,
       lineStyle: 'solid',
       arrowVisible: true,
       labelVisible: true
@@ -1459,7 +1545,7 @@ const getLocationDragOverlayConfig = (location: MapLocation) => {
     width: size,
     height: size,
     fill: 'transparent',
-    listening: currentTool.value === ToolMode.SELECT && !isDragging.value,
+    listening: isRoamInteractionTool.value && !isDragging.value,
     draggable: false
   };
 };
@@ -1823,7 +1909,7 @@ const getPolygonPersistStyles = (tool: ToolMode | null) => {
 
 // Stage 全局 mousedown：在选择工具下识别点/位置并开始手动拖拽（不依赖 Konva draggable）
 const handleStageMouseDown = (e: any) => {
-  if (currentTool.value !== ToolMode.SELECT || isDragging.value) return;
+  if (!isRoamInteractionTool.value || isDragging.value) return;
   const stage = e.target?.getStage?.();
   if (!stage) return;
   const target = e.target;
@@ -1887,10 +1973,24 @@ const handleStageAreaMouseDown = (e: any) => {
   mousePosition.value = { x, y };
 
   if (currentTool.value === ToolMode.PAN || isSpacePressed.value) {
-    isDragging.value = true;
-    dragStartPos.value = { x: pointerPos.x, y: pointerPos.y };
-    stage.container().style.cursor = 'grabbing';
-    e.evt.preventDefault();
+    // 漫游下 Ctrl/Cmd+空白：框选；否则拖移画布（按住空格临时平移时始终拖画布）
+    if (
+      currentTool.value === ToolMode.PAN &&
+      !isSpacePressed.value &&
+      (e.evt.ctrlKey || e.evt.metaKey)
+    ) {
+      isBoxSelecting.value = true;
+      boxSelectAppend.value = e.evt.shiftKey;
+      boxSelectStart.value = { x, y };
+      boxSelectEnd.value = { x, y };
+      stage.container().style.cursor = 'crosshair';
+      e.evt.preventDefault();
+    } else {
+      isDragging.value = true;
+      dragStartPos.value = { x: pointerPos.x, y: pointerPos.y };
+      stage.container().style.cursor = 'grabbing';
+      e.evt.preventDefault();
+    }
   } else if (currentTool.value === ToolMode.POINT) {
     // 绘制点
     const pointPayload = createPointPayload(x, y);
@@ -1912,7 +2012,7 @@ const handleStageAreaMouseDown = (e: any) => {
       setTimeout(() => {
         // 再次检查工具状态，确保仍然是绘制点模式
         if (mapEditorStore.currentTool === ToolMode.POINT && shouldAutoSwitchTool.value) {
-          mapEditorStore.setTool(ToolMode.SELECT);
+          mapEditorStore.setTool(ToolMode.PAN);
         }
       }, 50);
     });
@@ -1959,7 +2059,7 @@ const handleStageAreaMouseDown = (e: any) => {
     requestAnimationFrame(() => {
       setTimeout(() => {
         if (mapEditorStore.currentTool === ToolMode.LOCATION && shouldAutoSwitchTool.value) {
-          mapEditorStore.setTool(ToolMode.SELECT);
+          mapEditorStore.setTool(ToolMode.PAN);
         }
       }, 50);
     });
@@ -1992,16 +2092,6 @@ const handleStageAreaMouseDown = (e: any) => {
     } else {
       // 点击空白处，清除预览
       cancelPathDrag(stage);
-    }
-  } else if (currentTool.value === ToolMode.SELECT) {
-    // 选择工具模式下，点击空白处开始框选
-    if (e.target === stage) {
-      isBoxSelecting.value = true;
-      boxSelectAppend.value = e.evt.shiftKey; // 记录是否是Shift键框选（追加模式）
-      boxSelectStart.value = { x, y };
-      boxSelectEnd.value = { x, y };
-      stage.container().style.cursor = 'crosshair';
-      e.evt.preventDefault();
     }
   } else if (e.target === stage) {
     // 点击空白处且不在路径工具模式，如果有残留预览也清除
@@ -2047,7 +2137,7 @@ const handleMouseMove = (e: any) => {
   }
   
   // 平移模式
-  if (currentTool.value === ToolMode.PAN && isDragging.value) {
+  if ((currentTool.value === ToolMode.PAN || isSpacePressed.value) && isDragging.value) {
     const currentPos = stage.getPointerPosition();
     if (!currentPos) return;
     
@@ -2200,7 +2290,9 @@ const handleMouseUp = (e: any) => {
     }
     manualDragState.value = null;
     isDragging.value = false;
-    if (stage) stage.container().style.cursor = 'default';
+    if (stage) {
+      stage.container().style.cursor = isRoamInteractionTool.value ? 'grab' : 'default';
+    }
     return;
   }
   
@@ -2208,7 +2300,7 @@ const handleMouseUp = (e: any) => {
   if (shouldSwitchToSelectAfterPoint.value) {
     shouldSwitchToSelectAfterPoint.value = false;
     if (mapEditorStore.currentTool === ToolMode.POINT) {
-      mapEditorStore.setTool(ToolMode.SELECT);
+      mapEditorStore.setTool(ToolMode.PAN);
     }
   }
   
@@ -2217,7 +2309,7 @@ const handleMouseUp = (e: any) => {
     const toolToSwitch = shouldSwitchToSelectAfterOther.value.tool;
     shouldSwitchToSelectAfterOther.value = null;
     if (mapEditorStore.currentTool === toolToSwitch) {
-      mapEditorStore.setTool(ToolMode.SELECT);
+      mapEditorStore.setTool(ToolMode.PAN);
     }
   }
   
@@ -2225,7 +2317,7 @@ const handleMouseUp = (e: any) => {
   if (currentTool.value === ToolMode.POINT && !shouldSwitchToSelectAfterPoint.value) {
     setTimeout(() => {
       if (mapEditorStore.currentTool === ToolMode.POINT) {
-        mapEditorStore.setTool(ToolMode.SELECT);
+        mapEditorStore.setTool(ToolMode.PAN);
       }
     }, 100);
   }
@@ -2234,10 +2326,11 @@ const handleMouseUp = (e: any) => {
   // 否则点击工具栏切换到连线后，任意 mouseup 都会很快把工具切回选择，导致点对点连线无法使用。
 
   // 平移模式结束
-  if (currentTool.value === ToolMode.PAN && isDragging.value) {
+  if ((currentTool.value === ToolMode.PAN || isSpacePressed.value) && isDragging.value) {
     isDragging.value = false;
     if (stage) {
-      stage.container().style.cursor = 'default';
+      stage.container().style.cursor =
+        currentTool.value === ToolMode.PAN || currentTool.value === ToolMode.SELECT ? 'grab' : 'default';
     }
   }
 
@@ -2340,7 +2433,7 @@ const handleMouseUp = (e: any) => {
       requestAnimationFrame(() => {
         setTimeout(() => {
           if (mapEditorStore.currentTool === ToolMode.PATH && shouldAutoSwitchTool.value) {
-            mapEditorStore.setTool(ToolMode.SELECT);
+            mapEditorStore.setTool(ToolMode.PAN);
           }
         }, 50);
       });
@@ -2370,7 +2463,7 @@ const handleMouseUp = (e: any) => {
         requestAnimationFrame(() => {
           setTimeout(() => {
             if (mapEditorStore.currentTool === ToolMode.DASHED_LINK && shouldAutoSwitchTool.value) {
-              mapEditorStore.setTool(ToolMode.SELECT);
+              mapEditorStore.setTool(ToolMode.PAN);
             }
           }, 50);
         });
@@ -2607,7 +2700,7 @@ const completeLocationDrawing = () => {
     requestAnimationFrame(() => {
       setTimeout(() => {
         if (mapEditorStore.currentTool === ToolMode.RULE_REGION && shouldAutoSwitchTool.value) {
-          mapEditorStore.setTool(ToolMode.SELECT);
+          mapEditorStore.setTool(ToolMode.PAN);
         }
       }, 50);
     });
@@ -2695,7 +2788,7 @@ const handlePointClick = (point: MapPoint, e: any) => {
       requestAnimationFrame(() => {
         setTimeout(() => {
           if (mapEditorStore.currentTool === ToolMode.DASHED_LINK) {
-            mapEditorStore.setTool(ToolMode.SELECT);
+            mapEditorStore.setTool(ToolMode.PAN);
           }
         }, 50);
       });
@@ -2730,7 +2823,7 @@ const handlePointClick = (point: MapPoint, e: any) => {
     requestAnimationFrame(() => {
       setTimeout(() => {
         if (mapEditorStore.currentTool === ToolMode.PATH && shouldAutoSwitchTool.value) {
-          mapEditorStore.setTool(ToolMode.SELECT);
+          mapEditorStore.setTool(ToolMode.PAN);
         }
       }, 50);
     });
@@ -2764,7 +2857,7 @@ const handlePointDoubleClick = (point: MapPoint, e: any) => {
   }
   
   // 只有在选择工具模式下才允许双击编辑
-  if (currentTool.value === ToolMode.SELECT) {
+  if (isRoamInteractionTool.value) {
     // 触发编辑事件，由父组件处理
     emit('point-double-click', point);
   }
@@ -2870,7 +2963,7 @@ const handleLocationMouseOver = (location: MapLocation) => {
   if (currentTool.value === ToolMode.DASHED_LINK && !isRuleRegionLocation(location)) {
     hoveredLocationId.value = location.id;
     setStageCursor('pointer');
-  } else if (currentTool.value === ToolMode.SELECT && !isDragging.value) {
+  } else if (isRoamInteractionTool.value && !isDragging.value) {
     setStageCursor('move');
   }
 };
@@ -2898,7 +2991,9 @@ const handleLocationMouseOut = (location: MapLocation, e: any) => {
       hoveredLocationId.value = null;
     }
   }
-  setStageCursor('default');
+  if (!isDragging.value) {
+    setStageCursor(isRoamInteractionTool.value ? 'grab' : 'default');
+  }
 };
 
 // 位置整体拖拽：开始
@@ -3029,7 +3124,7 @@ const getPathControlPointConfig = (path: MapPath, cp: any, index: number) => {
     fill: isSelected ? '#ff4d4f' : '#52c41a',
     stroke: '#ffffff',
     strokeWidth: 1,
-    draggable: isSelected && currentTool.value === ToolMode.SELECT,
+    draggable: isSelected && isRoamInteractionTool.value,
     listening: true,
     opacity: isSelected ? 1 : 0.7
   };
@@ -3118,7 +3213,7 @@ const getLocationVertexConfig = (location: MapLocation, vertex: any, index: numb
     fill: isSelected ? '#ff4d4f' : '#1890ff',
     stroke: '#ffffff',
     strokeWidth: 1,
-    draggable: isSelected && currentTool.value === ToolMode.SELECT,
+    draggable: isSelected && isRoamInteractionTool.value,
     listening: true,
     opacity: isSelected ? 1 : 0.7
   };
@@ -3354,6 +3449,11 @@ onMounted(() => {
     const stage = getKonvaNode(stageRef.value);
     if (stage && typeof stage.on === 'function') {
       stage.on('mousedown', handleStageMouseDown);
+    }
+    if (stage?.container) {
+      const t = mapEditorStore.currentTool;
+      stage.container().style.cursor =
+        t === ToolMode.PAN || t === ToolMode.SELECT ? 'grab' : 'default';
     }
   });
   // 初始化容器视口尺寸（不修改 store 中的逻辑画布宽高，避免覆盖地图模型尺寸导致点位偏移）
