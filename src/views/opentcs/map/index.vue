@@ -28,6 +28,68 @@
           <div v-if="activeMap?.rasterUrl" class="canvas-image">
             <img class="canvas-img" :src="activeMap.rasterUrl" alt="地图底图" />
           </div>
+          <!-- 地图元素渲染 -->
+          <div v-else-if="activeMap && (mapElements.points.length > 0 || mapElements.paths.length > 0)" class="canvas-elements">
+            <svg width="100%" height="100%" :viewBox="svgViewBox">
+              <!-- 使用 SVG transform 实现元素随原点移动 -->
+              <g :transform="`translate(${-originPosition.x / 100 * svgWidth}, ${originPosition.y / 100 * svgHeight})`">
+                <!-- 路径 -->
+                <g v-for="path in processedPaths" :key="path.id">
+                  <line
+                    v-if="path.startPoint && path.endPoint"
+                    :x1="path.startPoint.x * SCALE"
+                    :y1="path.startPoint.y * SCALE"
+                    :x2="path.endPoint.x * SCALE"
+                    :y2="path.endPoint.y * SCALE"
+                    stroke="#409eff"
+                    stroke-width="2"
+                  />
+                </g>
+                <!-- 点位 -->
+                <g v-for="point in mapElements.points" :key="point.id">
+                  <circle
+                    :cx="point.x * SCALE"
+                    :cy="point.y * SCALE"
+                    :r="point.editorProps?.radius || 8"
+                    :fill="point.editorProps?.color || '#409eff'"
+                    stroke="#fff"
+                    stroke-width="2"
+                  />
+                  <text
+                    v-if="point.editorProps?.labelVisible && point.name"
+                    :x="point.x * SCALE"
+                    :y="point.y * SCALE - 12"
+                    fill="#666"
+                    font-size="10"
+                    text-anchor="middle"
+                  >{{ point.name }}</text>
+                </g>
+                <!-- 位置 -->
+                <g v-for="location in mapElements.locations" :key="location.id">
+                  <rect
+                    :x="(location.x - (location.editorProps?.width || 20) / 2) * SCALE"
+                    :y="(location.y - (location.editorProps?.height || 20) / 2) * SCALE"
+                    :width="(location.editorProps?.width || 20) * SCALE"
+                    :height="(location.editorProps?.height || 20) * SCALE"
+                    :fill="location.editorProps?.color || '#67c23a'"
+                    stroke="#fff"
+                    stroke-width="1"
+                  />
+                  <text
+                    v-if="location.editorProps?.labelVisible && location.name"
+                    :x="location.x * SCALE"
+                    :y="location.y * SCALE - 12"
+                    fill="#666"
+                    font-size="10"
+                    text-anchor="middle"
+                  >{{ location.name }}</text>
+                </g>
+              </g>
+            </svg>
+          </div>
+          <div v-else-if="activeMap" class="canvas-empty">
+            <div class="muted">该地图暂无元素</div>
+          </div>
           <div v-else class="canvas-empty">
             <div v-if="!selectedFactoryId" class="muted">请选择工厂</div>
             <div v-else-if="filteredMaps.length === 0" class="muted">当前工厂暂无地图，请先新建地图</div>
@@ -172,9 +234,12 @@ import { listFactoryModel } from '@/api/opentcs/factory/model';
 import type { FactoryModelVO } from '@/api/opentcs/factory/model/types';
 import { listType } from '@/api/opentcs/vehicle/type';
 import type { TypeVO } from '@/api/opentcs/vehicle/type/types';
+import { loadMapEditorData } from '@/api/opentcs/map';
+import type { MapEditorResponse } from '@/api/opentcs/map/types';
 import { useMapEditorTabsStore } from '@/store/modules/mapEditorTabs';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance } from 'element-plus';
+import { watch } from 'vue';
 
 const router = useRouter();
 const mapEditorTabsStore = useMapEditorTabsStore();
@@ -183,6 +248,21 @@ const loading = ref(true);
 const mapList = ref<NavigationMapVO[]>([]);
 const factoryList = ref<FactoryModelVO[]>([]);
 const amrTypeList = ref<TypeVO[]>([]);
+
+// 地图元素数据
+const mapElements = ref<{
+  points: any[];
+  paths: any[];
+  locations: any[];
+}>({ points: [], paths: [], locations: [] });
+const elementsLoading = ref(false);
+
+// 画布缩放比例（1px = 1mm）
+const SCALE = 0.1; // 将坐标转换为画布上的像素（假设画布宽度1000px对应10000mm）
+
+// SVG 画布大小（基于地图范围）
+const svgWidth = ref(1000);
+const svgHeight = ref(800);
 
 const selectedFactoryId = ref<number | undefined>(undefined);
 const selectedMapId = ref<string>('');
@@ -266,6 +346,51 @@ const rules = {
 const formRef = ref<FormInstance>();
 
 const activeMap = computed(() => mapList.value.find(m => String(m.id) === selectedMapId.value));
+
+// 计算地图元素的范围，确定 SVG viewBox
+const mapBounds = computed(() => {
+  const points = mapElements.value.points || [];
+  if (points.length === 0) {
+    return { minX: 0, minY: 0 };
+  }
+  let minX = Infinity, minY = Infinity;
+  points.forEach(p => {
+    const x = p.x || 0;
+    const y = p.y || 0;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+  });
+  return { minX, minY };
+});
+
+// SVG viewBox
+const svgViewBox = computed(() => {
+  const b = mapBounds.value;
+  return `${b.minX * SCALE} ${b.minY * SCALE} ${svgWidth.value} ${svgHeight.value}`;
+});
+
+// 处理路径数据，添加端点坐标
+const processedPaths = computed(() => {
+  const pointsMap = new Map();
+  mapElements.value.points?.forEach(p => {
+    pointsMap.set(String(p.id), p);
+  });
+
+  return (mapElements.value.paths || []).map(path => {
+    let startPoint = path.startPoint;
+    let endPoint = path.endPoint;
+
+    // 如果没有 startPoint/endPoint，尝试从 points 中查找
+    if (!startPoint && path.startPointId) {
+      startPoint = pointsMap.get(String(path.startPointId));
+    }
+    if (!endPoint && path.endPointId) {
+      endPoint = pointsMap.get(String(path.endPointId));
+    }
+
+    return { ...path, startPoint, endPoint };
+  });
+});
 
 const filteredMaps = computed(() => {
   return [...mapList.value].sort((a, b) => {
@@ -393,6 +518,52 @@ const handleEdit = (row: NavigationMapVO) => {
   });
 };
 
+// 加载地图元素数据
+const loadMapElements = async (mapId: string | number) => {
+  elementsLoading.value = true;
+  try {
+    const res = await loadMapEditorData(mapId);
+    const data = res as unknown as MapEditorResponse;
+    mapElements.value = {
+      points: data.points || [],
+      paths: data.paths || [],
+      locations: data.locations || []
+    };
+  } catch (error) {
+    console.error('加载地图元素失败:', error);
+    mapElements.value = { points: [], paths: [], locations: [] };
+  } finally {
+    elementsLoading.value = false;
+  }
+};
+
+// 监听地图元素变化，更新 SVG 画布大小
+watch(
+  () => mapElements.value.points,
+  (points) => {
+    if (!points || points.length === 0) {
+      svgWidth.value = 1000;
+      svgHeight.value = 800;
+      return;
+    }
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    points.forEach(p => {
+      const x = p.x || 0;
+      const y = p.y || 0;
+      const r = p.editorProps?.radius || 10;
+      minX = Math.min(minX, x - r);
+      minY = Math.min(minY, y - r);
+      maxX = Math.max(maxX, x + r);
+      maxY = Math.max(maxY, y + r);
+    });
+    // 加上边距
+    const padding = 100;
+    svgWidth.value = (maxX - minX + padding * 2) * SCALE;
+    svgHeight.value = (maxY - minY + padding * 2) * SCALE;
+  },
+  { immediate: true }
+);
+
 const selectMap = (row: NavigationMapVO) => {
   selectedMapId.value = String(row.id);
   // 重置原点到画布左下方中间
@@ -405,6 +576,8 @@ const selectMap = (row: NavigationMapVO) => {
       mapId: selectedMapId.value
     }
   });
+  // 加载地图元素
+  loadMapElements(row.id);
 };
 
 // 提交
@@ -478,6 +651,10 @@ onMounted(() => {
       // 若 query 里的 mapId 在当前工厂不存在，则回退到第一张
       if (selectedMapId.value && !mapList.value.some(m => String(m.id) === selectedMapId.value)) {
         selectedMapId.value = mapList.value.length > 0 ? String(mapList.value[0].id) : '';
+      }
+      // 加载地图元素
+      if (selectedMapId.value) {
+        loadMapElements(selectedMapId.value);
       }
     });
   }
@@ -553,7 +730,7 @@ onMounted(() => {
   inset: 0;
   padding-left: 170px;
   background-image: linear-gradient(#eef0f4 1px, transparent 1px), linear-gradient(90deg, #eef0f4 1px, transparent 1px);
-  background-size: 26px 26px;
+  background-size: 18px 18px;
 }
 
 .canvas-image {
@@ -562,6 +739,14 @@ onMounted(() => {
   display: grid;
   place-items: center;
   cursor: crosshair;
+}
+
+.canvas-elements {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
 }
 
 .canvas-img {
