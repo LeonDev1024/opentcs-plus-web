@@ -81,14 +81,13 @@ export const saveMapEditorData = (mapId: string | number, data: MapEditorSaveDat
 
 /**
  * 加载地图编辑器数据
- * 后端返回标准响应包装：R<PlantModelBO>
- * 注意：后端 VO 字段名为 modelId，这里保持一致。
+ * 后端返回标准响应包装：R<MapEditorBO>
  */
-export const loadMapEditorData = (modelId: string | number): AxiosPromise<MapEditorResponse> => {
+export const loadMapEditorData = (navMapId: string | number): AxiosPromise<MapEditorResponse> => {
   return request({
     url: `/map/editor/load`,
     method: 'post',
-    data: { modelId }
+    data: { navMapId }
   });
 };
 

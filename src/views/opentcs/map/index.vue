@@ -123,10 +123,10 @@
           </div>
 
           <div class="stage2-actions">
-            <el-button v-hasPermi="['opentcs:map:add']" type="primary" icon="Plus" :disabled="!selectedFactoryId" @click="handleAdd">
+            <el-button type="primary" icon="Plus" :disabled="!selectedFactoryId" @click="handleAdd">
               新建地图
             </el-button>
-            <el-button v-hasPermi="['opentcs:map:edit']" type="primary" plain icon="EditPen" :disabled="!activeMap" @click="activeMap && handleEdit(activeMap)">
+            <el-button type="primary" plain icon="EditPen" :disabled="!activeMap" @click="activeMap && handleEdit(activeMap)">
               地图编辑
             </el-button>
           </div>
@@ -165,11 +165,6 @@
     <!-- 新建/编辑地图（P0：沿用现有弹窗能力） -->
     <el-dialog v-model="dialog.visible" :title="dialog.title" width="700px" append-to-body>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-        <el-form-item label="所属工厂" prop="factoryModelId">
-          <el-select v-model="form.factoryModelId" placeholder="请选择工厂" style="width: 100%;" :disabled="!!selectedFactoryId">
-            <el-option v-for="factory in factoryList" :key="factory.id" :label="factory.name" :value="factory.id" />
-          </el-select>
-        </el-form-item>
         <el-form-item label="地图ID" prop="mapId">
           <el-input v-model="form.mapId" placeholder="请输入地图ID，如：map_001" />
         </el-form-item>
@@ -337,7 +332,6 @@ const form = reactive<NavigationMapForm>({
 });
 
 const rules = {
-  factoryModelId: [{ required: true, message: '请选择所属工厂', trigger: 'change' }],
   mapId: [{ required: true, message: '地图ID不能为空', trigger: 'blur' }],
   name: [{ required: true, message: '地图名称不能为空', trigger: 'blur' }],
   amrModel: [{ required: true, message: '请选择AMR型号', trigger: 'change' }]
@@ -465,7 +459,7 @@ const getFactoryList = async () => {
 const getAmrTypeList = async () => {
   try {
     const res = await listType({ pageNum: 1, pageSize: 100 });
-    amrTypeList.value = res.data || [];
+    amrTypeList.value = res.rows || [];
   } catch (error) {
     console.error('获取AMR型号列表失败:', error);
   }
@@ -873,6 +867,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  z-index: 10;
 }
 
 .stage2-left {
