@@ -21,8 +21,8 @@
         <div
           class="stage2-canvas"
           @mousedown="startDragOrigin"
-          @mousemove="onDragOrigin"
-          @mouseup="endDragOrigin"
+          @mousemove="handleCanvasMouseMove"
+          @mouseup="handleCanvasMouseUp"
           @mouseleave="endDragOrigin"
         >
           <div v-if="activeMap?.rasterUrl" class="canvas-image">
@@ -96,7 +96,7 @@
             <div v-else class="muted">请选择左侧一张地图</div>
           </div>
 
-          <!-- 坐标轴 -->
+          <!-- 场景坐标轴 O(0,0)（实线） -->
           <div class="canvas-axis">
             <div
               class="axis-line axis-x"
@@ -115,6 +115,31 @@
             </div>
           </div>
 
+          <!-- 地图原点坐标轴（虚线）：仅当地图原点不与工厂原点重合时显示 -->
+          <div
+            v-if="activeMap && !isMapOriginAtFactory"
+            class="canvas-axis map-origin-axis"
+            :class="{ editing: isEditingOrigin }"
+          >
+            <div
+              class="axis-line axis-x"
+              :style="mapOriginAxisStyle"
+            />
+            <div
+              class="axis-line axis-y"
+              :style="mapOriginAxisStyle"
+            />
+          </div>
+
+          <!-- 原点编辑拖拽手柄（橙色小圆圈），放在 canvas-axis 容器内保证定位一致 -->
+          <div v-if="isEditingOrigin" class="canvas-axis" style="z-index: 15;">
+            <div
+              class="origin-drag-handle"
+              :style="originDragHandleStyle"
+              @mousedown.stop="startDragMapOrigin($event)"
+            />
+          </div>
+
           <div class="canvas-footer">
             <span class="muted">预览模式</span>
             <span class="footer-sep">，</span>
@@ -126,10 +151,55 @@
             <el-button type="primary" icon="Plus" :disabled="!selectedFactoryId" @click="handleAdd">
               新建地图
             </el-button>
+            <el-button
+              :type="isEditingOrigin ? 'warning' : 'primary'"
+              plain
+              icon="Aim"
+              :disabled="!activeMap"
+              @click="toggleOriginEditing"
+            >
+              {{ isEditingOrigin ? '退出原点编辑' : '原点编辑' }}
+            </el-button>
             <el-button type="primary" plain icon="EditPen" :disabled="!activeMap" @click="activeMap && handleEdit(activeMap)">
               地图编辑
             </el-button>
           </div>
+
+          <!-- 原点编辑浮层面板 -->
+          <transition name="origin-panel">
+            <div v-if="isEditingOrigin" class="origin-edit-panel">
+              <div class="origin-edit-title">
+                <span>地图原点坐标 (mm)</span>
+              </div>
+              <div class="origin-edit-row">
+                <label>X</label>
+                <el-input-number
+                  v-model="editOriginX"
+                  size="small"
+                  :step="100"
+                  :precision="0"
+                  controls-position="right"
+                  @change="onOriginInputChange"
+                />
+              </div>
+              <div class="origin-edit-row">
+                <label>Y</label>
+                <el-input-number
+                  v-model="editOriginY"
+                  size="small"
+                  :step="100"
+                  :precision="0"
+                  controls-position="right"
+                  @change="onOriginInputChange"
+                />
+              </div>
+              <div class="origin-edit-hint">拖拽预览区虚线坐标轴可移动原点</div>
+              <div class="origin-edit-actions">
+                <el-button size="small" @click="cancelOriginEditing">取消</el-button>
+                <el-button type="primary" size="small" :loading="originSaving" @click="saveOrigin">保存</el-button>
+              </div>
+            </div>
+          </transition>
         </div>
 
         <div class="stage2-left">
@@ -307,6 +377,153 @@ const endDragOrigin = () => {
     document.body.style.cursor = '';
   }
 };
+
+// ═══════ 地图原点编辑 ════════════════════════════════════════════════════════
+const isEditingOrigin = ref(false);
+const editOriginX = ref(0);
+const editOriginY = ref(0);
+const originSaving = ref(false);
+const originBackup = reactive({ x: 0, y: 0 });
+
+const isDraggingMapOrigin = ref(false);
+const mapOriginDragStart = reactive({ x: 0, y: 0 });
+const mapOriginEditStart = reactive({ x: 0, y: 0 });
+
+/** 地图原点在预览画布中的百分比位置 */
+const mapOriginPercent = computed(() => {
+  const canvasEl = document.querySelector('.stage2-canvas') as HTMLElement;
+  if (!canvasEl) return { left: '20%', bottom: '20%' };
+  const rect = canvasEl.getBoundingClientRect();
+  const canvasW = rect.width - 170; // 减去左侧面板宽度
+  const canvasH = rect.height;
+  if (canvasW <= 0 || canvasH <= 0) return { left: '20%', bottom: '20%' };
+
+  const sceneOx = originPosition.x / 100 * canvasW;
+  const sceneOy = originPosition.y / 100 * canvasH;
+  const pxPerMm = SCALE;
+  const left = sceneOx + editOriginX.value * pxPerMm;
+  const bottom = sceneOy + editOriginY.value * pxPerMm;
+  return {
+    left: Math.max(0, Math.min(canvasW, left)) / canvasW * 100 + '%',
+    bottom: Math.max(0, Math.min(canvasH, bottom)) / canvasH * 100 + '%'
+  };
+});
+
+const mapOriginAxisStyle = computed(() => ({
+  left: mapOriginPercent.value.left,
+  bottom: mapOriginPercent.value.bottom
+}));
+
+/** 地图原点是否与工厂原点重合（都在 0,0） */
+const isMapOriginAtFactory = computed(() => editOriginX.value === 0 && editOriginY.value === 0);
+
+/** 拖拽手柄位置：重合时跟工厂原点位置一致，不重合时跟地图原点 */
+const originDragHandleStyle = computed(() => {
+  if (isMapOriginAtFactory.value) {
+    return {
+      left: originPosition.x + '%',
+      bottom: originPosition.y + '%'
+    };
+  }
+  return {
+    left: mapOriginPercent.value.left,
+    bottom: mapOriginPercent.value.bottom
+  };
+});
+
+function toggleOriginEditing() {
+  if (isEditingOrigin.value) {
+    cancelOriginEditing();
+  } else {
+    if (!activeMap.value) return;
+    editOriginX.value = activeMap.value.originX ?? 0;
+    editOriginY.value = activeMap.value.originY ?? 0;
+    originBackup.x = editOriginX.value;
+    originBackup.y = editOriginY.value;
+    isEditingOrigin.value = true;
+  }
+}
+
+function cancelOriginEditing() {
+  editOriginX.value = originBackup.x;
+  editOriginY.value = originBackup.y;
+  isEditingOrigin.value = false;
+}
+
+function onOriginInputChange() {
+  // 输入框变化时无需额外逻辑，mapOriginPercent 自动更新
+}
+
+async function saveOrigin() {
+  if (!activeMap.value) return;
+  originSaving.value = true;
+  try {
+    await updateNavigationMap({
+      id: activeMap.value.id,
+      factoryModelId: activeMap.value.factoryModelId,
+      mapId: activeMap.value.mapId,
+      name: activeMap.value.name,
+      originX: editOriginX.value,
+      originY: editOriginY.value
+    });
+    // 更新本地列表数据
+    const idx = mapList.value.findIndex(m => m.id === activeMap.value!.id);
+    if (idx >= 0) {
+      mapList.value[idx].originX = editOriginX.value;
+      mapList.value[idx].originY = editOriginY.value;
+    }
+    originBackup.x = editOriginX.value;
+    originBackup.y = editOriginY.value;
+    ElMessage.success('地图原点保存成功');
+    isEditingOrigin.value = false;
+  } catch (e) {
+    ElMessage.error('保存失败');
+  } finally {
+    originSaving.value = false;
+  }
+}
+
+/** 开始拖拽地图原点 */
+function startDragMapOrigin(e: MouseEvent) {
+  isDraggingMapOrigin.value = true;
+  mapOriginDragStart.x = e.clientX;
+  mapOriginDragStart.y = e.clientY;
+  mapOriginEditStart.x = editOriginX.value;
+  mapOriginEditStart.y = editOriginY.value;
+  document.body.style.cursor = 'move';
+  e.preventDefault();
+}
+
+function onDragMapOrigin(e: MouseEvent) {
+  if (!isDraggingMapOrigin.value) return;
+  const canvasEl = document.querySelector('.stage2-canvas') as HTMLElement;
+  if (!canvasEl) return;
+  const rect = canvasEl.getBoundingClientRect();
+  const canvasW = rect.width - 170;
+  const canvasH = rect.height;
+  const pxPerMm = SCALE;
+  const deltaXPx = e.clientX - mapOriginDragStart.x;
+  const deltaYPx = -(e.clientY - mapOriginDragStart.y); // 画布Y向上为正
+  editOriginX.value = Math.round(mapOriginEditStart.x + deltaXPx / pxPerMm);
+  editOriginY.value = Math.round(mapOriginEditStart.y + deltaYPx / pxPerMm);
+}
+
+function endDragMapOrigin() {
+  if (isDraggingMapOrigin.value) {
+    isDraggingMapOrigin.value = false;
+    document.body.style.cursor = '';
+  }
+}
+
+function handleCanvasMouseMove(e: MouseEvent) {
+  onDragOrigin(e);
+  onDragMapOrigin(e);
+}
+
+function handleCanvasMouseUp(e: MouseEvent) {
+  endDragOrigin();
+  endDragMapOrigin();
+}
 
 // 保留 query 类型，便于后续扩展筛选/分页（P0 暂不使用）
 const _queryParams = reactive<NavigationMapQuery>({});
@@ -563,6 +780,10 @@ const selectMap = (row: NavigationMapVO) => {
   // 重置原点到画布左下方中间
   originPosition.x = 20;
   originPosition.y = 20;
+  // 切换地图时关闭原点编辑并初始化坐标
+  isEditingOrigin.value = false;
+  editOriginX.value = row.originX ?? 0;
+  editOriginY.value = row.originY ?? 0;
   router.replace({
     query: {
       ...router.currentRoute.value.query,
@@ -1018,5 +1239,124 @@ onMounted(() => {
       white-space: nowrap;
     }
   }
+}
+
+/* ═══════ 地图原点坐标轴（虚线，与工厂原点同配色） ═══════ */
+.map-origin-axis {
+  pointer-events: none;
+
+  &.editing {
+    pointer-events: auto;
+  }
+
+  .axis-x {
+    background: none;
+    height: 0;
+    border-top: 2px dashed #2563eb;
+  }
+
+  .axis-x::before {
+    top: -5px;
+  }
+
+  .axis-y {
+    background: none;
+    width: 0;
+    border-left: 2px dashed #ef4444;
+  }
+
+  .axis-y::before {
+    left: -5px;
+  }
+}
+
+/* 橙色拖拽手柄（与地图编辑器一致） */
+.origin-drag-handle {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(249, 115, 22, 0.4);
+  border: none;
+  cursor: move;
+  transform: translate(-50%, 50%);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+
+  &:hover {
+    background: rgba(249, 115, 22, 0.55);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+  }
+
+  &:active {
+    background: rgba(249, 115, 22, 0.65);
+    box-shadow: 0 0 0 5px rgba(249, 115, 22, 0.15);
+  }
+}
+
+/* ═══════ 原点编辑浮层面板 ═══════ */
+.origin-edit-panel {
+  position: absolute;
+  top: 56px;
+  right: 18px;
+  z-index: 20;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  border: 1px solid #e6e8ee;
+  padding: 14px 16px;
+  min-width: 220px;
+}
+
+.origin-edit-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.origin-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+
+  label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #606266;
+    width: 16px;
+    text-align: right;
+  }
+
+  .el-input-number {
+    flex: 1;
+  }
+}
+
+.origin-edit-hint {
+  font-size: 11px;
+  color: #909399;
+  margin-bottom: 10px;
+}
+
+.origin-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 浮层过渡动画 */
+.origin-panel-enter-active,
+.origin-panel-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.origin-panel-enter-from,
+.origin-panel-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 </style>
