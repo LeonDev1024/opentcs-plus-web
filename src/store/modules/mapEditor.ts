@@ -441,7 +441,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
 
           data = {
             mapInfo: {
-              id: apiData.id || apiData.mapId || mapId,
+              id: apiData.mapId || mapId,
               name: apiData.name || '新地图',
               mapVersion: apiData.modelVersion || '1.0',
               description: apiData.description || '',
@@ -489,7 +489,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           const rloc = Array.isArray(apiData.elements?.locations) ? apiData.elements.locations : (Array.isArray(apiData.locations) ? apiData.locations : []);
           data = {
             mapInfo: {
-              id: apiData.id || apiData.mapInfo?.id || mapId,
+              id: apiData.mapId || apiData.mapInfo?.id || mapId,
               name: apiData.mapInfo?.name || '新地图',
               mapVersion: apiData.mapInfo.modelVersion || '1.0',
               description: apiData.mapInfo.description || '',

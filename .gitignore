@@ -7,8 +7,8 @@ node_modules/              # npm/pnpm 安装的依赖包
 # ========================
 # 构建产物
 # ========================
-dist/                     # 生产环境构建输出
-dist-*/                   # 其他构建输出目录
+dist/ # 生产环境构建输出
+dist-*/ # 其他构建输出目录
 
 # ========================
 # 环境变量文件
@@ -97,3 +97,8 @@ CLAUDE.md               # Claude Code 项目说明文件
 serverless/              # Serverless 框架输出
 fusebox/                # FuseBox 缓存
 node_modules
+
+# 防止构建产物在提交时反复出现（确保 dist 被明确忽略）
+dist/
+dist-*/
+dist/**
