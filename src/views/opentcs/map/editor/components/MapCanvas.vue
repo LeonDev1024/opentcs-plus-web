@@ -229,6 +229,21 @@
           />
         </template>
       </v-layer>
+
+      <!-- 坐标轴层（只读展示，地图原点编辑在管理控制台进行） -->
+      <v-layer :config="{ name: 'axes', listening: false }">
+        <!-- 地图/导航原点（虚线） -->
+        <v-line  :config="mapOriginXLineConfig" />
+        <v-line  :config="mapOriginYLineConfig" />
+        <v-line  :config="mapOriginXArrowConfig" />
+        <v-line  :config="mapOriginYArrowConfig" />
+
+        <!-- 场景/工厂原点 O(0,0)（实线） -->
+        <v-line :config="axisXLineConfig" />
+        <v-line :config="axisYLineConfig" />
+        <v-line :config="axisXArrowConfig" />
+        <v-line :config="axisYArrowConfig" />
+      </v-layer>
     </v-stage>
     
     <!-- Location 编辑对话框 -->
@@ -369,6 +384,23 @@ const pathLayerRef = ref<any>();
 const locationLayerRef = ref<any>();
 const tempLayerRef = ref<any>();
 
+/** 默认视口：模型原点 (0,0) 落在画布容器左下角附近（与 Stage offset 一致） */
+const DEFAULT_VIEWPORT_ORIGIN_PAD = 48;
+
+function tryApplyViewportOriginBottomLeft() {
+  const el = containerRef.value;
+  if (!el) return;
+  const cs = mapEditorStore.canvasState;
+  if (cs.offsetX !== 0 || cs.offsetY !== 0) return;
+  const h = el.clientHeight || 1080;
+  const w = el.clientWidth || 1920;
+  if (h < 80 || w < 80) return; // 宽高过小不调整，避免异常布局
+  mapEditorStore.updateCanvasState({
+    offsetX: DEFAULT_VIEWPORT_ORIGIN_PAD,
+    offsetY: h - DEFAULT_VIEWPORT_ORIGIN_PAD
+  });
+}
+
 // 辅助函数：获取 Konva 节点（兼容不同的 vue-konva 版本）
 const getKonvaNode = (ref: any) => {
   if (!ref) return null;
@@ -487,6 +519,137 @@ const exportAsImage = async (format: 'png' | 'svg'): Promise<string> => {
 
 // 画布配置
 const canvasState = computed(() => mapEditorStore.canvasState);
+
+/**
+ * Konva 坐标轴层 —— 模型坐标轴（X/Y）以及原点标注。
+ * 这些元素属于 Stage 内的 Konva Layer，随漫游/缩放统一变换，无需 CSS 定位。
+ * 轴线长度跟随视口动态扩展，保证始终延伸到视口边缘之外。
+ */
+/**
+ * ─── 坐标轴视觉系统 ────────────────────────────────────────────────────────────
+ * 只保留原点处的短臂坐标轴指示器（不铺满视口），与参考图一致：
+ *   · 场景/工厂原点 O(0,0)：实线臂 + 实心三角箭头
+ *   · 地图/导航原点 M(x,y)：虚线臂 + 实心三角箭头（同色）
+ *   · 重合时实线覆盖虚线，只看到实线
+ *   · 蓝色 X + 红色 Y；所有尺寸屏幕固定
+ */
+const AXIS_COLOR_X  = '#2563eb';
+const AXIS_COLOR_Y  = '#dc2626';
+
+/**
+ * 所有尺寸使用**固定模型坐标**，与点、路径等地图元素一致，
+ * 由 Stage 的 scaleX/scaleY 统一缩放。放大时坐标轴和点一起变大。
+ */
+const AXIS_W        = 1.5;        // 线宽（模型单位）
+const AXIS_ARM      = 200;        // 臂长（模型单位）
+const AXIS_ARROW_L  = 12;         // 箭头长度
+const AXIS_ARROW_H  = 5;          // 箭头半宽
+const MAP_DASH      = [8, 5];     // 虚线 pattern（模型单位）
+
+// ═══════ 场景/工厂原点（实线） ═══════════════════════════════════════════════
+const axisXLineConfig = {
+  points: [0, 0, AXIS_ARM, 0],
+  stroke: AXIS_COLOR_X,
+  strokeWidth: AXIS_W,
+  opacity: 0.9
+};
+
+const axisYLineConfig = {
+  points: [0, 0, 0, -AXIS_ARM],
+  stroke: AXIS_COLOR_Y,
+  strokeWidth: AXIS_W,
+  opacity: 0.9
+};
+
+const axisXArrowConfig = {
+  points: [AXIS_ARM - AXIS_ARROW_L, -AXIS_ARROW_H, AXIS_ARM, 0, AXIS_ARM - AXIS_ARROW_L, AXIS_ARROW_H],
+  stroke: AXIS_COLOR_X,
+  fill: AXIS_COLOR_X,
+  strokeWidth: AXIS_W,
+  closed: true,
+  lineCap: 'round' as const,
+  lineJoin: 'round' as const,
+  opacity: 1
+};
+
+const axisYArrowConfig = {
+  points: [-AXIS_ARROW_H, -(AXIS_ARM - AXIS_ARROW_L), 0, -AXIS_ARM, AXIS_ARROW_H, -(AXIS_ARM - AXIS_ARROW_L)],
+  stroke: AXIS_COLOR_Y,
+  fill: AXIS_COLOR_Y,
+  strokeWidth: AXIS_W,
+  closed: true,
+  lineCap: 'round' as const,
+  lineJoin: 'round' as const,
+  opacity: 1
+};
+
+// ═══════ 地图/导航原点（虚线，始终渲染；重合时被实线覆盖） ════════════════════
+/** 当前地图的 originX/Y（模型坐标 mm） */
+const mapOriginCoord = computed(() => ({
+  x: mapEditorStore.mapData?.mapInfo?.originX ?? 0,
+  y: mapEditorStore.mapData?.mapInfo?.originY ?? 0
+}));
+
+const mapOriginXLineConfig = computed(() => {
+  const { x, y } = mapOriginCoord.value;
+  return {
+    points: [x, y, x + AXIS_ARM, y],
+    stroke: AXIS_COLOR_X,
+    strokeWidth: AXIS_W,
+    dash: MAP_DASH,
+    opacity: 0.9
+  };
+});
+
+const mapOriginYLineConfig = computed(() => {
+  const { x, y } = mapOriginCoord.value;
+  return {
+    points: [x, y, x, y - AXIS_ARM],
+    stroke: AXIS_COLOR_Y,
+    strokeWidth: AXIS_W,
+    dash: MAP_DASH,
+    opacity: 0.9
+  };
+});
+
+const mapOriginXArrowConfig = computed(() => {
+  const { x, y } = mapOriginCoord.value;
+  const tip = x + AXIS_ARM;
+  return {
+    points: [tip - AXIS_ARROW_L, y - AXIS_ARROW_H, tip, y, tip - AXIS_ARROW_L, y + AXIS_ARROW_H],
+    stroke: AXIS_COLOR_X,
+    fill: AXIS_COLOR_X,
+    strokeWidth: AXIS_W,
+    closed: true,
+    lineCap: 'round' as const,
+    lineJoin: 'round' as const,
+    opacity: 1
+  };
+});
+
+const mapOriginYArrowConfig = computed(() => {
+  const { x, y } = mapOriginCoord.value;
+  const tip = y - AXIS_ARM;
+  return {
+    points: [x - AXIS_ARROW_H, tip + AXIS_ARROW_L, x, tip, x + AXIS_ARROW_H, tip + AXIS_ARROW_L],
+    stroke: AXIS_COLOR_Y,
+    fill: AXIS_COLOR_Y,
+    strokeWidth: AXIS_W,
+    closed: true,
+    lineCap: 'round' as const,
+    lineJoin: 'round' as const,
+    opacity: 1
+  };
+});
+
+/** 地图数据加载或重置为 (0,0) 后，将默认视口置于左下角原点 */
+watch(
+  () => [mapEditorStore.canvasState.offsetX, mapEditorStore.canvasState.offsetY] as const,
+  () => {
+    nextTick(() => tryApplyViewportOriginBottomLeft());
+  }
+);
+
 const currentTool = computed(() => mapEditorStore.currentTool);
 
 /**
@@ -545,19 +708,19 @@ const stageConfig = computed(() => {
   };
 });
 
-// 空白区域矩形：覆盖整块可点击区域，仅用于接收"点击空白处"的 mousedown，点/位置在上层可正常拖拽
-const stageAreaRectConfig = computed(() => {
-  const w = canvasState.value.width || 1920;
-  const h = canvasState.value.height || 1080;
-  return {
-    x: 0,
-    y: 0,
-    width: w,
-    height: h,
-    fill: 'transparent',
-    listening: true
-  };
-});
+/**
+ * 无限画布矩形：极大静态区域覆盖模型坐标系，保证漫游/绘图工具在任意平移位置下都能命中空白。
+ * 大小选 200 000 × 200 000（相当于 100 000 px/方向），远超实际使用范围。
+ */
+const INFINITE_CANVAS_HALF = 100_000;
+const stageAreaRectConfig = {
+  x: -INFINITE_CANVAS_HALF,
+  y: -INFINITE_CANVAS_HALF,
+  width: INFINITE_CANVAS_HALF * 2,
+  height: INFINITE_CANVAS_HALF * 2,
+  fill: 'transparent',
+  listening: true
+};
 
 // 栅格底图（导入的 map.yaml + map.pgm）：比例尺 m/单位，用于将 origin 转为模型坐标
 const rasterScaleM = computed(() => {
@@ -2211,10 +2374,9 @@ const handleStageAreaMouseDown = (e: any) => {
   const y = (pointerPos.y - canvasState.value.offsetY) / canvasState.value.scale;
   mousePosition.value = { x, y };
 
-  if (currentTool.value === ToolMode.PAN || isSpacePressed.value) {
-    // 漫游下 Ctrl/Cmd+空白：框选；否则拖移画布（按住空格临时平移时始终拖画布）
+  if (currentTool.value === ToolMode.PAN || currentTool.value === ToolMode.SELECT || isSpacePressed.value) {
+    // Ctrl/Cmd+空白：框选；否则拖移画布
     if (
-      currentTool.value === ToolMode.PAN &&
       !isSpacePressed.value &&
       (e.evt.ctrlKey || e.evt.metaKey)
     ) {
@@ -3701,7 +3863,8 @@ onMounted(() => {
         width: containerRef.value.clientWidth || 1920,
         height: containerRef.value.clientHeight || 1080
       };
-      
+      tryApplyViewportOriginBottomLeft();
+
       // 监听容器尺寸变化：只更新视口尺寸，不覆盖 canvasState.width/height（模型空间）
       resizeObserver = new ResizeObserver(() => {
         if (containerRef.value) {
@@ -3709,11 +3872,12 @@ onMounted(() => {
             width: containerRef.value.clientWidth || 1920,
             height: containerRef.value.clientHeight || 1080
           };
+          tryApplyViewportOriginBottomLeft();
           const stage = getKonvaNode(stageRef.value);
           if (stage) stage.batchDraw();
         }
       });
-      
+
       resizeObserver.observe(containerRef.value);
     }
   });
@@ -3764,5 +3928,7 @@ onUnmounted(() => {
     display: block;
   }
 }
+
+/* 旧 CSS 坐标轴已迁移到 Konva axes 层，样式已清理 */
 </style>
 

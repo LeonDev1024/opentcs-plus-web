@@ -362,32 +362,7 @@
             @point-double-click="handlePointDoubleClick"
           />
         </div>
-        <!-- 坐标轴 -->
-        <div class="canvas-axis">
-          <div
-            class="axis-line axis-x"
-            :style="{
-              left: originPosition.x + '%',
-              bottom: originPosition.y + '%',
-            }"
-          />
-          <div
-            class="axis-line axis-y"
-            :style="{
-              left: originPosition.x + '%',
-              bottom: originPosition.y + '%',
-            }"
-          />
-          <div
-            class="axis-origin"
-            :style="{
-              left: originPosition.x + '%',
-              bottom: originPosition.y + '%',
-            }"
-          >
-            O(0,0)
-          </div>
-        </div>
+        <!-- 坐标轴已移至 MapCanvas，与 Stage offset 同步，随漫游移动 -->
         <!-- 底部信息 -->
         <div class="canvas-footer">
           <span class="mode-info">编辑模式</span>
@@ -1053,9 +1028,6 @@ const showLabels = ref(true);
 
 // Block显示状态
 const showBlocks = ref(true);
-
-// 坐标原点位置（百分比）
-const originPosition = ref({ x: 10, y: 10 });
 
 // 鼠标位置（从画布组件获取）
 const mousePosition = ref({ x: 0, y: 0 });
@@ -3585,95 +3557,6 @@ onUnmounted(() => {
         :deep(.map-canvas-container) {
           width: 100%;
           height: 100%;
-        }
-      }
-
-      // 坐标轴容器
-      .canvas-axis {
-        position: absolute;
-        left: 0;
-        bottom: 0;
-        right: 0;
-        top: 0;
-        z-index: 5;
-        pointer-events: none;
-      }
-
-      .axis-origin {
-        position: absolute;
-        transform: translate(4px, 4px);
-        font-size: 10px;
-        color: #6b7280;
-        pointer-events: auto;
-        padding: 4px;
-
-        &:hover {
-          color: #2563eb;
-          font-weight: 500;
-        }
-      }
-
-      .axis-line {
-        position: absolute;
-      }
-
-      .axis-x {
-        left: 0;
-        bottom: 0;
-        height: 2px;
-        width: 20%;
-        min-width: 80px;
-        max-width: 200px;
-        background: #2563eb;
-
-        &::before {
-          content: "";
-          position: absolute;
-          right: 0;
-          top: -4px;
-          border-left: 6px solid #2563eb;
-          border-top: 4px solid transparent;
-          border-bottom: 4px solid transparent;
-        }
-
-        &::after {
-          content: "X";
-          position: absolute;
-          right: 4px;
-          top: -18px;
-          font-size: 12px;
-          font-weight: bold;
-          color: #2563eb;
-        }
-      }
-
-      .axis-y {
-        left: 0;
-        bottom: 0;
-        width: 2px;
-        height: 20%;
-        min-height: 80px;
-        max-height: 200px;
-        background: #ef4444;
-
-        &::before {
-          content: "";
-          position: absolute;
-          top: 0;
-          left: -4px;
-          border-bottom: 6px solid #ef4444;
-          border-left: 4px solid transparent;
-          border-right: 4px solid transparent;
-        }
-
-        &::after {
-          content: "Y";
-          position: absolute;
-          left: -16px;
-          top: 4px;
-          font-size: 12px;
-          font-weight: bold;
-          color: #ef4444;
         }
       }
 

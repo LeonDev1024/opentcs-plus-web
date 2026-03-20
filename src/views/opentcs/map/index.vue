@@ -15,120 +15,188 @@
             {{ factory.name }}
           </button>
         </div>
+        <div class="header-actions">
+          <el-button
+            :type="isEditingOrigin ? 'warning' : 'default'"
+            :plain="!isEditingOrigin"
+            size="small"
+            icon="Aim"
+            :disabled="!selectedFactoryId || filteredMaps.length === 0"
+            @click="toggleOriginEditing"
+          >
+            {{ isEditingOrigin ? '退出原点编辑' : '原点编辑' }}
+          </el-button>
+        </div>
       </div>
 
       <div class="rcs-stage2">
         <div
           class="stage2-canvas"
-          @mousedown="startDragOrigin"
-          @mousemove="onDragOrigin"
-          @mouseup="endDragOrigin"
-          @mouseleave="endDragOrigin"
+          ref="canvasRef"
+          @mousedown="startPan"
+          @wheel.prevent="handleCanvasWheel"
         >
-          <div v-if="activeMap?.rasterUrl" class="canvas-image">
-            <img class="canvas-img" :src="activeMap.rasterUrl" alt="地图底图" />
-          </div>
-          <!-- 地图元素渲染 -->
-          <div v-else-if="activeMap && (mapElements.points.length > 0 || mapElements.paths.length > 0)" class="canvas-elements">
-            <svg width="100%" height="100%" :viewBox="svgViewBox">
-              <!-- 使用 SVG transform 实现元素随原点移动 -->
-              <g :transform="`translate(${-originPosition.x / 100 * svgWidth}, ${originPosition.y / 100 * svgHeight})`">
-                <!-- 路径 -->
-                <g v-for="path in processedPaths" :key="path.id">
-                  <line
-                    v-if="path.startPoint && path.endPoint"
-                    :x1="path.startPoint.x * SCALE"
-                    :y1="path.startPoint.y * SCALE"
-                    :x2="path.endPoint.x * SCALE"
-                    :y2="path.endPoint.y * SCALE"
-                    stroke="#409eff"
-                    stroke-width="2"
-                  />
-                </g>
-                <!-- 点位 -->
-                <g v-for="point in mapElements.points" :key="point.id">
-                  <circle
-                    :cx="point.x * SCALE"
-                    :cy="point.y * SCALE"
-                    :r="point.editorProps?.radius || 8"
-                    :fill="point.editorProps?.color || '#409eff'"
-                    stroke="#fff"
-                    stroke-width="2"
-                  />
-                  <text
-                    v-if="point.editorProps?.labelVisible && point.name"
-                    :x="point.x * SCALE"
-                    :y="point.y * SCALE - 12"
-                    fill="#666"
-                    font-size="10"
-                    text-anchor="middle"
-                  >{{ point.name }}</text>
-                </g>
-                <!-- 位置 -->
-                <g v-for="location in mapElements.locations" :key="location.id">
-                  <rect
-                    :x="(location.x - (location.editorProps?.width || 20) / 2) * SCALE"
-                    :y="(location.y - (location.editorProps?.height || 20) / 2) * SCALE"
-                    :width="(location.editorProps?.width || 20) * SCALE"
-                    :height="(location.editorProps?.height || 20) * SCALE"
-                    :fill="location.editorProps?.color || '#67c23a'"
-                    stroke="#fff"
-                    stroke-width="1"
-                  />
-                  <text
-                    v-if="location.editorProps?.labelVisible && location.name"
-                    :x="location.x * SCALE"
-                    :y="location.y * SCALE - 12"
-                    fill="#666"
-                    font-size="10"
-                    text-anchor="middle"
-                  >{{ location.name }}</text>
-                </g>
+          <!-- 地图层：随视图平移+缩放，被 canvas overflow:hidden 裁切 -->
+          <div class="canvas-map-layer" :style="mapLayerStyle">
+            <!-- 地图元素（编辑模式下隐藏，只展示坐标轴） -->
+            <div v-if="!isEditingOrigin && activeMap?.rasterUrl" class="map-layer-image">
+              <img class="canvas-img" :src="activeMap.rasterUrl" alt="地图底图" />
+            </div>
+            <svg v-else-if="!isEditingOrigin && activeMap && (mapElements.points.length > 0 || mapElements.paths.length > 0)"
+              class="map-layer-svg"
+            >
+              <g v-for="path in processedPaths" :key="path.id">
+                <line
+                  v-if="path.startPoint && path.endPoint"
+                  :x1="path.startPoint.x * SCALE"
+                  :y1="-path.startPoint.y * SCALE"
+                  :x2="path.endPoint.x * SCALE"
+                  :y2="-path.endPoint.y * SCALE"
+                  stroke="#409eff"
+                  stroke-width="2"
+                />
+              </g>
+              <g v-for="point in mapElements.points" :key="point.id">
+                <circle
+                  :cx="point.x * SCALE"
+                  :cy="-point.y * SCALE"
+                  :r="point.editorProps?.radius || 8"
+                  :fill="point.editorProps?.color || '#409eff'"
+                  stroke="#fff"
+                  stroke-width="2"
+                />
+                <text
+                  v-if="point.editorProps?.labelVisible && point.name"
+                  :x="point.x * SCALE"
+                  :y="-point.y * SCALE - 12"
+                  fill="#666"
+                  font-size="10"
+                  text-anchor="middle"
+                >{{ point.name }}</text>
+              </g>
+              <g v-for="location in mapElements.locations" :key="location.id">
+                <rect
+                  :x="(location.x - (location.editorProps?.width || 20) / 2) * SCALE"
+                  :y="(-location.y - (location.editorProps?.height || 20) / 2) * SCALE"
+                  :width="(location.editorProps?.width || 20) * SCALE"
+                  :height="(location.editorProps?.height || 20) * SCALE"
+                  :fill="location.editorProps?.color || '#67c23a'"
+                  stroke="#fff"
+                  stroke-width="1"
+                />
               </g>
             </svg>
+
+            <!-- 普通模式：工厂坐标轴 O(0,0)（实线）+ 地图原点虚线 -->
+            <template v-if="!isEditingOrigin">
+              <div class="layer-axis">
+                <div class="axis-line axis-x" />
+                <div class="axis-line axis-y" />
+                <div class="axis-origin">O(0,0)</div>
+              </div>
+              <div
+                v-if="activeMap && !isMapOriginAtFactory"
+                class="layer-axis map-origin-axis"
+                :style="mapOriginLayerStyle"
+              >
+                <div class="axis-line axis-x" />
+                <div class="axis-line axis-y" />
+              </div>
+            </template>
+
+            <!-- 原点编辑模式：工厂原点实线坐标轴 + 所有地图原点虚线坐标轴 -->
+            <template v-if="isEditingOrigin">
+              <div class="layer-axis">
+                <div class="axis-line axis-x" />
+                <div class="axis-line axis-y" />
+                <div class="axis-origin">O(0,0)</div>
+              </div>
+              <div
+                v-for="m in filteredMaps"
+                :key="'axis-' + m.mapId"
+                class="layer-axis map-origin-axis"
+                :style="getMapLayerOffset(m)"
+              >
+                <div class="axis-line axis-x" />
+                <div class="axis-line axis-y" />
+              </div>
+            </template>
           </div>
-          <div v-else-if="activeMap" class="canvas-empty">
-            <div class="muted">该地图暂无元素</div>
-          </div>
-          <div v-else class="canvas-empty">
+
+          <!-- 拖拽手柄：在地图层外部，使用屏幕坐标定位，避免 CSS transform 影响点击 -->
+          <template v-if="isEditingOrigin">
+            <div
+              v-for="m in filteredMaps"
+              :key="'handle-' + m.mapId"
+              class="origin-drag-handle"
+              :class="{ active: originEditingMapId === String(m.mapId) }"
+              :style="getHandleScreenStyle(m)"
+              @mousedown.stop.prevent="startDragMapOriginById(m, $event)"
+            />
+          </template>
+
+          <!-- 空状态提示（在地图层外，不缩放） -->
+          <div v-if="!activeMap" class="canvas-empty">
             <div v-if="!selectedFactoryId" class="muted">请选择工厂</div>
             <div v-else-if="filteredMaps.length === 0" class="muted">当前工厂暂无地图，请先新建地图</div>
             <div v-else class="muted">请选择左侧一张地图</div>
           </div>
-
-          <!-- 坐标轴 -->
-          <div class="canvas-axis">
-            <div
-              class="axis-line axis-x"
-              :style="{ left: originPosition.x + '%', bottom: originPosition.y + '%' }"
-            />
-            <div
-              class="axis-line axis-y"
-              :style="{ left: originPosition.x + '%', bottom: originPosition.y + '%' }"
-            />
-            <div
-              class="axis-origin"
-              :style="{ left: originPosition.x + '%', bottom: originPosition.y + '%' }"
-              @mousedown.stop="startDragOrigin"
-            >
-              O(0,0)
-            </div>
-          </div>
-
           <div class="canvas-footer">
-            <span class="muted">预览模式</span>
-            <span class="footer-sep">，</span>
-            <span class="muted">地图ID：</span>
-            <span class="mono">{{ activeMap?.mapId || '-' }}</span>
+            <template v-if="isEditingOrigin">
+              <span class="muted" style="color: #e6a23c;">拓扑原点编辑模式</span>
+              <span class="footer-sep">·</span>
+              <span class="muted">共 {{ filteredMaps.length }} 张地图</span>
+            </template>
+            <template v-else>
+              <span class="muted">预览模式</span>
+              <span class="footer-sep">，</span>
+              <span class="muted">地图ID：</span>
+              <span class="mono">{{ activeMap?.mapId || '-' }}</span>
+            </template>
+            <span class="footer-sep">·</span>
+            <span class="zoom-indicator" @click="resetView">
+              {{ Math.round(canvasScale * 100) }}%
+            </span>
           </div>
 
-          <div class="stage2-actions">
+          <div class="stage2-actions" v-if="!isEditingOrigin">
             <el-button type="primary" icon="Plus" :disabled="!selectedFactoryId" @click="handleAdd">
               新建地图
             </el-button>
             <el-button type="primary" plain icon="EditPen" :disabled="!activeMap" @click="activeMap && handleEdit(activeMap)">
               地图编辑
             </el-button>
+          </div>
+
+          <!-- 原点编辑模式：右上角显示选中地图的坐标编辑面板 -->
+          <div v-if="isEditingOrigin && originEditingMapId" class="origin-edit-panel">
+            <div class="origin-edit-title">{{ originEditingMapName }} 原点坐标 (mm)</div>
+            <div class="origin-edit-row">
+              <label>X</label>
+              <el-input-number
+                v-model="editOriginX"
+                size="small"
+                :step="100"
+                :precision="0"
+                controls-position="right"
+                @change="onOriginInputChange"
+              />
+            </div>
+            <div class="origin-edit-row">
+              <label>Y</label>
+              <el-input-number
+                v-model="editOriginY"
+                size="small"
+                :step="100"
+                :precision="0"
+                controls-position="right"
+                @change="onOriginInputChange"
+              />
+            </div>
+            <div class="origin-edit-hint">拖拽画布中该地图的橙色圆圈可移动原点</div>
+            <div class="origin-edit-actions">
+              <el-button type="primary" size="small" :loading="originSaving" @click="saveAllOrigins">全部保存</el-button>
+            </div>
           </div>
         </div>
 
@@ -140,15 +208,19 @@
                 :key="m.id"
                 type="button"
                 class="scene-item"
-                :class="{ active: String(m.mapId) === selectedMapId }"
-                @click="selectMap(m)"
-                @dblclick="handleEdit(m)"
+                :class="{
+                  active: isEditingOrigin
+                    ? originEditingMapId === String(m.mapId)
+                    : String(m.mapId) === selectedMapId
+                }"
+                @click="isEditingOrigin ? selectOriginMap(String(m.mapId)) : selectMap(m)"
+                @dblclick="!isEditingOrigin && handleEdit(m)"
               >
                 <span class="scene-icon" />
                 <span class="scene-name">{{ m.name }}</span>
               </button>
 
-              <button type="button" class="scene-item add" :disabled="!selectedFactoryId" @click="handleAdd">
+              <button v-if="!isEditingOrigin" type="button" class="scene-item add" :disabled="!selectedFactoryId" @click="handleAdd">
                 <span class="scene-plus" />
                 <span class="scene-name">添加地图</span>
               </button>
@@ -234,7 +306,7 @@ import type { MapEditorResponse } from '@/api/opentcs/map/types';
 import { useMapEditorTabsStore } from '@/store/modules/mapEditorTabs';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance } from 'element-plus';
-import { watch } from 'vue';
+import { watch, onBeforeUnmount } from 'vue';
 
 const router = useRouter();
 const mapEditorTabsStore = useMapEditorTabsStore();
@@ -255,58 +327,277 @@ const elementsLoading = ref(false);
 // 画布缩放比例（1px = 1mm）
 const SCALE = 0.1; // 将坐标转换为画布上的像素（假设画布宽度1000px对应10000mm）
 
-// SVG 画布大小（基于地图范围）
-const svgWidth = ref(1000);
-const svgHeight = ref(800);
 
 const selectedFactoryId = ref<number | undefined>(undefined);
 const selectedMapId = ref<string>('');
 
-// 原点拖动状态
-const originPosition = reactive({ x: 20, y: 20 });
+// ═══════ 画布视图状态（像素坐标系，参照 Konva 编辑器） ════════════════════════
+// viewOffset: 工厂原点 O(0,0) 在画布内容区的屏幕像素位置（左下角参考系）
+const canvasRef = ref<HTMLElement | null>(null);
+const viewOffset = reactive({ x: 150, y: 150 });
+const canvasScale = ref(1);
 const isDragging = ref(false);
 const dragStart = reactive({ x: 0, y: 0 });
-const originStart = reactive({ x: 0, y: 0 });
+const viewStart = reactive({ x: 0, y: 0 });
 
-// 开始拖动
-const startDragOrigin = (e: MouseEvent) => {
+function getCanvasRect() {
+  const el = canvasRef.value;
+  if (!el) return { w: 800, h: 600 };
+  const rect = el.getBoundingClientRect();
+  return { w: rect.width - 170, h: rect.height };
+}
+
+/**
+ * 地图层 CSS transform：
+ * - 以画布内容区左下角为坐标系原点
+ * - translate 定位工厂原点 O(0,0)
+ * - scale 缩放地图层
+ * - Y 轴翻转（CSS Y 向下，世界 Y 向上）
+ */
+const mapLayerStyle = computed(() => {
+  const { h } = getCanvasRect();
+  return {
+    transform: `translate(${viewOffset.x}px, ${h - viewOffset.y}px) scale(${canvasScale.value}, ${-canvasScale.value})`
+  };
+});
+
+/**
+ * 地图原点在地图层本地坐标系中的偏移。
+ * 因为 canvas-map-layer 已使用 scaleY(-1) 翻转 Y 轴，
+ * 本地 top 为正值时视觉方向向上（世界 Y-up），无需取反。
+ */
+function mapOriginOffset(ox: number, oy: number) {
+  return {
+    left: ox * SCALE + 'px',
+    top: oy * SCALE + 'px'
+  };
+}
+
+const mapOriginLayerStyle = computed(() => {
+  if (!activeMap.value) return {};
+  return mapOriginOffset(activeMap.value.originX ?? 0, activeMap.value.originY ?? 0);
+});
+
+// 滚轮缩放（指针锚点）
+function handleCanvasWheel(e: WheelEvent) {
+  const { w, h } = getCanvasRect();
+  const el = canvasRef.value;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const pointerX = e.clientX - rect.left - 170;
+  const pointerY = rect.bottom - e.clientY;
+
+  const oldScale = canvasScale.value;
+  const scaleBy = 1.1;
+  const newScale = e.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+  canvasScale.value = Math.max(0.1, Math.min(20, newScale));
+
+  const ratio = canvasScale.value / oldScale;
+  viewOffset.x = pointerX - (pointerX - viewOffset.x) * ratio;
+  viewOffset.y = pointerY - (pointerY - viewOffset.y) * ratio;
+}
+
+function resetView() {
+  canvasScale.value = 1;
+  viewOffset.x = 150;
+  viewOffset.y = 150;
+}
+
+// 画布拖拽平移（document 级别监听，避免与手柄拖拽冲突）
+function startPan(e: MouseEvent) {
+  if (isDraggingMapOrigin.value) return;
+  if ((e.target as HTMLElement).closest('.origin-drag-handle')) return;
   isDragging.value = true;
-  // 记录当前原点位置
-  originStart.x = originPosition.x;
-  originStart.y = originPosition.y;
-
-  // 获取鼠标位置
-  const canvasEl = document.querySelector('.stage2-canvas') as HTMLElement;
-  if (!canvasEl) return;
-
-  const rect = canvasEl.getBoundingClientRect();
   dragStart.x = e.clientX;
   dragStart.y = e.clientY;
-  document.body.style.cursor = 'move';
-};
+  viewStart.x = viewOffset.x;
+  viewStart.y = viewOffset.y;
+  document.body.style.cursor = 'grabbing';
+  document.addEventListener('mousemove', onPan);
+  document.addEventListener('mouseup', endPan);
+}
 
-// 拖动中
-const onDragOrigin = (e: MouseEvent) => {
+function onPan(e: MouseEvent) {
   if (!isDragging.value) return;
+  viewOffset.x = viewStart.x + (e.clientX - dragStart.x);
+  viewOffset.y = viewStart.y - (e.clientY - dragStart.y);
+}
 
-  const canvasEl = document.querySelector('.stage2-canvas') as HTMLElement;
-  if (!canvasEl) return;
-
-  const rect = canvasEl.getBoundingClientRect();
-  const deltaX = (e.clientX - dragStart.x) / rect.width * 100;
-  const deltaY = (dragStart.y - e.clientY) / rect.height * 100; // 反转Y方向
-
-  originPosition.x = Math.max(0, Math.min(100, originStart.x + deltaX));
-  originPosition.y = Math.max(0, Math.min(100, originStart.y + deltaY));
-};
-
-// 结束拖动
-const endDragOrigin = () => {
+function endPan() {
   if (isDragging.value) {
     isDragging.value = false;
     document.body.style.cursor = '';
   }
-};
+  document.removeEventListener('mousemove', onPan);
+  document.removeEventListener('mouseup', endPan);
+}
+
+// ═══════ 地图原点编辑（工厂级拓扑视图） ══════════════════════════════════════
+const isEditingOrigin = ref(false);
+const originSaving = ref(false);
+/** 当前选中编辑的地图 mapId */
+const originEditingMapId = ref<string>('');
+const editOriginX = ref(0);
+const editOriginY = ref(0);
+
+/** 编辑模式下每张地图的临时原点数据 */
+const originDrafts = ref<Map<string, { originX: number; originY: number }>>(new Map());
+
+const originEditingMapName = computed(() => {
+  const m = filteredMaps.value.find(m => String(m.mapId) === originEditingMapId.value);
+  return m?.name ?? '';
+});
+
+/** 普通模式：当前选中地图的原点是否与工厂原点重合 */
+const isMapOriginAtFactory = computed(() => {
+  if (!activeMap.value) return true;
+  return Number(activeMap.value.originX || 0) === 0 && Number(activeMap.value.originY || 0) === 0;
+});
+
+
+function getMapLayerOffset(m: NavigationMapVO) {
+  const draft = originDrafts.value.get(String(m.mapId));
+  const ox = draft?.originX ?? m.originX ?? 0;
+  const oy = draft?.originY ?? m.originY ?? 0;
+  return mapOriginOffset(ox, oy);
+}
+
+/**
+ * 拖拽手柄的屏幕坐标（使用 left + bottom 定位，与世界坐标 Y-up 自然对齐）。
+ * 使用 bottom 避免依赖画布高度（getCanvasRect），位置与 mapLayerStyle 精确同步。
+ */
+function getHandleScreenStyle(m: NavigationMapVO) {
+  const draft = originDrafts.value.get(String(m.mapId));
+  const ox = draft?.originX ?? m.originX ?? 0;
+  const oy = draft?.originY ?? m.originY ?? 0;
+  return {
+    left: (170 + viewOffset.x + ox * SCALE * canvasScale.value) + 'px',
+    bottom: (viewOffset.y + oy * SCALE * canvasScale.value) + 'px'
+  };
+}
+
+function toggleOriginEditing() {
+  if (isEditingOrigin.value) {
+    isEditingOrigin.value = false;
+    originEditingMapId.value = '';
+    originDrafts.value.clear();
+    return;
+  }
+  if (!selectedFactoryId.value || filteredMaps.value.length === 0) return;
+  // 初始化每张地图的草稿
+  const drafts = new Map<string, { originX: number; originY: number }>();
+  filteredMaps.value.forEach(m => {
+    drafts.set(String(m.mapId), { originX: m.originX ?? 0, originY: m.originY ?? 0 });
+  });
+  originDrafts.value = drafts;
+  // 默认选中第一张
+  originEditingMapId.value = String(filteredMaps.value[0].mapId);
+  selectOriginMap(originEditingMapId.value);
+  isEditingOrigin.value = true;
+}
+
+function selectOriginMap(mapId: string) {
+  originEditingMapId.value = mapId;
+  const draft = originDrafts.value.get(mapId);
+  editOriginX.value = draft?.originX ?? 0;
+  editOriginY.value = draft?.originY ?? 0;
+}
+
+function onOriginInputChange() {
+  if (!originEditingMapId.value) return;
+  originDrafts.value.set(originEditingMapId.value, {
+    originX: editOriginX.value,
+    originY: editOriginY.value
+  });
+}
+
+function getMapDraftOrigin(m: NavigationMapVO) {
+  const draft = originDrafts.value.get(String(m.mapId));
+  return draft ?? { originX: m.originX ?? 0, originY: m.originY ?? 0 };
+}
+
+async function saveAllOrigins() {
+  originSaving.value = true;
+  try {
+    const promises: Promise<any>[] = [];
+    originDrafts.value.forEach((draft, mapId) => {
+      const m = filteredMaps.value.find(m => String(m.mapId) === mapId);
+      if (!m) return;
+      if (draft.originX === (m.originX ?? 0) && draft.originY === (m.originY ?? 0)) return;
+      promises.push(
+        updateNavigationMap({
+          id: m.id,
+          factoryModelId: m.factoryModelId,
+          mapId: m.mapId,
+          name: m.name,
+          originX: draft.originX,
+          originY: draft.originY
+        })
+      );
+      // 同步本地数据
+      const idx = mapList.value.findIndex(ml => ml.id === m.id);
+      if (idx >= 0) {
+        mapList.value[idx].originX = draft.originX;
+        mapList.value[idx].originY = draft.originY;
+      }
+    });
+    if (promises.length > 0) {
+      await Promise.all(promises);
+      ElMessage.success(`已保存 ${promises.length} 张地图原点`);
+    } else {
+      ElMessage.info('无修改需要保存');
+    }
+  } catch (e) {
+    ElMessage.error('保存失败');
+  } finally {
+    originSaving.value = false;
+  }
+}
+
+// ═══════ 画布拖拽：场景原点 + 地图原点 ══════════════════════════════════════
+const isDraggingMapOrigin = ref(false);
+const draggingMapId = ref('');
+const mapOriginDragStart = reactive({ x: 0, y: 0 });
+const mapOriginEditStart = reactive({ x: 0, y: 0 });
+
+function startDragMapOriginById(m: NavigationMapVO, e: MouseEvent) {
+  const mapId = String(m.mapId);
+  selectOriginMap(mapId);
+  draggingMapId.value = mapId;
+  isDraggingMapOrigin.value = true;
+  mapOriginDragStart.x = e.clientX;
+  mapOriginDragStart.y = e.clientY;
+  mapOriginEditStart.x = editOriginX.value;
+  mapOriginEditStart.y = editOriginY.value;
+  document.body.style.cursor = 'move';
+  document.addEventListener('mousemove', onDragMapOrigin);
+  document.addEventListener('mouseup', endDragMapOrigin);
+  e.preventDefault();
+  e.stopPropagation();
+}
+
+function onDragMapOrigin(e: MouseEvent) {
+  if (!isDraggingMapOrigin.value || !draggingMapId.value) return;
+  const pxPerMm = SCALE * canvasScale.value;
+  const deltaXPx = e.clientX - mapOriginDragStart.x;
+  const deltaYPx = e.clientY - mapOriginDragStart.y;
+  editOriginX.value = Math.round(mapOriginEditStart.x + deltaXPx / pxPerMm);
+  editOriginY.value = Math.round(mapOriginEditStart.y - deltaYPx / pxPerMm);
+  originDrafts.value.set(draggingMapId.value, {
+    originX: editOriginX.value,
+    originY: editOriginY.value
+  });
+}
+
+function endDragMapOrigin() {
+  if (isDraggingMapOrigin.value) {
+    isDraggingMapOrigin.value = false;
+    draggingMapId.value = '';
+    document.body.style.cursor = '';
+  }
+  document.removeEventListener('mousemove', onDragMapOrigin);
+  document.removeEventListener('mouseup', endDragMapOrigin);
+}
 
 // 保留 query 类型，便于后续扩展筛选/分页（P0 暂不使用）
 const _queryParams = reactive<NavigationMapQuery>({});
@@ -341,27 +632,7 @@ const formRef = ref<FormInstance>();
 
 const activeMap = computed(() => mapList.value.find(m => String(m.mapId) === selectedMapId.value));
 
-// 计算地图元素的范围，确定 SVG viewBox
-const mapBounds = computed(() => {
-  const points = mapElements.value.points || [];
-  if (points.length === 0) {
-    return { minX: 0, minY: 0 };
-  }
-  let minX = Infinity, minY = Infinity;
-  points.forEach(p => {
-    const x = p.x || 0;
-    const y = p.y || 0;
-    minX = Math.min(minX, x);
-    minY = Math.min(minY, y);
-  });
-  return { minX, minY };
-});
 
-// SVG viewBox
-const svgViewBox = computed(() => {
-  const b = mapBounds.value;
-  return `${b.minX * SCALE} ${b.minY * SCALE} ${svgWidth.value} ${svgHeight.value}`;
-});
 
 // 处理路径数据，添加端点坐标
 const processedPaths = computed(() => {
@@ -481,6 +752,12 @@ const handleFactoryChange = () => {
 const selectFactory = (factory: FactoryModelVO) => {
   selectedFactoryId.value = factory.id;
   selectedMapId.value = '';
+  viewOffset.x = 150;
+  viewOffset.y = 150;
+  canvasScale.value = 1;
+  isEditingOrigin.value = false;
+  originEditingMapId.value = '';
+  originDrafts.value.clear();
   loadMaps();
 };
 
@@ -531,38 +808,15 @@ const loadMapElements = async (mapId: string | number) => {
   }
 };
 
-// 监听地图元素变化，更新 SVG 画布大小
-watch(
-  () => mapElements.value.points,
-  (points) => {
-    if (!points || points.length === 0) {
-      svgWidth.value = 1000;
-      svgHeight.value = 800;
-      return;
-    }
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    points.forEach(p => {
-      const x = p.x || 0;
-      const y = p.y || 0;
-      const r = p.editorProps?.radius || 10;
-      minX = Math.min(minX, x - r);
-      minY = Math.min(minY, y - r);
-      maxX = Math.max(maxX, x + r);
-      maxY = Math.max(maxY, y + r);
-    });
-    // 加上边距
-    const padding = 100;
-    svgWidth.value = (maxX - minX + padding * 2) * SCALE;
-    svgHeight.value = (maxY - minY + padding * 2) * SCALE;
-  },
-  { immediate: true }
-);
 
 const selectMap = (row: NavigationMapVO) => {
   selectedMapId.value = String(row.mapId);
-  // 重置原点到画布左下方中间
-  originPosition.x = 20;
-  originPosition.y = 20;
+  viewOffset.x = 150;
+  viewOffset.y = 150;
+  canvasScale.value = 1;
+  isEditingOrigin.value = false;
+  editOriginX.value = row.originX ?? 0;
+  editOriginY.value = row.originY ?? 0;
   router.replace({
     query: {
       ...router.currentRoute.value.query,
@@ -654,6 +908,13 @@ onMounted(() => {
   }
   // 如果 URL 没有 factoryId，getFactoryList 会自动选择第一个工厂
 });
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousemove', onDragMapOrigin);
+  document.removeEventListener('mouseup', endDragMapOrigin);
+  document.removeEventListener('mousemove', onPan);
+  document.removeEventListener('mouseup', endPan);
+});
 </script>
 
 <style scoped lang="scss">
@@ -672,6 +933,7 @@ onMounted(() => {
 .rcs-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
   padding: 12px 16px;
   background: #fff;
@@ -684,6 +946,11 @@ onMounted(() => {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  flex: 1;
+}
+
+.header-actions {
+  flex-shrink: 0;
 }
 
 .factory-tab {
@@ -725,22 +992,39 @@ onMounted(() => {
   padding-left: 170px;
   background-image: linear-gradient(#eef0f4 1px, transparent 1px), linear-gradient(90deg, #eef0f4 1px, transparent 1px);
   background-size: 18px 18px;
-}
-
-.canvas-image {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  cursor: crosshair;
-}
-
-.canvas-elements {
-  position: absolute;
-  left: 0;
-  bottom: 0;
   overflow: hidden;
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+// 地图层：承载所有地图内容，通过 CSS transform 实现平移+缩放
+.canvas-map-layer {
+  position: absolute;
+  left: 170px;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
   pointer-events: none;
+}
+
+.map-layer-image {
+  position: absolute;
+  width: 800px;
+  height: 600px;
+  transform: translate(-50%, -50%);
+}
+
+.map-layer-svg {
+  position: absolute;
+  width: 100000px;
+  height: 100000px;
+  left: -50000px;
+  top: -50000px;
+  overflow: visible;
 }
 
 .canvas-img {
@@ -752,98 +1036,92 @@ onMounted(() => {
 .canvas-empty {
   position: absolute;
   inset: 0;
+  left: 170px;
   display: grid;
   place-items: center;
 }
 
-// 坐标轴容器
-.canvas-axis {
+// 坐标轴（在地图层内部，随层一起缩放）
+.layer-axis {
   position: absolute;
-  left: 170px;
-  bottom: 0;
-  right: 0;
+  left: 0;
   top: 0;
-  z-index: 10;
 }
 
 .axis-origin {
   position: absolute;
-  transform: translate(4px, 4px);
+  left: 6px;
+  top: -18px;
   font-size: 10px;
   color: #6b7280;
-  cursor: move;
   user-select: none;
-  pointer-events: auto;
-  padding: 4px;
-
-  &:hover {
-    color: #2563eb;
-    font-weight: 500;
-  }
+  pointer-events: none;
+  white-space: nowrap;
+  transform: scaleY(-1);
 }
 
 .axis-line {
   position: absolute;
+  left: 0;
+  top: 0;
 }
 
 .axis-x {
-  left: 0;
-  bottom: 0;
   height: 2px;
-  width: 20%;
-  min-width: 80px;
-  max-width: 200px;
+  width: 120px;
   background: #2563eb;
+  transform: translateY(-50%);
 }
 
 .axis-x::before {
   content: '';
   position: absolute;
-  right: 0;
-  top: -4px;
-  border-left: 6px solid #2563eb;
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left: 8px solid #2563eb;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
 }
 
 .axis-x::after {
   content: 'X';
   position: absolute;
-  right: 4px;
-  top: -18px;
-  font-size: 12px;
+  right: 0;
+  bottom: calc(100% + 2px);
+  font-size: 11px;
   font-weight: bold;
   color: #2563eb;
+  transform: scaleY(-1);
 }
 
 .axis-y {
-  left: 0;
-  bottom: 0;
   width: 2px;
-  height: 20%;
-  min-height: 80px;
-  max-height: 200px;
+  height: 120px;
   background: #ef4444;
+  transform: translateX(-50%);
 }
 
 .axis-y::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: -4px;
-  border-bottom: 6px solid #ef4444;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-top: 8px solid #ef4444;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
 }
 
 .axis-y::after {
   content: 'Y';
   position: absolute;
-  left: 6px;
-  top: 4px;
-  font-size: 12px;
+  left: 8px;
+  bottom: 0;
+  font-size: 11px;
   font-weight: bold;
   color: #ef4444;
+  transform: scaleY(-1);
 }
 
 .canvas-footer {
@@ -858,6 +1136,17 @@ onMounted(() => {
 
 .footer-sep {
   color: #9ca3af;
+}
+
+.zoom-indicator {
+  color: #409eff;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 .stage2-actions {
@@ -986,6 +1275,13 @@ onMounted(() => {
   white-space: nowrap;
 }
 
+.scene-origin-info {
+  font-size: 10px;
+  color: #909399;
+  font-weight: 400;
+  flex-shrink: 0;
+}
+
 .left-empty {
   padding: 18px 12px;
   display: flex;
@@ -1018,5 +1314,134 @@ onMounted(() => {
       white-space: nowrap;
     }
   }
+}
+
+/* ═══════ 地图原点坐标轴（虚线，保持与实线相同的尺寸/定位，只替换背景为虚线渐变） ═══════ */
+.map-origin-axis {
+  .axis-x {
+    background: repeating-linear-gradient(to right, #2563eb 0, #2563eb 5px, transparent 5px, transparent 10px);
+  }
+
+  .axis-x::before {
+    border-left-color: #2563eb;
+  }
+
+  .axis-y {
+    background: repeating-linear-gradient(to bottom, #ef4444 0, #ef4444 5px, transparent 5px, transparent 10px);
+  }
+
+  .axis-y::before {
+    border-top-color: #ef4444;
+  }
+}
+
+/* 橙色拖拽手柄（与地图编辑器一致） */
+.origin-drag-handle {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(249, 115, 22, 0.4);
+  border: none;
+  cursor: move;
+  transform: translate(-50%, 50%);
+  z-index: 15;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+
+  &.active {
+    background: rgba(249, 115, 22, 0.55);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.18);
+  }
+
+  &:hover {
+    background: rgba(249, 115, 22, 0.55);
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.12);
+  }
+
+  &:active {
+    background: rgba(249, 115, 22, 0.65);
+    box-shadow: 0 0 0 5px rgba(249, 115, 22, 0.15);
+  }
+}
+
+.map-origin-tag {
+  position: absolute;
+  transform: translate(8px, 8px);
+  font-size: 10px;
+  color: #909399;
+  white-space: nowrap;
+  pointer-events: none;
+
+  &.active {
+    color: #f97316;
+    font-weight: 600;
+  }
+}
+
+/* ═══════ 原点编辑浮层面板 ═══════ */
+.origin-edit-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 20;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+  border: 1px solid #e6e8ee;
+  padding: 14px 16px;
+  min-width: 220px;
+}
+
+.origin-edit-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.origin-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+
+  label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #606266;
+    width: 16px;
+    text-align: right;
+  }
+
+  .el-input-number {
+    flex: 1;
+  }
+}
+
+.origin-edit-hint {
+  font-size: 11px;
+  color: #909399;
+  margin-bottom: 10px;
+}
+
+.origin-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 浮层过渡动画 */
+.origin-panel-enter-active,
+.origin-panel-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.origin-panel-enter-from,
+.origin-panel-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 </style>
