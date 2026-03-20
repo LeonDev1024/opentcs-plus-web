@@ -2,134 +2,294 @@
   <div class="map-editor">
     <!-- 工具栏 -->
     <div class="toolbar">
-      <div class="toolbar-left">
+      <div class="toolbar-left toolbar-left-cluster">
+        <!-- 漫游 -->
         <el-button-group class="creation-tool-group">
           <el-tooltip
-            content="漫游 (1)：空白处拖移画布；悬停点/线/位置可选中拖动；Ctrl+空白拖移可框选；Shift 参与框选追加"
+            content="空白处拖移画布；悬停点/线/位置可选中拖动；"
             :show-after="50"
             placement="bottom"
           >
             <el-button
+              class="map-toolbar-btn"
               :type="currentTool === 'pan' ? 'primary' : 'default'"
               size="small"
               @click="setTool(ToolMode.PAN)"
             >
-              <template #icon>
-                <SvgIcon icon-class="manyou" class="pan-hand-icon" />
-              </template>
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <SvgIcon icon-class="manyou" class="pan-hand-icon" />
+                </span>
+                <span class="map-toolbar-btn__label">漫游</span>
+              </span>
             </el-button>
           </el-tooltip>
-          <div class="point-tool-wrapper toolbar-tool toolbar-tool-point">
-            <el-tooltip content="绘制点 (3)" :show-after="50" placement="bottom">
-              <el-button
-                :type="currentTool === 'point' ? 'primary' : 'default'"
-                size="small"
-                @click="setTool(ToolMode.POINT)"
-                class="point-tool-main"
-              >
-                <template #icon>
-                  <SvgIcon icon-class="diandian" class="point-type-svg-icon" />
-                </template>
-              </el-button>
-            </el-tooltip>
-          </div>
-          <el-tooltip content="直线 (4)" :show-after="50" placement="bottom">
+        </el-button-group>
+        <el-divider direction="vertical" class="toolbar-cluster-divider" />
+        <!-- 地图元素：绘制点、绘制位置、路网连线、虚线链接、规则区域 -->
+        <el-button-group class="creation-tool-group">
+          <el-tooltip
+              content="点击画布添加点位"
+            :show-after="50"
+            placement="bottom"
+          >
             <el-button
-              class="toolbar-tool toolbar-tool-path toolbar-tool-path-direct"
-              :type="currentTool === 'path' && mapEditorStore.pathConnectionType === 'direct' ? 'primary' : 'default'"
+              class="map-toolbar-btn"
+              :type="currentTool === 'point' ? 'primary' : 'default'"
+              size="small"
+              @click="setTool(ToolMode.POINT)"
+            >
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <SvgIcon icon-class="diandian" class="point-type-svg-icon" />
+                </span>
+                <span class="map-toolbar-btn__label">绘制点</span>
+              </span>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip
+            content="点击画布创建业务位置（方形区域）"
+            :show-after="50"
+            placement="bottom"
+          >
+            <el-button
+              class="map-toolbar-btn"
+              :type="currentTool === 'location' ? 'primary' : 'default'"
+              size="small"
+              @click="setTool(ToolMode.LOCATION)"
+            >
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <el-icon :size="20"><Location /></el-icon>
+                </span>
+                <span class="map-toolbar-btn__label">绘制位置</span>
+              </span>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="拖拽连接两点创建直线" :show-after="50" placement="bottom">
+            <el-button
+              class="map-toolbar-btn toolbar-tool-path toolbar-tool-path-direct"
+              :type="
+                currentTool === 'path' &&
+                mapEditorStore.pathConnectionType === 'direct'
+                  ? 'primary'
+                  : 'default'
+              "
               size="small"
               @click="handlePathToolClick('direct')"
             >
-              <template #icon>
-                <PathTypeIcon type="direct" :active="currentTool === 'path' && mapEditorStore.pathConnectionType === 'direct'" />
-              </template>
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <PathTypeIcon
+                    type="direct"
+                    :active="
+                      currentTool === 'path' &&
+                      mapEditorStore.pathConnectionType === 'direct'
+                    "
+                  />
+                </span>
+                <span class="map-toolbar-btn__label">直线</span>
+              </span>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="直角连线 (4)" :show-after="50" placement="bottom">
+          <el-tooltip
+            content="拖拽连接两点创建直角路径"
+            :show-after="50"
+            placement="bottom"
+          >
             <el-button
-              class="toolbar-tool toolbar-tool-path toolbar-tool-path-orthogonal"
-              :type="currentTool === 'path' && mapEditorStore.pathConnectionType === 'orthogonal' ? 'primary' : 'default'"
+              class="map-toolbar-btn toolbar-tool-path toolbar-tool-path-orthogonal"
+              :type="
+                currentTool === 'path' &&
+                mapEditorStore.pathConnectionType === 'orthogonal'
+                  ? 'primary'
+                  : 'default'
+              "
               size="small"
               @click="handlePathToolClick('orthogonal')"
             >
-              <template #icon>
-                <PathTypeIcon type="orthogonal" :active="currentTool === 'path' && mapEditorStore.pathConnectionType === 'orthogonal'" />
-              </template>
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <PathTypeIcon
+                    type="orthogonal"
+                    :active="
+                      currentTool === 'path' &&
+                      mapEditorStore.pathConnectionType === 'orthogonal'
+                    "
+                  />
+                </span>
+                <span class="map-toolbar-btn__label">直角连线</span>
+              </span>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="贝塞尔曲线 (4)" :show-after="50" placement="bottom">
+          <el-tooltip
+            content="拖拽连接两点创建贝塞尔曲线"
+            :show-after="50"
+            placement="bottom"
+          >
             <el-button
-              class="toolbar-tool toolbar-tool-path toolbar-tool-path-curve"
-              :type="currentTool === 'path' && mapEditorStore.pathConnectionType === 'curve' ? 'primary' : 'default'"
+              class="map-toolbar-btn toolbar-tool-path toolbar-tool-path-curve"
+              :type="
+                currentTool === 'path' &&
+                mapEditorStore.pathConnectionType === 'curve'
+                  ? 'primary'
+                  : 'default'
+              "
               size="small"
               @click="handlePathToolClick('curve')"
             >
-              <template #icon>
-                <SvgIcon icon-class="bezier2" class="path-bezier-icon" />
-              </template>
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <SvgIcon icon-class="bezier2" class="path-bezier-icon" />
+                </span>
+                <span class="map-toolbar-btn__label">贝塞尔</span>
+              </span>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="规则区域 (7)" :show-after="50" placement="bottom">
+          <el-tooltip
+            content="在位置中心按下并拖到路网点释放，创建虚线 Link（连接业务位置与拓扑点）"
+            :show-after="50"
+            placement="bottom"
+          >
             <el-button
-              class="toolbar-tool toolbar-tool-rule"
+              class="map-toolbar-btn toolbar-tool-dashed-link"
+              :type="currentTool === 'dashedLink' ? 'primary' : 'default'"
+              size="small"
+              @click="setTool(ToolMode.DASHED_LINK)"
+            >
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <SvgIcon icon-class="dashed-link" class="dashed-link-toolbar-icon" />
+                </span>
+                <span class="map-toolbar-btn__label">虚线链接</span>
+              </span>
+            </el-button>
+          </el-tooltip>
+          <!-- 规则区域 -->
+          <el-tooltip
+            content="点击画布顶点绘制规则区域"
+            :show-after="50"
+            placement="bottom"
+          >
+            <el-button
+              class="map-toolbar-btn toolbar-tool-rule"
               :type="currentTool === 'ruleRegion' ? 'primary' : 'default'"
               size="small"
               @click="setTool(ToolMode.RULE_REGION)"
             >
-              <template #icon>
-                <svg-icon icon-class="rule-region" style="font-size: 18px;" />
-              </template>
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <svg-icon icon-class="rule-region" style="font-size: 18px" />
+                </span>
+                <span class="map-toolbar-btn__label">规则区域</span>
+              </span>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="撤销 (Ctrl+Z)" :show-after="50" placement="bottom">
+        </el-button-group>
+        <el-divider direction="vertical" class="toolbar-cluster-divider" />
+        <!-- 撤销 / 重做 -->
+        <el-button-group class="creation-tool-group">
+          <el-tooltip
+            content="撤销 (Ctrl+Z)"
+            :show-after="50"
+            placement="bottom"
+          >
             <el-button
+              class="map-toolbar-btn"
               size="small"
-              icon="RefreshLeft"
               :disabled="!canUndo"
               @click="undo"
-            />
+            >
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <el-icon :size="20"><RefreshLeft /></el-icon>
+                </span>
+                <span class="map-toolbar-btn__label">撤销</span>
+              </span>
+            </el-button>
           </el-tooltip>
-          <el-tooltip content="重做 (Ctrl+Shift+Z)" :show-after="50" placement="bottom">
+          <el-tooltip
+            content="重做 (Ctrl+Shift+Z)"
+            :show-after="50"
+            placement="bottom"
+          >
             <el-button
+              class="map-toolbar-btn"
               size="small"
-              icon="RefreshRight"
               :disabled="!canRedo"
               @click="redo"
-            />
+            >
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <el-icon :size="20"><RefreshRight /></el-icon>
+                </span>
+                <span class="map-toolbar-btn__label">重做</span>
+              </span>
+            </el-button>
           </el-tooltip>
-          <el-tooltip content="显示/隐藏标签" :show-after="50" placement="bottom">
+        </el-button-group>
+        <el-divider direction="vertical" class="toolbar-cluster-divider" />
+        <!-- 标签 / Block -->
+        <el-button-group class="creation-tool-group">
+          <el-tooltip
+            content="显示/隐藏标签"
+            :show-after="50"
+            placement="bottom"
+          >
             <el-button
+              class="map-toolbar-btn"
               :type="showLabels ? 'primary' : 'default'"
               size="small"
-              icon="PriceTag"
               @click="toggleLabels"
-              :circle="true"
-            />
+            >
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <el-icon :size="20"><PriceTag /></el-icon>
+                </span>
+                <span class="map-toolbar-btn__label">标签</span>
+              </span>
+            </el-button>
           </el-tooltip>
-          <el-tooltip content="显示/隐藏Block" :show-after="50" placement="bottom">
-            <el-button 
+          <el-tooltip
+            content="显示/隐藏Block"
+            :show-after="50"
+            placement="bottom"
+          >
+            <el-button
+              class="map-toolbar-btn"
               :type="showBlocks ? 'primary' : 'default'"
               size="small"
-              icon="Box"
               @click="toggleBlocks"
-              :circle="true"
-            />
+            >
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <el-icon :size="20"><Box /></el-icon>
+                </span>
+                <span class="map-toolbar-btn__label">Block</span>
+              </span>
+            </el-button>
           </el-tooltip>
         </el-button-group>
       </div>
       <div class="toolbar-right">
-        <el-button type="primary" size="small" icon="Document" @click="handleSave" :loading="loading">保存</el-button>
-        <el-button size="small" icon="Close" @click="handleClose">关闭</el-button>
+        <el-button
+          type="primary"
+          size="small"
+          icon="Document"
+          @click="handleSave"
+          :loading="loading"
+          >保存</el-button
+        >
+        <el-button size="small" icon="Close" @click="handleClose"
+          >关闭</el-button
+        >
       </div>
     </div>
-    
+
     <!-- 主内容区 -->
     <div class="editor-content">
       <!-- 左侧面板：视图、属性 -->
-      <div 
-        class="left-panels" 
-        :style="{ width: leftPanelWidth + 'px' }"
-      >
+      <div class="left-panels" :style="{ width: leftPanelWidth + 'px' }">
         <!-- 视图面板 -->
         <div class="panel-container view-panel-container">
           <div class="panel-header">
@@ -139,7 +299,7 @@
             <ComponentsPanel />
           </div>
         </div>
-        
+
         <!-- 属性面板顶部拖拽条 -->
         <div
           v-show="!isPropertyPanelCollapsed"
@@ -151,7 +311,10 @@
         <div class="panel-container property-panel-container">
           <div class="panel-header" @click="togglePropertyPanelCollapse">
             <span class="canvas-title">属性</span>
-            <el-icon class="collapse-icon" :class="{ 'collapsed': isPropertyPanelCollapsed }">
+            <el-icon
+              class="collapse-icon"
+              :class="{ collapsed: isPropertyPanelCollapsed }"
+            >
               <ArrowDown />
             </el-icon>
           </div>
@@ -159,19 +322,22 @@
             <PropertyPanel />
           </div>
         </div>
-        
+
         <!-- 图层面板顶部拖拽条 -->
         <div
           v-show="!isLayerPanelCollapsed"
           class="panel-horizontal-resizer"
           @mousedown="handlePanelResizeStart('layer', $event)"
         ></div>
-        
+
         <!-- 图层面板 -->
         <div class="panel-container layer-panel-container">
           <div class="panel-header" @click="toggleLayerPanelCollapse">
             <span class="canvas-title">图层</span>
-            <el-icon class="collapse-icon" :class="{ 'collapsed': isLayerPanelCollapsed }">
+            <el-icon
+              class="collapse-icon"
+              :class="{ collapsed: isLayerPanelCollapsed }"
+            >
               <ArrowDown />
             </el-icon>
           </div>
@@ -180,14 +346,14 @@
           </div>
         </div>
       </div>
-      
+
       <!-- 左侧可拖拽的分隔条 -->
-      <div 
-        class="panel-resizer" 
+      <div
+        class="panel-resizer"
         @mousedown="handleResizeStart"
-        :class="{ 'resizing': isResizing }"
+        :class="{ resizing: isResizing }"
       ></div>
-      
+
       <!-- 中间：画布区域 -->
       <div class="canvas-area">
         <div class="canvas-wrapper">
@@ -200,15 +366,24 @@
         <div class="canvas-axis">
           <div
             class="axis-line axis-x"
-            :style="{ left: originPosition.x + '%', bottom: originPosition.y + '%' }"
+            :style="{
+              left: originPosition.x + '%',
+              bottom: originPosition.y + '%',
+            }"
           />
           <div
             class="axis-line axis-y"
-            :style="{ left: originPosition.x + '%', bottom: originPosition.y + '%' }"
+            :style="{
+              left: originPosition.x + '%',
+              bottom: originPosition.y + '%',
+            }"
           />
           <div
             class="axis-origin"
-            :style="{ left: originPosition.x + '%', bottom: originPosition.y + '%' }"
+            :style="{
+              left: originPosition.x + '%',
+              bottom: originPosition.y + '%',
+            }"
           >
             O(0,0)
           </div>
@@ -218,10 +393,9 @@
           <span class="mode-info">编辑模式</span>
           <span class="footer-sep">，</span>
           <span class="muted">地图ID：</span>
-          <span class="mono">{{ mapId || '-' }}</span>
+          <span class="mono">{{ mapId || "-" }}</span>
         </div>
       </div>
-
     </div>
 
     <!-- 导入栅格地图对话框（选择 map.yaml + map.pgm） -->
@@ -235,7 +409,9 @@
       <div class="import-raster-form">
         <div class="import-raster-row">
           <span class="label">map.yaml</span>
-          <el-button size="small" @click="triggerYamlSelect">选择 YAML 文件</el-button>
+          <el-button size="small" @click="triggerYamlSelect"
+            >选择 YAML 文件</el-button
+          >
           <input
             ref="yamlInputRef"
             type="file"
@@ -243,11 +419,13 @@
             style="display: none"
             @change="onYamlFileChange"
           />
-          <span class="file-name">{{ rasterYamlFileName || '未选择' }}</span>
+          <span class="file-name">{{ rasterYamlFileName || "未选择" }}</span>
         </div>
         <div class="import-raster-row">
           <span class="label">map.pgm</span>
-          <el-button size="small" @click="triggerPgmSelect">选择栅格图像 (PGM)</el-button>
+          <el-button size="small" @click="triggerPgmSelect"
+            >选择栅格图像 (PGM)</el-button
+          >
           <input
             ref="pgmInputRef"
             type="file"
@@ -255,16 +433,24 @@
             style="display: none"
             @change="onPgmFileChange"
           />
-          <span class="file-name">{{ rasterPgmFileName || '未选择' }}</span>
+          <span class="file-name">{{ rasterPgmFileName || "未选择" }}</span>
         </div>
         <div v-if="rasterParsedInfo" class="import-raster-info">
           <div>分辨率: {{ rasterParsedInfo.resolution }} m/像素</div>
-          <div>原点: ({{ rasterParsedInfo.originX }}, {{ rasterParsedInfo.originY }}) m</div>
+          <div>
+            原点: ({{ rasterParsedInfo.originX }},
+            {{ rasterParsedInfo.originY }}) m
+          </div>
         </div>
       </div>
       <template #footer>
         <el-button @click="importRasterDialogVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="!rasterYamlFile || !rasterPgmFile" :loading="importRasterLoading" @click="confirmImportRaster">
+        <el-button
+          type="primary"
+          :disabled="!rasterYamlFile || !rasterPgmFile"
+          :loading="importRasterLoading"
+          @click="confirmImportRaster"
+        >
           确定
         </el-button>
       </template>
@@ -291,10 +477,14 @@
             <li><strong>type</strong>: 点位类型（可选，默认Halt point）</li>
             <li><strong>description</strong>: 描述（可选）</li>
           </ul>
-          <p class="type-hint">类型可选值: Halt point, Park point, Station, Charge point</p>
+          <p class="type-hint">
+            类型可选值: Halt point, Park point, Station, Charge point
+          </p>
         </div>
         <div class="import-csv-upload">
-          <el-button size="small" @click="triggerCsvSelect">选择 CSV 文件</el-button>
+          <el-button size="small" @click="triggerCsvSelect"
+            >选择 CSV 文件</el-button
+          >
           <input
             ref="csvInputRef"
             type="file"
@@ -302,23 +492,47 @@
             style="display: none"
             @change="onCsvFileChange"
           />
-          <span class="file-name">{{ csvFileName || '未选择' }}</span>
+          <span class="file-name">{{ csvFileName || "未选择" }}</span>
         </div>
         <div v-if="csvParsedData.length > 0" class="import-csv-preview">
           <div class="preview-header">
             <span>预览 (共 {{ csvParsedData.length }} 条记录)</span>
-            <el-button size="small" type="danger" text @click="clearCsvData">清除</el-button>
+            <el-button size="small" type="danger" text @click="clearCsvData"
+              >清除</el-button
+            >
           </div>
           <el-table :data="csvParsedData" height="250" size="small" stripe>
-            <el-table-column prop="name" label="名称" width="120" show-overflow-tooltip />
-            <el-table-column prop="code" label="编码" width="100" show-overflow-tooltip />
+            <el-table-column
+              prop="name"
+              label="名称"
+              width="120"
+              show-overflow-tooltip
+            />
+            <el-table-column
+              prop="code"
+              label="编码"
+              width="100"
+              show-overflow-tooltip
+            />
             <el-table-column prop="x" label="X坐标" width="80" align="center" />
             <el-table-column prop="y" label="Y坐标" width="80" align="center" />
-            <el-table-column prop="type" label="类型" width="100" show-overflow-tooltip />
-            <el-table-column prop="description" label="描述" min-width="150" show-overflow-tooltip />
+            <el-table-column
+              prop="type"
+              label="类型"
+              width="100"
+              show-overflow-tooltip
+            />
+            <el-table-column
+              prop="description"
+              label="描述"
+              min-width="150"
+              show-overflow-tooltip
+            />
             <el-table-column label="状态" width="80" align="center">
               <template #default="{ row }">
-                <el-tag v-if="row.error" type="danger" size="small">错误</el-tag>
+                <el-tag v-if="row.error" type="danger" size="small"
+                  >错误</el-tag
+                >
                 <el-tag v-else type="success" size="small">有效</el-tag>
               </template>
             </el-table-column>
@@ -332,7 +546,11 @@
       </div>
       <template #footer>
         <el-button @click="importCsvDialogVisible = false">取消</el-button>
-        <el-button type="primary" :disabled="csvValidCount === 0" @click="confirmImportCsv">
+        <el-button
+          type="primary"
+          :disabled="csvValidCount === 0"
+          @click="confirmImportCsv"
+        >
           导入 {{ csvValidCount }} 个点位
         </el-button>
       </template>
@@ -350,37 +568,73 @@
           <p>当前栅格底图参数：</p>
           <div class="info-row">
             <span class="label">分辨率:</span>
-            <span>{{ rasterBackgroundInfo?.resolution?.toFixed(4) }} m/像素</span>
+            <span
+              >{{ rasterBackgroundInfo?.resolution?.toFixed(4) }} m/像素</span
+            >
           </div>
           <div class="info-row">
             <span class="label">图像尺寸:</span>
-            <span>{{ rasterBackgroundInfo?.widthPx }} × {{ rasterBackgroundInfo?.heightPx }} 像素</span>
+            <span
+              >{{ rasterBackgroundInfo?.widthPx }} ×
+              {{ rasterBackgroundInfo?.heightPx }} 像素</span
+            >
           </div>
         </div>
         <el-divider content-position="left">坐标偏移</el-divider>
         <el-form label-width="80px" size="default">
           <el-form-item label="原点 X">
-            <el-input-number v-model="rasterCalibrateForm.originX" :step="0.1" :precision="2" controls-position="right" style="width: 100%" />
-            <div class="form-tip">栅格图像左下角在地图中的 X 坐标（单位：米）</div>
+            <el-input-number
+              v-model="rasterCalibrateForm.originX"
+              :step="0.1"
+              :precision="2"
+              controls-position="right"
+              style="width: 100%"
+            />
+            <div class="form-tip">
+              栅格图像左下角在地图中的 X 坐标（单位：米）
+            </div>
           </el-form-item>
           <el-form-item label="原点 Y">
-            <el-input-number v-model="rasterCalibrateForm.originY" :step="0.1" :precision="2" controls-position="right" style="width: 100%" />
-            <div class="form-tip">栅格图像左下角在地图中的 Y 坐标（单位：米）</div>
+            <el-input-number
+              v-model="rasterCalibrateForm.originY"
+              :step="0.1"
+              :precision="2"
+              controls-position="right"
+              style="width: 100%"
+            />
+            <div class="form-tip">
+              栅格图像左下角在地图中的 Y 坐标（单位：米）
+            </div>
           </el-form-item>
           <el-form-item label="分辨率">
-            <el-input-number v-model="rasterCalibrateForm.resolution" :step="0.001" :min="0.0001" :precision="4" controls-position="right" style="width: 100%" />
+            <el-input-number
+              v-model="rasterCalibrateForm.resolution"
+              :step="0.001"
+              :min="0.0001"
+              :precision="4"
+              controls-position="right"
+              style="width: 100%"
+            />
             <div class="form-tip">米/像素，修改需谨慎</div>
           </el-form-item>
         </el-form>
         <el-divider content-position="left">快速定位</el-divider>
         <div class="quick-actions">
-          <el-button size="small" @click="resetRasterOrigin">重置到原点 (0, 0)</el-button>
-          <el-button size="small" @click="centerRasterInView">居中显示</el-button>
+          <el-button size="small" @click="resetRasterOrigin"
+            >重置到原点 (0, 0)</el-button
+          >
+          <el-button size="small" @click="centerRasterInView"
+            >居中显示</el-button
+          >
         </div>
       </div>
       <template #footer>
-        <el-button @click="rasterCalibrateDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="applyRasterCalibration">应用</el-button>
+        <el-button @click="rasterCalibrateDialogVisible = false"
+          >取消</el-button
+        >
+        <el-button type="primary" @click="applyRasterCalibration"
+          >应用</el-button
+        >
       </template>
     </el-dialog>
 
@@ -393,24 +647,57 @@
     >
       <div class="version-history">
         <div class="version-actions">
-          <el-button size="small" type="primary" @click="createVersionSnapshot">创建快照</el-button>
+          <el-button size="small" type="primary" @click="createVersionSnapshot"
+            >创建快照</el-button
+          >
           <el-button size="small" @click="refreshVersionList">刷新</el-button>
-          <el-button size="small" @click="openVersionCompareDialog">版本对比</el-button>
+          <el-button size="small" @click="openVersionCompareDialog"
+            >版本对比</el-button
+          >
         </div>
         <el-table :data="versionHistoryList" height="350" size="small" stripe>
-          <el-table-column prop="description" label="描述" min-width="120" show-overflow-tooltip />
+          <el-table-column
+            prop="description"
+            label="描述"
+            min-width="120"
+            show-overflow-tooltip
+          />
           <el-table-column label="时间" width="180">
             <template #default="{ row }">
               {{ formatVersionTime(row.timestamp) }}
             </template>
           </el-table-column>
-          <el-table-column prop="pointCount" label="点数" width="60" align="center" />
-          <el-table-column prop="pathCount" label="路径" width="60" align="center" />
-          <el-table-column prop="locationCount" label="位置" width="60" align="center" />
+          <el-table-column
+            prop="pointCount"
+            label="点数"
+            width="60"
+            align="center"
+          />
+          <el-table-column
+            prop="pathCount"
+            label="路径"
+            width="60"
+            align="center"
+          />
+          <el-table-column
+            prop="locationCount"
+            label="位置"
+            width="60"
+            align="center"
+          />
           <el-table-column label="操作" width="100" align="center">
             <template #default="{ row }">
-              <el-button type="primary" size="small" link @click="restoreVersion(row.id)">恢复</el-button>
-              <el-popconfirm title="确定删除此版本?" @confirm="deleteVersion(row.id)">
+              <el-button
+                type="primary"
+                size="small"
+                link
+                @click="restoreVersion(row.id)"
+                >恢复</el-button
+              >
+              <el-popconfirm
+                title="确定删除此版本?"
+                @confirm="deleteVersion(row.id)"
+              >
                 <template #reference>
                   <el-button type="danger" size="small" link>删除</el-button>
                 </template>
@@ -440,7 +727,12 @@
         <div class="compare-selector">
           <div class="selector-item">
             <span class="label">基准版本：</span>
-            <el-select v-model="compareVersionA" placeholder="选择版本" size="small" style="width: 200px">
+            <el-select
+              v-model="compareVersionA"
+              placeholder="选择版本"
+              size="small"
+              style="width: 200px"
+            >
               <el-option
                 v-for="v in versionHistoryList"
                 :key="v.id"
@@ -451,7 +743,12 @@
           </div>
           <div class="selector-item">
             <span class="label">对比版本：</span>
-            <el-select v-model="compareVersionB" placeholder="选择版本" size="small" style="width: 200px">
+            <el-select
+              v-model="compareVersionB"
+              placeholder="选择版本"
+              size="small"
+              style="width: 200px"
+            >
               <el-option
                 v-for="v in versionHistoryList"
                 :key="v.id"
@@ -460,32 +757,77 @@
               />
             </el-select>
           </div>
-          <el-button type="primary" size="small" :disabled="!compareVersionA || !compareVersionB" @click="runVersionCompare">对比</el-button>
+          <el-button
+            type="primary"
+            size="small"
+            :disabled="!compareVersionA || !compareVersionB"
+            @click="runVersionCompare"
+            >对比</el-button
+          >
         </div>
 
         <div v-if="compareResult" class="compare-result">
           <el-tabs v-model="compareActiveTab">
             <el-tab-pane label="点位变更" name="points">
               <div class="change-summary">
-                <el-tag type="success" size="small">新增 {{ compareResult.points.added.length }}</el-tag>
-                <el-tag type="danger" size="small">删除 {{ compareResult.points.removed.length }}</el-tag>
-                <el-tag type="warning" size="small">修改 {{ compareResult.points.modified.length }}</el-tag>
+                <el-tag type="success" size="small"
+                  >新增 {{ compareResult.points.added.length }}</el-tag
+                >
+                <el-tag type="danger" size="small"
+                  >删除 {{ compareResult.points.removed.length }}</el-tag
+                >
+                <el-tag type="warning" size="small"
+                  >修改 {{ compareResult.points.modified.length }}</el-tag
+                >
               </div>
-              <el-table :data="compareResult.points.all" height="250" size="small" stripe>
-                <el-table-column prop="changeType" label="变更" width="70" align="center">
+              <el-table
+                :data="compareResult.points.all"
+                height="250"
+                size="small"
+                stripe
+              >
+                <el-table-column
+                  prop="changeType"
+                  label="变更"
+                  width="70"
+                  align="center"
+                >
                   <template #default="{ row }">
-                    <el-tag v-if="row.changeType === 'added'" type="success" size="small">新增</el-tag>
-                    <el-tag v-else-if="row.changeType === 'removed'" type="danger" size="small">删除</el-tag>
+                    <el-tag
+                      v-if="row.changeType === 'added'"
+                      type="success"
+                      size="small"
+                      >新增</el-tag
+                    >
+                    <el-tag
+                      v-else-if="row.changeType === 'removed'"
+                      type="danger"
+                      size="small"
+                      >删除</el-tag
+                    >
                     <el-tag v-else type="warning" size="small">修改</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column prop="name" label="名称" width="120" show-overflow-tooltip />
+                <el-table-column
+                  prop="name"
+                  label="名称"
+                  width="120"
+                  show-overflow-tooltip
+                />
                 <el-table-column prop="x" label="X" width="70" align="center" />
                 <el-table-column prop="y" label="Y" width="70" align="center" />
-                <el-table-column prop="type" label="类型" width="100" show-overflow-tooltip />
+                <el-table-column
+                  prop="type"
+                  label="类型"
+                  width="100"
+                  show-overflow-tooltip
+                />
                 <el-table-column label="变更详情" min-width="200">
                   <template #default="{ row }">
-                    <span v-if="row.changeType === 'modified'" class="change-detail">
+                    <span
+                      v-if="row.changeType === 'modified'"
+                      class="change-detail"
+                    >
                       <template v-for="(val, key) in row.changes" :key="key">
                         {{ key }}: {{ val.from }} → {{ val.to }};
                       </template>
@@ -498,22 +840,56 @@
 
             <el-tab-pane label="路径变更" name="paths">
               <div class="change-summary">
-                <el-tag type="success" size="small">新增 {{ compareResult.paths.added.length }}</el-tag>
-                <el-tag type="danger" size="small">删除 {{ compareResult.paths.removed.length }}</el-tag>
-                <el-tag type="warning" size="small">修改 {{ compareResult.paths.modified.length }}</el-tag>
+                <el-tag type="success" size="small"
+                  >新增 {{ compareResult.paths.added.length }}</el-tag
+                >
+                <el-tag type="danger" size="small"
+                  >删除 {{ compareResult.paths.removed.length }}</el-tag
+                >
+                <el-tag type="warning" size="small"
+                  >修改 {{ compareResult.paths.modified.length }}</el-tag
+                >
               </div>
-              <el-table :data="compareResult.paths.all" height="250" size="small" stripe>
-                <el-table-column prop="changeType" label="变更" width="70" align="center">
+              <el-table
+                :data="compareResult.paths.all"
+                height="250"
+                size="small"
+                stripe
+              >
+                <el-table-column
+                  prop="changeType"
+                  label="变更"
+                  width="70"
+                  align="center"
+                >
                   <template #default="{ row }">
-                    <el-tag v-if="row.changeType === 'added'" type="success" size="small">新增</el-tag>
-                    <el-tag v-else-if="row.changeType === 'removed'" type="danger" size="small">删除</el-tag>
+                    <el-tag
+                      v-if="row.changeType === 'added'"
+                      type="success"
+                      size="small"
+                      >新增</el-tag
+                    >
+                    <el-tag
+                      v-else-if="row.changeType === 'removed'"
+                      type="danger"
+                      size="small"
+                      >删除</el-tag
+                    >
                     <el-tag v-else type="warning" size="small">修改</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column prop="name" label="名称" min-width="150" show-overflow-tooltip />
+                <el-table-column
+                  prop="name"
+                  label="名称"
+                  min-width="150"
+                  show-overflow-tooltip
+                />
                 <el-table-column label="变更详情" min-width="200">
                   <template #default="{ row }">
-                    <span v-if="row.changeType === 'modified'" class="change-detail">
+                    <span
+                      v-if="row.changeType === 'modified'"
+                      class="change-detail"
+                    >
                       <template v-for="(val, key) in row.changes" :key="key">
                         {{ key }}: {{ val.from }} → {{ val.to }};
                       </template>
@@ -526,22 +902,56 @@
 
             <el-tab-pane label="位置变更" name="locations">
               <div class="change-summary">
-                <el-tag type="success" size="small">新增 {{ compareResult.locations.added.length }}</el-tag>
-                <el-tag type="danger" size="small">删除 {{ compareResult.locations.removed.length }}</el-tag>
-                <el-tag type="warning" size="small">修改 {{ compareResult.locations.modified.length }}</el-tag>
+                <el-tag type="success" size="small"
+                  >新增 {{ compareResult.locations.added.length }}</el-tag
+                >
+                <el-tag type="danger" size="small"
+                  >删除 {{ compareResult.locations.removed.length }}</el-tag
+                >
+                <el-tag type="warning" size="small"
+                  >修改 {{ compareResult.locations.modified.length }}</el-tag
+                >
               </div>
-              <el-table :data="compareResult.locations.all" height="250" size="small" stripe>
-                <el-table-column prop="changeType" label="变更" width="70" align="center">
+              <el-table
+                :data="compareResult.locations.all"
+                height="250"
+                size="small"
+                stripe
+              >
+                <el-table-column
+                  prop="changeType"
+                  label="变更"
+                  width="70"
+                  align="center"
+                >
                   <template #default="{ row }">
-                    <el-tag v-if="row.changeType === 'added'" type="success" size="small">新增</el-tag>
-                    <el-tag v-else-if="row.changeType === 'removed'" type="danger" size="small">删除</el-tag>
+                    <el-tag
+                      v-if="row.changeType === 'added'"
+                      type="success"
+                      size="small"
+                      >新增</el-tag
+                    >
+                    <el-tag
+                      v-else-if="row.changeType === 'removed'"
+                      type="danger"
+                      size="small"
+                      >删除</el-tag
+                    >
                     <el-tag v-else type="warning" size="small">修改</el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column prop="name" label="名称" min-width="150" show-overflow-tooltip />
+                <el-table-column
+                  prop="name"
+                  label="名称"
+                  min-width="150"
+                  show-overflow-tooltip
+                />
                 <el-table-column label="变更详情" min-width="200">
                   <template #default="{ row }">
-                    <span v-if="row.changeType === 'modified'" class="change-detail">
+                    <span
+                      v-if="row.changeType === 'modified'"
+                      class="change-detail"
+                    >
                       <template v-for="(val, key) in row.changes" :key="key">
                         {{ key }}: {{ val.from }} → {{ val.to }};
                       </template>
@@ -563,8 +973,8 @@
     </el-dialog>
 
     <!-- 点编辑对话框 -->
-    <PointEditDialog 
-      v-model="showPointEditDialog" 
+    <PointEditDialog
+      v-model="showPointEditDialog"
       :point="currentEditPoint"
       @updated="handlePointUpdated"
     />
@@ -572,26 +982,51 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick, defineProps, defineEmits } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import MapCanvas from './components/MapCanvas.vue';
-import LayerPanel from './components/LayerPanel.vue';
-import ComponentsPanel from './components/ComponentsPanel.vue';
-import PropertyPanel from './components/PropertyPanel.vue';
-import PointEditDialog from './components/PointEditDialog.vue';
-import { useMapEditorStore } from '@/store/modules/mapEditor';
-import { useMapEditorTabsStore } from '@/store/modules/mapEditorTabs';
-import { ToolMode, LayerType } from '@/types/mapEditor';
-import type { MapPoint } from '@/types/mapEditor';
-import PathTypeIcon from './components/icons/PathTypeIcon.vue';
-import SvgIcon from '@/components/SvgIcon/index.vue';
-import { exportMapFile, importMapFile } from '@/api/opentcs/map';
-import { updateNavigationMap } from '@/api/opentcs/factory/map';
-import { Document, Close, RefreshLeft, RefreshRight, Delete, ZoomIn, ZoomOut, FullScreen, Picture, Location, Clock } from '@element-plus/icons-vue';
-import { parsePgmToDataUrl } from '@/utils/mapEditor/pgmParser';
-import type { RasterBackground } from '@/types/mapEditor';
-import request from '@/utils/request';
+import {
+  ref,
+  reactive,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+  nextTick,
+  defineProps,
+  defineEmits,
+} from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
+import MapCanvas from "./components/MapCanvas.vue";
+import LayerPanel from "./components/LayerPanel.vue";
+import ComponentsPanel from "./components/ComponentsPanel.vue";
+import PropertyPanel from "./components/PropertyPanel.vue";
+import PointEditDialog from "./components/PointEditDialog.vue";
+import { useMapEditorStore } from "@/store/modules/mapEditor";
+import { useMapEditorTabsStore } from "@/store/modules/mapEditorTabs";
+import { ToolMode, LayerType } from "@/types/mapEditor";
+import type { MapPoint } from "@/types/mapEditor";
+import { DEFAULT_POINT_OUTER_RADIUS } from "@/utils/mapEditor/mapVisualTokens";
+import PathTypeIcon from "./components/icons/PathTypeIcon.vue";
+import SvgIcon from "@/components/SvgIcon/index.vue";
+import { exportMapFile, importMapFile } from "@/api/opentcs/map";
+import { updateNavigationMap } from "@/api/opentcs/factory/map";
+import {
+  Document,
+  Close,
+  RefreshLeft,
+  RefreshRight,
+  Delete,
+  ZoomIn,
+  ZoomOut,
+  FullScreen,
+  Picture,
+  Location,
+  Clock,
+  PriceTag,
+  Box,
+} from "@element-plus/icons-vue";
+import { parsePgmToDataUrl } from "@/utils/mapEditor/pgmParser";
+import type { RasterBackground } from "@/types/mapEditor";
+import request from "@/utils/request";
 
 // Props
 const props = defineProps<{
@@ -601,8 +1036,8 @@ const props = defineProps<{
 
 // Emits
 const emit = defineEmits<{
-  (e: 'map-updated', mapName: string): void;
-  (e: 'close'): void;
+  (e: "map-updated", mapName: string): void;
+  (e: "close"): void;
 }>();
 
 const route = useRoute();
@@ -635,9 +1070,13 @@ const yamlInputRef = ref<HTMLInputElement | null>(null);
 const pgmInputRef = ref<HTMLInputElement | null>(null);
 const rasterYamlFile = ref<File | null>(null);
 const rasterPgmFile = ref<File | null>(null);
-const rasterYamlFileName = ref('');
-const rasterPgmFileName = ref('');
-const rasterParsedInfo = ref<{ resolution: number; originX: number; originY: number } | null>(null);
+const rasterYamlFileName = ref("");
+const rasterPgmFileName = ref("");
+const rasterParsedInfo = ref<{
+  resolution: number;
+  originX: number;
+  originY: number;
+} | null>(null);
 const importRasterLoading = ref(false);
 
 // 栅格坐标校准
@@ -645,27 +1084,29 @@ const rasterCalibrateDialogVisible = ref(false);
 const rasterCalibrateForm = reactive({
   originX: 0,
   originY: 0,
-  resolution: 0.05
+  resolution: 0.05,
 });
 const rasterBackgroundInfo = computed(() => mapEditorStore.rasterBackground);
 
 // 版本历史
 const versionHistoryDialogVisible = ref(false);
-const versionHistoryList = ref<{
-  id: string;
-  timestamp: number;
-  description: string;
-  pointCount: number;
-  pathCount: number;
-  locationCount: number;
-}[]>([]);
+const versionHistoryList = ref<
+  {
+    id: string;
+    timestamp: number;
+    description: string;
+    pointCount: number;
+    pathCount: number;
+    locationCount: number;
+  }[]
+>([]);
 const maxVersionCount = 20;
 
 // 版本对比
 const versionCompareDialogVisible = ref(false);
-const compareVersionA = ref<string>('');
-const compareVersionB = ref<string>('');
-const compareActiveTab = ref('points');
+const compareVersionA = ref<string>("");
+const compareVersionB = ref<string>("");
+const compareActiveTab = ref("points");
 const compareResult = ref<{
   points: { added: any[]; removed: any[]; modified: any[]; all: any[] };
   paths: { added: any[]; removed: any[]; modified: any[]; all: any[] };
@@ -673,22 +1114,28 @@ const compareResult = ref<{
 } | null>(null);
 
 // CSV 导入相关计算属性
-const csvValidCount = computed(() => csvParsedData.value.filter(d => !d.error).length);
-const csvErrorCount = computed(() => csvParsedData.value.filter(d => d.error).length);
+const csvValidCount = computed(
+  () => csvParsedData.value.filter((d) => !d.error).length,
+);
+const csvErrorCount = computed(
+  () => csvParsedData.value.filter((d) => d.error).length,
+);
 
 // 批量导入点位 CSV
 const importCsvDialogVisible = ref(false);
 const csvInputRef = ref<HTMLInputElement | null>(null);
-const csvFileName = ref('');
-const csvParsedData = ref<{
-  name: string;
-  code?: string;
-  x: number;
-  y: number;
-  type: string;
-  description?: string;
-  error?: string;
-}[]>([]);
+const csvFileName = ref("");
+const csvParsedData = ref<
+  {
+    name: string;
+    code?: string;
+    x: number;
+    y: number;
+    type: string;
+    description?: string;
+    error?: string;
+  }[]
+>([]);
 
 // 图层面板折叠状态（默认收起）
 const isLayerPanelCollapsed = ref(true);
@@ -697,10 +1144,10 @@ const isLayerPanelCollapsed = ref(true);
 const isPropertyPanelCollapsed = ref(false);
 
 // 面板折叠状态与高度（支持记忆）
-const PROPERTY_PANEL_HEIGHT_KEY = 'map-editor-property-panel-height';
-const LAYER_PANEL_HEIGHT_KEY = 'map-editor-layer-panel-height';
-const PROPERTY_PANEL_COLLAPSED_KEY = 'map-editor-property-panel-collapsed';
-const LAYER_PANEL_COLLAPSED_KEY = 'map-editor-layer-panel-collapsed';
+const PROPERTY_PANEL_HEIGHT_KEY = "map-editor-property-panel-height";
+const LAYER_PANEL_HEIGHT_KEY = "map-editor-layer-panel-height";
+const PROPERTY_PANEL_COLLAPSED_KEY = "map-editor-property-panel-collapsed";
+const LAYER_PANEL_COLLAPSED_KEY = "map-editor-layer-panel-collapsed";
 const DEFAULT_LAYER_PANEL_HEIGHT = 200; // 图层面板默认展开高度，避免占满左侧
 const propertyPanelHeight = ref<number | null>(null);
 const layerPanelHeight = ref<number | null>(null);
@@ -716,7 +1163,7 @@ const mapIssues = ref<any[]>([]);
 const hasPathSelected = computed(() => {
   const selectedType = mapEditorStore.selection.selectedType;
   const selectedIds = mapEditorStore.selection.selectedIds;
-  return selectedType === 'path' && selectedIds.size > 0;
+  return selectedType === "path" && selectedIds.size > 0;
 });
 
 // 仿真控制
@@ -764,30 +1211,33 @@ const runMapValidation = () => {
 
   // 1. 断连检测 - 找出未连接到任何路径的点
   const connectedPointIds = new Set<string>();
-  paths.forEach(path => {
+  paths.forEach((path) => {
     if (path.startPointId) connectedPointIds.add(String(path.startPointId));
     if (path.endPointId) connectedPointIds.add(String(path.endPointId));
   });
-  points.forEach(point => {
+  points.forEach((point) => {
     if (!connectedPointIds.has(point.id)) {
       issues.push({
         id: `disconnected-${point.id}`,
-        type: 'disconnected',
-        severity: 'warning',
+        type: "disconnected",
+        severity: "warning",
         message: `点位 "${point.name}" 未连接到任何路径`,
         elementIds: [point.id],
-        position: { x: point.x, y: point.y }
+        position: { x: point.x, y: point.y },
       });
     }
   });
 
   // 2. 路径交叉检测 - 简单的线段交叉检测
   const pathSegments: { id: string; points: { x: number; y: number }[] }[] = [];
-  paths.forEach(path => {
-    if (path.geometry.controlPoints && path.geometry.controlPoints.length >= 2) {
+  paths.forEach((path) => {
+    if (
+      path.geometry.controlPoints &&
+      path.geometry.controlPoints.length >= 2
+    ) {
       pathSegments.push({
         id: path.id,
-        points: path.geometry.controlPoints
+        points: path.geometry.controlPoints,
       });
     }
   });
@@ -795,26 +1245,34 @@ const runMapValidation = () => {
   // 检查路径是否形成回路
   for (let i = 0; i < paths.length; i++) {
     const path1 = paths[i];
-    if (!path1.geometry.controlPoints || path1.geometry.controlPoints.length < 2) continue;
+    if (
+      !path1.geometry.controlPoints ||
+      path1.geometry.controlPoints.length < 2
+    )
+      continue;
 
     const start1 = path1.geometry.controlPoints[0];
-    const end1 = path1.geometry.controlPoints[path1.geometry.controlPoints.length - 1];
+    const end1 =
+      path1.geometry.controlPoints[path1.geometry.controlPoints.length - 1];
 
     // 检查是否形成孤立回路（起点和终点相连但中间没有其他连接）
     if (String(start1.id) === String(path1.endPointId) && paths.length > 1) {
       issues.push({
         id: `loop-${path1.id}`,
-        type: 'intersection',
-        severity: 'warning',
+        type: "intersection",
+        severity: "warning",
         message: `路径 "${path1.name}" 形成孤立回路`,
-        elementIds: [path1.id]
+        elementIds: [path1.id],
       });
     }
   }
 
   // 3. 转弯半径检测 - 检测路径拐角是否过急
-  paths.forEach(path => {
-    if (path.geometry.controlPoints && path.geometry.controlPoints.length >= 3) {
+  paths.forEach((path) => {
+    if (
+      path.geometry.controlPoints &&
+      path.geometry.controlPoints.length >= 3
+    ) {
       for (let i = 1; i < path.geometry.controlPoints.length - 1; i++) {
         const prev = path.geometry.controlPoints[i - 1];
         const curr = path.geometry.controlPoints[i];
@@ -823,18 +1281,18 @@ const runMapValidation = () => {
         // 计算转弯角度
         const angle1 = Math.atan2(curr.y - prev.y, curr.x - prev.x);
         const angle2 = Math.atan2(next.y - curr.y, next.x - curr.x);
-        let angleDiff = Math.abs(angle1 - angle2) * 180 / Math.PI;
+        let angleDiff = (Math.abs(angle1 - angle2) * 180) / Math.PI;
         if (angleDiff > 180) angleDiff = 360 - angleDiff;
 
         // 如果转弯角度大于90度，给出警告
         if (angleDiff > 90) {
           issues.push({
             id: `radius-${path.id}-${i}`,
-            type: 'radius',
-            severity: 'warning',
+            type: "radius",
+            severity: "warning",
             message: `路径 "${path.name}" 转弯角度过大 (${angleDiff.toFixed(1)}°)`,
             elementIds: [path.id],
-            position: { x: curr.x, y: curr.y }
+            position: { x: curr.x, y: curr.y },
           });
         }
       }
@@ -850,17 +1308,23 @@ const runMapValidation = () => {
       // 简单的重心距离检测
       const centroid1 = getLocationCentroid(loc1);
       const centroid2 = getLocationCentroid(loc2);
-      const distance = Math.hypot(centroid1.x - centroid2.x, centroid1.y - centroid2.y);
+      const distance = Math.hypot(
+        centroid1.x - centroid2.x,
+        centroid1.y - centroid2.y,
+      );
 
       // 假设位置区域大小为40px，如果距离小于40则认为重叠
       if (distance < 40) {
         issues.push({
           id: `overlap-${loc1.id}-${loc2.id}`,
-          type: 'overlap',
-          severity: 'error',
+          type: "overlap",
+          severity: "error",
           message: `位置区域 "${loc1.name}" 与 "${loc2.name}" 重叠`,
           elementIds: [loc1.id, loc2.id],
-          position: { x: (centroid1.x + centroid2.x) / 2, y: (centroid1.y + centroid2.y) / 2 }
+          position: {
+            x: (centroid1.x + centroid2.x) / 2,
+            y: (centroid1.y + centroid2.y) / 2,
+          },
         });
       }
     }
@@ -869,7 +1333,7 @@ const runMapValidation = () => {
   mapIssues.value = issues;
 
   if (issues.length === 0) {
-    ElMessage.success('地图检测通过，未发现问题');
+    ElMessage.success("地图检测通过，未发现问题");
   } else {
     ElMessage.warning(`检测到 ${issues.length} 个问题`);
   }
@@ -881,7 +1345,8 @@ const getLocationCentroid = (location: any) => {
   if (vertices.length === 0) {
     return { x: location.x || 0, y: location.y || 0 };
   }
-  let x = 0, y = 0;
+  let x = 0,
+    y = 0;
   vertices.forEach((v: any) => {
     x += v.x;
     y += v.y;
@@ -893,7 +1358,7 @@ const getLocationCentroid = (location: any) => {
 const LEFT_PANEL_MIN_WIDTH = 200;
 const LEFT_PANEL_MAX_WIDTH = 600;
 const LEFT_PANEL_DEFAULT_WIDTH = 280;
-const LEFT_PANEL_WIDTH_KEY = 'map-editor-left-panel-width';
+const LEFT_PANEL_WIDTH_KEY = "map-editor-left-panel-width";
 
 const leftPanelWidth = ref(LEFT_PANEL_DEFAULT_WIDTH);
 const isResizing = ref(false);
@@ -910,12 +1375,16 @@ const canvasState = computed(() => mapEditorStore.canvasState);
 
 // 比例尺（mm/单位），用于状态栏换算与 openTCS 一致
 const scaleX = computed(() => {
-  const v = mapEditorStore.mapData?.mapInfo?.scaleX ?? mapEditorStore.mapData?.visualLayout?.scaleX;
-  return typeof v === 'number' ? v : (v != null ? parseFloat(String(v)) : null);
+  const v =
+    mapEditorStore.mapData?.mapInfo?.scaleX ??
+    mapEditorStore.mapData?.visualLayout?.scaleX;
+  return typeof v === "number" ? v : v != null ? parseFloat(String(v)) : null;
 });
 const scaleY = computed(() => {
-  const v = mapEditorStore.mapData?.mapInfo?.scaleY ?? mapEditorStore.mapData?.visualLayout?.scaleY;
-  return typeof v === 'number' ? v : (v != null ? parseFloat(String(v)) : null);
+  const v =
+    mapEditorStore.mapData?.mapInfo?.scaleY ??
+    mapEditorStore.mapData?.visualLayout?.scaleY;
+  return typeof v === "number" ? v : v != null ? parseFloat(String(v)) : null;
 });
 
 // 画布缩放比例
@@ -924,7 +1393,10 @@ const canvasScale = computed(() => {
 });
 
 // 模型坐标 → 实际长度显示（单位 mm，≥1000 时显示为 m）
-const formatModelLength = (modelUnits: number, scaleMmPerUnit: number): string => {
+const formatModelLength = (
+  modelUnits: number,
+  scaleMmPerUnit: number,
+): string => {
   const mm = modelUnits * scaleMmPerUnit;
   if (Math.abs(mm) >= 1000) return `${(mm / 1000).toFixed(2)} m`;
   return `${mm.toFixed(1)} mm`;
@@ -932,51 +1404,32 @@ const formatModelLength = (modelUnits: number, scaleMmPerUnit: number): string =
 
 const hasSelection = computed(() => {
   const { selectedIds, selectedType } = mapEditorStore.selection;
-  return selectedIds.size > 0 && selectedType !== 'layout';
+  return selectedIds.size > 0 && selectedType !== "layout";
 });
 
-type PathConnectionType = 'direct' | 'orthogonal' | 'curve';
+type PathConnectionType = "direct" | "orthogonal" | "curve";
 
-// 工具切换
+// 工具切换（不弹 Toast，工具栏已有图标+文字状态）
 const setTool = (tool: ToolMode) => {
   mapEditorStore.setTool(tool);
-  
-  // 显示中文提示
-  const toolNames: Partial<Record<ToolMode, string>> = {
-    [ToolMode.SELECT]: '选择工具',
-    [ToolMode.PAN]: '漫游工具',
-    [ToolMode.POINT]: '绘制点',
-    [ToolMode.PATH]: '绘制路径',
-    [ToolMode.LOCATION]: '绘制位置',
-    [ToolMode.ZOOM]: '缩放工具',
-    [ToolMode.DASHED_LINK]: '虚线链接',
-    [ToolMode.RULE_REGION]: '规则区域'
-  };
-  
-  ElMessage.success(`已切换到${toolNames[tool]}`);
 };
 
 const getPointTypeIconClass = (type: string) => {
-  return type === 'Park point' ? 'park-point' : 'halt-point';
+  return type === "Park point" ? "park-point" : "halt-point";
 };
 
 // 获取点位类型标签
 const getPointTypeLabel = (type: string) => {
   const labelMap: Record<string, string> = {
-    'Halt point': '临时停车',
-    'Park point': '长时间停车'
+    "Halt point": "临时停车",
+    "Park point": "长时间停车",
   };
-  return labelMap[type] || '临时停车';
+  return labelMap[type] || "临时停车";
 };
 
 // 点位类型切换
 const handlePointTypeChange = (type: string) => {
   mapEditorStore.setPointType(type);
-  const typeNames: Record<string, string> = {
-    'Halt point': '临时停车',
-    'Park point': '长时间停车'
-  };
-  ElMessage.success(`点位类型已切换为：${typeNames[type]}`);
 };
 
 // 连线工具点击：同时切换工具和连线类型
@@ -996,14 +1449,19 @@ const handlePointDropdownVisible = (visible: boolean) => {
 // 图层面板折叠/展开（带状态记忆）
 const toggleLayerPanelCollapse = () => {
   isLayerPanelCollapsed.value = !isLayerPanelCollapsed.value;
-  localStorage.setItem(LAYER_PANEL_COLLAPSED_KEY, isLayerPanelCollapsed.value ? '1' : '0');
+  localStorage.setItem(
+    LAYER_PANEL_COLLAPSED_KEY,
+    isLayerPanelCollapsed.value ? "1" : "0",
+  );
 
   nextTick(() => {
-    const layerEl = document.querySelector('.left-panels .layer-panel-container') as HTMLElement | null;
+    const layerEl = document.querySelector(
+      ".left-panels .layer-panel-container",
+    ) as HTMLElement | null;
     if (!layerEl) return;
     // 收起时让高度回到 header 自身高度，展开时恢复为记忆高度或默认高度
     if (isLayerPanelCollapsed.value) {
-      layerEl.style.height = '';
+      layerEl.style.height = "";
     } else {
       const h = layerPanelHeight.value ?? DEFAULT_LAYER_PANEL_HEIGHT;
       layerEl.style.height = `${h}px`;
@@ -1014,14 +1472,19 @@ const toggleLayerPanelCollapse = () => {
 // 属性面板折叠/展开（带状态记忆）
 const togglePropertyPanelCollapse = () => {
   isPropertyPanelCollapsed.value = !isPropertyPanelCollapsed.value;
-  localStorage.setItem(PROPERTY_PANEL_COLLAPSED_KEY, isPropertyPanelCollapsed.value ? '1' : '0');
+  localStorage.setItem(
+    PROPERTY_PANEL_COLLAPSED_KEY,
+    isPropertyPanelCollapsed.value ? "1" : "0",
+  );
 
   nextTick(() => {
-    const propertyEl = document.querySelector('.left-panels .property-panel-container') as HTMLElement | null;
+    const propertyEl = document.querySelector(
+      ".left-panels .property-panel-container",
+    ) as HTMLElement | null;
     if (!propertyEl) return;
     // 收起时让高度回到 header 自身高度，展开时恢复为记忆高度
     if (isPropertyPanelCollapsed.value) {
-      propertyEl.style.height = '';
+      propertyEl.style.height = "";
     } else if (propertyPanelHeight.value !== null) {
       propertyEl.style.height = `${propertyPanelHeight.value}px`;
     }
@@ -1031,18 +1494,21 @@ const togglePropertyPanelCollapse = () => {
 // 单个面板高度拖拽
 const isVerticalResizing = ref(false);
 const verticalResizeStartY = ref(0);
-const verticalResizeTarget = ref<'property' | 'layer' | null>(null);
+const verticalResizeTarget = ref<"property" | "layer" | null>(null);
 const startPanelHeight = ref(0);
 
-const handlePanelResizeStart = (target: 'property' | 'layer', e: MouseEvent) => {
+const handlePanelResizeStart = (
+  target: "property" | "layer",
+  e: MouseEvent,
+) => {
   // 未展开时不允许拖动
-  if (target === 'property' && isPropertyPanelCollapsed.value) return;
-  if (target === 'layer' && isLayerPanelCollapsed.value) return;
+  if (target === "property" && isPropertyPanelCollapsed.value) return;
+  if (target === "layer" && isLayerPanelCollapsed.value) return;
 
   const selector =
-    target === 'property'
-      ? '.left-panels .property-panel-container'
-      : '.left-panels .layer-panel-container';
+    target === "property"
+      ? ".left-panels .property-panel-container"
+      : ".left-panels .layer-panel-container";
   const panelEl = document.querySelector(selector) as HTMLElement | null;
   if (!panelEl) return;
 
@@ -1051,10 +1517,10 @@ const handlePanelResizeStart = (target: 'property' | 'layer', e: MouseEvent) => 
   verticalResizeStartY.value = e.clientY;
   startPanelHeight.value = panelEl.getBoundingClientRect().height;
 
-  document.addEventListener('mousemove', handlePanelResizeMove);
-  document.addEventListener('mouseup', handlePanelResizeEnd);
-  document.body.style.cursor = 'row-resize';
-  document.body.style.userSelect = 'none';
+  document.addEventListener("mousemove", handlePanelResizeMove);
+  document.addEventListener("mouseup", handlePanelResizeEnd);
+  document.body.style.cursor = "row-resize";
+  document.body.style.userSelect = "none";
 
   e.preventDefault();
 };
@@ -1063,9 +1529,9 @@ const handlePanelResizeMove = (e: MouseEvent) => {
   if (!isVerticalResizing.value || !verticalResizeTarget.value) return;
 
   const selector =
-    verticalResizeTarget.value === 'property'
-      ? '.left-panels .property-panel-container'
-      : '.left-panels .layer-panel-container';
+    verticalResizeTarget.value === "property"
+      ? ".left-panels .property-panel-container"
+      : ".left-panels .layer-panel-container";
   const panelEl = document.querySelector(selector) as HTMLElement | null;
   if (!panelEl) return;
 
@@ -1077,7 +1543,7 @@ const handlePanelResizeMove = (e: MouseEvent) => {
 
   panelEl.style.height = `${newHeight}px`;
 
-  if (verticalResizeTarget.value === 'property') {
+  if (verticalResizeTarget.value === "property") {
     propertyPanelHeight.value = newHeight;
   } else {
     layerPanelHeight.value = newHeight;
@@ -1089,16 +1555,22 @@ const handlePanelResizeEnd = () => {
 
   isVerticalResizing.value = false;
   verticalResizeTarget.value = null;
-  document.removeEventListener('mousemove', handlePanelResizeMove);
-  document.removeEventListener('mouseup', handlePanelResizeEnd);
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
+  document.removeEventListener("mousemove", handlePanelResizeMove);
+  document.removeEventListener("mouseup", handlePanelResizeEnd);
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
 
   if (propertyPanelHeight.value !== null) {
-    localStorage.setItem(PROPERTY_PANEL_HEIGHT_KEY, propertyPanelHeight.value.toString());
+    localStorage.setItem(
+      PROPERTY_PANEL_HEIGHT_KEY,
+      propertyPanelHeight.value.toString(),
+    );
   }
   if (layerPanelHeight.value !== null) {
-    localStorage.setItem(LAYER_PANEL_HEIGHT_KEY, layerPanelHeight.value.toString());
+    localStorage.setItem(
+      LAYER_PANEL_HEIGHT_KEY,
+      layerPanelHeight.value.toString(),
+    );
   }
 };
 
@@ -1115,14 +1587,14 @@ const redo = () => {
 const zoomIn = () => {
   const currentScale = mapEditorStore.canvasState.scale;
   mapEditorStore.updateCanvasState({
-    scale: Math.min(currentScale * 1.2, 10)
+    scale: Math.min(currentScale * 1.2, 10),
   });
 };
 
 const zoomOut = () => {
   const currentScale = mapEditorStore.canvasState.scale;
   mapEditorStore.updateCanvasState({
-    scale: Math.max(currentScale / 1.2, 0.1)
+    scale: Math.max(currentScale / 1.2, 0.1),
   });
 };
 
@@ -1130,7 +1602,7 @@ const resetZoom = () => {
   mapEditorStore.updateCanvasState({
     scale: 1,
     offsetX: 0,
-    offsetY: 0
+    offsetY: 0,
   });
 };
 
@@ -1143,28 +1615,28 @@ const toggleLabels = () => {
     (mapCanvasRef.value as any).setLabelsVisible?.(showLabels.value);
   }
   // 更新store中所有元素的labelVisible
-  mapEditorStore.points.forEach(point => {
+  mapEditorStore.points.forEach((point) => {
     mapEditorStore.updatePoint(point.id, {
       editorProps: {
         ...point.editorProps,
-        labelVisible: showLabels.value
-      }
+        labelVisible: showLabels.value,
+      },
     });
   });
-  mapEditorStore.paths.forEach(path => {
+  mapEditorStore.paths.forEach((path) => {
     mapEditorStore.updatePath(path.id, {
       editorProps: {
         ...path.editorProps,
-        labelVisible: showLabels.value
-      }
+        labelVisible: showLabels.value,
+      },
     });
   });
-  mapEditorStore.locations.forEach(location => {
+  mapEditorStore.locations.forEach((location) => {
     mapEditorStore.updateLocation(location.id, {
       editorProps: {
         ...location.editorProps,
-        labelVisible: showLabels.value
-      }
+        labelVisible: showLabels.value,
+      },
     });
   });
 };
@@ -1179,72 +1651,76 @@ const toggleBlocks = () => {
 };
 
 // 监听画布的鼠标位置变化
-watch(() => mapCanvasRef.value, (canvas) => {
-  if (canvas) {
-    // 定期更新鼠标位置
-    const updateMousePosition = () => {
-      try {
-        const pos = (canvas as any).getMousePosition?.();
-        if (pos) {
-          mousePosition.value = pos;
+watch(
+  () => mapCanvasRef.value,
+  (canvas) => {
+    if (canvas) {
+      // 定期更新鼠标位置
+      const updateMousePosition = () => {
+        try {
+          const pos = (canvas as any).getMousePosition?.();
+          if (pos) {
+            mousePosition.value = pos;
+          }
+        } catch (e) {
+          // 忽略错误
         }
-      } catch (e) {
-        // 忽略错误
-      }
-    };
-    
-    // 使用 requestAnimationFrame 更新
-    let rafId: number;
-    const update = () => {
-      updateMousePosition();
+      };
+
+      // 使用 requestAnimationFrame 更新
+      let rafId: number;
+      const update = () => {
+        updateMousePosition();
+        rafId = requestAnimationFrame(update);
+      };
       rafId = requestAnimationFrame(update);
-    };
-    rafId = requestAnimationFrame(update);
-    
-    onUnmounted(() => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-    });
-  }
-}, { immediate: true });
+
+      onUnmounted(() => {
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+        }
+      });
+    }
+  },
+  { immediate: true },
+);
 
 // 拖拽调整左侧面板宽度
 const handleResizeStart = (e: MouseEvent) => {
   isResizing.value = true;
   resizeStartX.value = e.clientX;
   resizeStartWidth.value = leftPanelWidth.value;
-  
-  document.addEventListener('mousemove', handleResizeMove);
-  document.addEventListener('mouseup', handleResizeEnd);
-  document.body.style.cursor = 'col-resize';
-  document.body.style.userSelect = 'none';
-  
+
+  document.addEventListener("mousemove", handleResizeMove);
+  document.addEventListener("mouseup", handleResizeEnd);
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
+
   e.preventDefault();
 };
 
 const handleResizeMove = (e: MouseEvent) => {
   if (!isResizing.value) return;
-  
+
   const deltaX = e.clientX - resizeStartX.value;
   const newWidth = resizeStartWidth.value + deltaX;
-  
+
   // 限制宽度范围
   leftPanelWidth.value = Math.max(
     LEFT_PANEL_MIN_WIDTH,
-    Math.min(LEFT_PANEL_MAX_WIDTH, newWidth)
+    Math.min(LEFT_PANEL_MAX_WIDTH, newWidth),
   );
 };
 
 const handleResizeEnd = () => {
   if (!isResizing.value) return;
-  
+
   isResizing.value = false;
-  document.removeEventListener('mousemove', handleResizeMove);
-  document.removeEventListener('mouseup', handleResizeEnd);
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-  
+  document.removeEventListener("mousemove", handleResizeMove);
+  document.removeEventListener("mouseup", handleResizeEnd);
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
+
   // 保存宽度到 localStorage
   localStorage.setItem(LEFT_PANEL_WIDTH_KEY, leftPanelWidth.value.toString());
 };
@@ -1261,13 +1737,15 @@ onMounted(async () => {
   }
 
   // 从 localStorage 加载属性/图层面板折叠状态
-  const savedPropertyCollapsed = localStorage.getItem(PROPERTY_PANEL_COLLAPSED_KEY);
+  const savedPropertyCollapsed = localStorage.getItem(
+    PROPERTY_PANEL_COLLAPSED_KEY,
+  );
   const savedLayerCollapsed = localStorage.getItem(LAYER_PANEL_COLLAPSED_KEY);
   if (savedPropertyCollapsed !== null) {
-    isPropertyPanelCollapsed.value = savedPropertyCollapsed === '1';
+    isPropertyPanelCollapsed.value = savedPropertyCollapsed === "1";
   }
   if (savedLayerCollapsed !== null) {
-    isLayerPanelCollapsed.value = savedLayerCollapsed === '1';
+    isLayerPanelCollapsed.value = savedLayerCollapsed === "1";
   }
 
   // 从 localStorage 加载属性/图层面板高度
@@ -1288,12 +1766,16 @@ onMounted(async () => {
 
   // 根据折叠状态应用高度
   nextTick(() => {
-    const propertyEl = document.querySelector('.left-panels .property-panel-container') as HTMLElement | null;
-    const layerEl = document.querySelector('.left-panels .layer-panel-container') as HTMLElement | null;
+    const propertyEl = document.querySelector(
+      ".left-panels .property-panel-container",
+    ) as HTMLElement | null;
+    const layerEl = document.querySelector(
+      ".left-panels .layer-panel-container",
+    ) as HTMLElement | null;
 
     if (propertyEl) {
       if (isPropertyPanelCollapsed.value) {
-        propertyEl.style.height = '';
+        propertyEl.style.height = "";
       } else if (propertyPanelHeight.value !== null) {
         propertyEl.style.height = `${propertyPanelHeight.value}px`;
       }
@@ -1301,39 +1783,40 @@ onMounted(async () => {
 
     if (layerEl) {
       if (isLayerPanelCollapsed.value) {
-        layerEl.style.height = '';
+        layerEl.style.height = "";
       } else {
         const h = layerPanelHeight.value ?? DEFAULT_LAYER_PANEL_HEIGHT;
         layerEl.style.height = `${h}px`;
       }
     }
   });
-  
+
   // 加载地图数据：
   // - 如果带有 mapId（从地图列表”编辑”跳转），则从后端加载对应地图
   // - 如果没有 mapId（从左侧菜单直接打开），则进入”空白编辑器”模式，不再强制调用 loadMap，避免报错
   // 优先使用：1. props.mapId  2. route.query.mapId  3. 当前活动标签页的ID
-  let loadedMapId = props.mapId || route.query.mapId as string;
+  let loadedMapId = props.mapId || (route.query.mapId as string);
   if (!loadedMapId && mapEditorTabsStore.activeTab) {
     loadedMapId = mapEditorTabsStore.activeTab.id;
   }
   if (loadedMapId) {
     try {
       await mapEditorStore.loadMap(loadedMapId);
-      ElMessage.success('地图加载成功');
+      ElMessage.success("地图加载成功");
     } catch (error: any) {
-      const errorMessage = error?.response?.data?.msg || error?.message || '加载失败';
-      ElMessage.error('加载地图失败：' + errorMessage);
-      console.error('加载错误详情:', error);
+      const errorMessage =
+        error?.response?.data?.msg || error?.message || "加载失败";
+      ElMessage.error("加载地图失败：" + errorMessage);
+      console.error("加载错误详情:", error);
     }
   } else {
     // 从菜单直接打开：重置为干净状态，由用户通过”导入地图 / 导入 openTCS 模型”加载数据
     mapEditorStore.reset();
   }
-  
+
   // 注册键盘事件
-  window.addEventListener('keydown', handleKeyDown);
-  
+  window.addEventListener("keydown", handleKeyDown);
+
   // 确保网格大小为20（MapCanvas组件默认就是20，这里确保一下）
   nextTick(() => {
     if (mapCanvasRef.value) {
@@ -1346,14 +1829,16 @@ onMounted(async () => {
 const handleSave = async () => {
   try {
     await mapEditorStore.saveMap();
-    ElMessage.success('保存成功');
+    ElMessage.success("保存成功");
     // 通知父组件地图已更新
-    const mapName = mapEditorStore.mapData?.mapInfo?.name || props.mapName || '未命名';
-    emit('map-updated', mapName);
+    const mapName =
+      mapEditorStore.mapData?.mapInfo?.name || props.mapName || "未命名";
+    emit("map-updated", mapName);
   } catch (error: any) {
-    const errorMessage = error?.response?.data?.msg || error?.message || '保存失败';
-    ElMessage.error('保存失败：' + errorMessage);
-    console.error('保存错误详情:', error);
+    const errorMessage =
+      error?.response?.data?.msg || error?.message || "保存失败";
+    ElMessage.error("保存失败：" + errorMessage);
+    console.error("保存错误详情:", error);
   }
 };
 
@@ -1361,18 +1846,18 @@ const handleSave = async () => {
 const handleClose = async () => {
   if (isDirty.value) {
     try {
-      await ElMessageBox.confirm('有未保存的更改，是否保存？', '提示', {
-        confirmButtonText: '保存',
-        cancelButtonText: '不保存',
+      await ElMessageBox.confirm("有未保存的更改，是否保存？", "提示", {
+        confirmButtonText: "保存",
+        cancelButtonText: "不保存",
         distinguishCancelAndClose: true,
-        type: 'warning'
+        type: "warning",
       });
       await handleSave();
     } catch (error) {
       // 用户取消或选择不保存
     }
   }
-  
+
   router.back();
 };
 
@@ -1391,103 +1876,103 @@ const handlePointUpdated = () => {
 const handleQuickDuplicate = () => {
   const selectedIds = mapEditorStore.selection.selectedIds;
   if (selectedIds.size === 0) {
-    ElMessage.warning('请先选择要复制的元素');
+    ElMessage.warning("请先选择要复制的元素");
     return;
   }
   mapEditorStore.duplicateSelected();
-  ElMessage.success('已复制选中元素');
+  ElMessage.success("已复制选中元素");
 };
 
 // 导出地图
 const handleExportMap = () => {
   if (!mapEditorStore.mapData) {
-    ElMessage.warning('没有可导出的地图数据');
+    ElMessage.warning("没有可导出的地图数据");
     return;
   }
-  
+
   // 创建导出数据
   const exportData = {
     ...mapEditorStore.mapData,
-    exportTime: new Date().toISOString()
+    exportTime: new Date().toISOString(),
   };
-  
+
   // 转换为JSON字符串
   const jsonString = JSON.stringify(exportData, null, 2);
-  
+
   // 创建Blob对象
-  const blob = new Blob([jsonString], { type: 'application/json' });
-  
+  const blob = new Blob([jsonString], { type: "application/json" });
+
   // 创建下载链接
   const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
+  const link = document.createElement("a");
   link.href = url;
-  link.download = `${mapEditorStore.mapData.mapInfo.name || 'map'}_${Date.now()}.json`;
+  link.download = `${mapEditorStore.mapData.mapInfo.name || "map"}_${Date.now()}.json`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
-  
-  ElMessage.success('地图导出成功');
+
+  ElMessage.success("地图导出成功");
 };
 
 // 导出 openTCS 模型（当前使用后端导出的 PlantModel JSON）
 const handleExportModel = async () => {
   const modelId = mapEditorStore.currentMapModelId;
   if (!modelId) {
-    ElMessage.warning('当前没有可导出的地图模型');
+    ElMessage.warning("当前没有可导出的地图模型");
     return;
   }
   try {
     const blob = await exportMapFile(modelId);
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
-    link.download = `${mapEditorStore.mapData?.mapInfo.name || 'plant_model'}.json`;
+    link.download = `${mapEditorStore.mapData?.mapInfo.name || "plant_model"}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    ElMessage.success('openTCS 模型导出成功');
+    ElMessage.success("openTCS 模型导出成功");
   } catch (error: any) {
-    ElMessage.error('导出 openTCS 模型失败：' + (error?.message || '未知错误'));
+    ElMessage.error("导出 openTCS 模型失败：" + (error?.message || "未知错误"));
   }
 };
 
 // 导入地图
 const handleImportMap = () => {
   // 创建文件输入元素
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
-  
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json";
+
   input.onchange = async (e) => {
     const target = e.target as HTMLInputElement;
     if (!target.files || target.files.length === 0) {
       return;
     }
-    
+
     const file = target.files[0];
     const reader = new FileReader();
-    
+
     reader.onload = async (event) => {
       try {
         const content = event.target?.result as string;
         const importData = JSON.parse(content);
-        
+
         // 确认导入
         await ElMessageBox.confirm(
-          `确定要导入地图 "${importData.mapInfo?.name || '未知'}" 吗？这将覆盖当前地图数据。`,
-          '确认导入',
+          `确定要导入地图 "${importData.mapInfo?.name || "未知"}" 吗？这将覆盖当前地图数据。`,
+          "确认导入",
           {
-            confirmButtonText: '确定',
-            cancelButtonText: '取消',
-            type: 'warning'
-          }
+            confirmButtonText: "确定",
+            cancelButtonText: "取消",
+            type: "warning",
+          },
         );
-        
+
         // 重置编辑器
         mapEditorStore.reset();
-        
+
         // 加载导入的数据
         mapEditorStore.mapData = importData;
         mapEditorStore.layerGroups = importData.layerGroups || [];
@@ -1495,7 +1980,7 @@ const handleImportMap = () => {
         mapEditorStore.points = importData.elements?.points || [];
         mapEditorStore.paths = importData.elements?.paths || [];
         mapEditorStore.locations = importData.elements?.locations || [];
-        
+
         // 更新画布状态
         if (importData.mapInfo) {
           mapEditorStore.updateCanvasState({
@@ -1503,34 +1988,34 @@ const handleImportMap = () => {
             height: importData.mapInfo.height || 1080,
             scale: importData.mapInfo.scale || 1,
             offsetX: importData.mapInfo.offsetX || 0,
-            offsetY: importData.mapInfo.offsetY || 0
+            offsetY: importData.mapInfo.offsetY || 0,
           });
         }
-        
+
         // 设置激活图层
         if (mapEditorStore.layers.length > 0) {
           mapEditorStore.setActiveLayer(mapEditorStore.layers[0].id);
         }
-        
-        ElMessage.success('地图导入成功');
+
+        ElMessage.success("地图导入成功");
       } catch (error: any) {
-        if (error.message !== 'cancel') {
-          ElMessage.error('导入失败：' + error.message);
+        if (error.message !== "cancel") {
+          ElMessage.error("导入失败：" + error.message);
         }
       }
     };
-    
+
     reader.readAsText(file);
   };
-  
+
   input.click();
 };
 
 // 导入 openTCS 模型文件（调用后端导入接口）
 const handleImportModel = () => {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json,.xml';
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,.xml";
 
   input.onchange = async (e) => {
     const target = e.target as HTMLInputElement;
@@ -1541,9 +2026,11 @@ const handleImportModel = () => {
     const file = target.files[0];
     try {
       await importMapFile(file);
-      ElMessage.success('openTCS 模型导入成功，请在地图列表中查看新建地图');
+      ElMessage.success("openTCS 模型导入成功，请在地图列表中查看新建地图");
     } catch (error: any) {
-      ElMessage.error('导入 openTCS 模型失败：' + (error?.message || '未知错误'));
+      ElMessage.error(
+        "导入 openTCS 模型失败：" + (error?.message || "未知错误"),
+      );
     }
   };
 
@@ -1552,9 +2039,9 @@ const handleImportModel = () => {
 
 // 导入导航站点（stations.json）
 const handleImportStations = () => {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.json';
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json";
 
   input.onchange = async (e) => {
     const target = e.target as HTMLInputElement;
@@ -1573,35 +2060,41 @@ const handleImportStations = () => {
           : [];
 
       if (!stations.length) {
-        ElMessage.error('文件中未找到 stations 数组');
+        ElMessage.error("文件中未找到 stations 数组");
         return;
       }
 
       if (!mapEditorStore.mapData) {
-        ElMessage.warning('请先加载或创建地图后再导入站点');
+        ElMessage.warning("请先加载或创建地图后再导入站点");
         return;
       }
 
       // 识别为工厂模型点元素：直接复用现有点位图层；仅当没有任何点位图层时才新建一个（并优先复用已有图层组）
       let pointLayer =
-        mapEditorStore.layers.find((l) => l.id === mapEditorStore.activeLayerId && l.type === LayerType.POINT) ||
-        mapEditorStore.layers.find((l) => l.type === LayerType.POINT);
+        mapEditorStore.layers.find(
+          (l) =>
+            l.id === mapEditorStore.activeLayerId && l.type === LayerType.POINT,
+        ) || mapEditorStore.layers.find((l) => l.type === LayerType.POINT);
       if (!pointLayer) {
         const existingGroup =
-          mapEditorStore.layerGroups.find((g) => g.name === 'Default layer group' || g.name === '默认图层组') ||
-          mapEditorStore.layerGroups[0];
+          mapEditorStore.layerGroups.find(
+            (g) => g.name === "Default layer group" || g.name === "默认图层组",
+          ) || mapEditorStore.layerGroups[0];
         const layerGroupId = existingGroup
           ? existingGroup.id
-          : mapEditorStore.addLayerGroup({ name: 'Default layer group', visible: true }).id;
+          : mapEditorStore.addLayerGroup({
+              name: "Default layer group",
+              visible: true,
+            }).id;
         pointLayer = mapEditorStore.addLayer({
-          name: 'Default layer',
+          name: "Default layer",
           type: LayerType.POINT,
           layerGroupId,
           visible: true,
           locked: false,
           zIndex: 1,
           opacity: 1,
-          elementIds: []
+          elementIds: [],
         });
         mapEditorStore.setActiveLayer(pointLayer.id);
       }
@@ -1614,15 +2107,22 @@ const handleImportStations = () => {
       const canvasWidth = canvas.width || 1920;
       const canvasHeight = canvas.height || 1080;
       const rasterOffsetX =
-        raster && typeof raster.widthPx === 'number' ? (canvasWidth - raster.widthPx) / 2 : 0;
+        raster && typeof raster.widthPx === "number"
+          ? (canvasWidth - raster.widthPx) / 2
+          : 0;
       const rasterOffsetY =
-        raster && typeof raster.heightPx === 'number' ? (canvasHeight - raster.heightPx) / 2 : 0;
+        raster && typeof raster.heightPx === "number"
+          ? (canvasHeight - raster.heightPx) / 2
+          : 0;
 
       stations.forEach((station: any) => {
         const pos = station?.position;
-        const hasWorld = pos && typeof pos.x === 'number' && typeof pos.y === 'number';
+        const hasWorld =
+          pos && typeof pos.x === "number" && typeof pos.y === "number";
         const hasImage =
-          raster && typeof station.imageX === 'number' && typeof station.imageY === 'number';
+          raster &&
+          typeof station.imageX === "number" &&
+          typeof station.imageY === "number";
 
         if (!hasWorld && !hasImage) {
           return;
@@ -1633,10 +2133,10 @@ const handleImportStations = () => {
         if (station.type !== undefined) {
           descriptionParts.push(`navType=${station.type}`);
         }
-        if (typeof station.yaw === 'number') {
+        if (typeof station.yaw === "number") {
           descriptionParts.push(`yaw=${station.yaw}`);
         }
-        const description = descriptionParts.join(' ');
+        const description = descriptionParts.join(" ");
 
         // 优先用 imageX/imageY 对齐到导航栅格图；否则用导航 position.x/y 作为模型坐标
         const x = hasImage ? rasterOffsetX + station.imageX : pos.x;
@@ -1648,31 +2148,31 @@ const handleImportStations = () => {
           name,
           x,
           y,
-          z: hasWorld && typeof pos.z === 'number' ? pos.z : undefined,
+          z: hasWorld && typeof pos.z === "number" ? pos.z : undefined,
           type: mapEditorStore.pointType,
           description,
-          status: '0',
+          status: "0",
           editorProps: {
-            radius: 5,
-            color: '#ff4d4f',
+            radius: DEFAULT_POINT_OUTER_RADIUS,
+            color: "#ff4d4f",
             label: name,
-            labelVisible: true
-          }
+            labelVisible: true,
+          },
         });
         created += 1;
       });
 
       if (created === 0) {
-        ElMessage.warning('未成功导入任何导航站点，请检查坐标数据是否完整');
+        ElMessage.warning("未成功导入任何导航站点，请检查坐标数据是否完整");
         return;
       }
 
       ElMessage.success(`已导入 ${created} 个导航站点`);
     } catch (error: any) {
       const msg = error?.message || String(error);
-      ElMessage.error('导入导航站点失败：' + msg);
+      ElMessage.error("导入导航站点失败：" + msg);
     } finally {
-      input.value = '';
+      input.value = "";
     }
   };
 
@@ -1680,16 +2180,16 @@ const handleImportStations = () => {
 };
 
 // 导出/导入下拉菜单命令分发
-const handleExportCommand = (command: 'editor' | 'model') => {
-  if (command === 'editor') {
+const handleExportCommand = (command: "editor" | "model") => {
+  if (command === "editor") {
     handleExportMap();
   } else {
     handleExportModel();
   }
 };
 
-const handleImportCommand = (command: 'editor' | 'model') => {
-  if (command === 'editor') {
+const handleImportCommand = (command: "editor" | "model") => {
+  if (command === "editor") {
     handleImportMap();
   } else {
     handleImportModel();
@@ -1697,38 +2197,45 @@ const handleImportCommand = (command: 'editor' | 'model') => {
 };
 
 // 导出图片
-const handleExportImage = (format: 'png' | 'svg') => {
+const handleExportImage = (format: "png" | "svg") => {
   const mapCanvas = mapCanvasRef.value;
   if (!mapCanvas) {
-    ElMessage.error('画布组件未就绪');
+    ElMessage.error("画布组件未就绪");
     return;
   }
 
   // 调用MapCanvas的导出方法
-  mapCanvas.exportAsImage(format).then((dataUrl: string) => {
-    // 创建下载链接
-    const link = document.createElement('a');
-    const mapName = mapEditorStore.mapData?.mapInfo?.name || 'map';
-    link.download = `${mapName}_${Date.now()}.${format}`;
-    link.href = dataUrl;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    ElMessage.success(`已导出 ${format.toUpperCase()} 图片`);
-  }).catch((error: any) => {
-    ElMessage.error('导出失败: ' + error.message);
-  });
+  mapCanvas
+    .exportAsImage(format)
+    .then((dataUrl: string) => {
+      // 创建下载链接
+      const link = document.createElement("a");
+      const mapName = mapEditorStore.mapData?.mapInfo?.name || "map";
+      link.download = `${mapName}_${Date.now()}.${format}`;
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      ElMessage.success(`已导出 ${format.toUpperCase()} 图片`);
+    })
+    .catch((error: any) => {
+      ElMessage.error("导出失败: " + error.message);
+    });
 };
 
 // ---------- 导入栅格地图（map.yaml + map.pgm）----------
-function parseMapYaml(text: string): { resolution: number; originX: number; originY: number } | null {
+function parseMapYaml(
+  text: string,
+): { resolution: number; originX: number; originY: number } | null {
   let resolution = 0.05;
   let originX = 0;
   let originY = 0;
   const resMatch = text.match(/resolution:\s*([\d.]+)/);
   if (resMatch) resolution = parseFloat(resMatch[1]);
   // 支持 origin: [x, y] 或 origin: [x, y, z]
-  const originMatch = text.match(/origin:\s*\[\s*([-\d.]+)\s*,\s*([-\d.]+)(?:\s*,\s*[-\d.]+)?\s*\]/);
+  const originMatch = text.match(
+    /origin:\s*\[\s*([-\d.]+)\s*,\s*([-\d.]+)(?:\s*,\s*[-\d.]+)?\s*\]/,
+  );
   if (originMatch) {
     originX = parseFloat(originMatch[1]);
     originY = parseFloat(originMatch[2]);
@@ -1745,11 +2252,11 @@ const openImportRasterDialog = () => {
 const resetImportRasterState = () => {
   rasterYamlFile.value = null;
   rasterPgmFile.value = null;
-  rasterYamlFileName.value = '';
-  rasterPgmFileName.value = '';
+  rasterYamlFileName.value = "";
+  rasterPgmFileName.value = "";
   rasterParsedInfo.value = null;
-  if (yamlInputRef.value) yamlInputRef.value.value = '';
-  if (pgmInputRef.value) pgmInputRef.value.value = '';
+  if (yamlInputRef.value) yamlInputRef.value.value = "";
+  if (pgmInputRef.value) pgmInputRef.value.value = "";
 };
 
 const triggerYamlSelect = () => {
@@ -1786,7 +2293,7 @@ const confirmImportRaster = async () => {
   const yamlFile = rasterYamlFile.value;
   const pgmFile = rasterPgmFile.value;
   if (!yamlFile || !pgmFile) {
-    ElMessage.warning('请先选择 map.yaml 和 map.pgm 文件');
+    ElMessage.warning("请先选择 map.yaml 和 map.pgm 文件");
     return;
   }
   importRasterLoading.value = true;
@@ -1794,45 +2301,48 @@ const confirmImportRaster = async () => {
     const yamlText = await yamlFile.text();
     const parsed = parseMapYaml(yamlText);
     if (!parsed) {
-      ElMessage.warning('无法解析 YAML 中的 resolution 与 origin');
+      ElMessage.warning("无法解析 YAML 中的 resolution 与 origin");
       return;
     }
     const arrayBuffer = await pgmFile.arrayBuffer();
     const { dataUrl, width, height } = await parsePgmToDataUrl(arrayBuffer);
 
     // 获取当前地图的版本号
-    const mapId = props.mapId || route.query.mapId || (mapEditorTabsStore.activeTab?.id as string);
+    const mapId =
+      props.mapId ||
+      route.query.mapId ||
+      (mapEditorTabsStore.activeTab?.id as string);
     const dbId = mapEditorStore.mapData?.mapInfo?.id;
     let currentVersion = 0;
     if (dbId) {
       try {
         const mapRes = await request({
           url: `/factory/map/${dbId}`,
-          method: 'get'
+          method: "get",
         });
         if (mapRes.code === 200 && mapRes.data) {
           currentVersion = mapRes.data.rasterVersion || 0;
         }
       } catch (e) {
-        console.error('获取地图信息失败', e);
+        console.error("获取地图信息失败", e);
       }
     }
 
     // 上传到 OSS
     const formData = new FormData();
-    formData.append('file', pgmFile);
+    formData.append("file", pgmFile);
     const ossRes = await request({
-      url: '/resource/oss/upload',
-      method: 'post',
+      url: "/resource/oss/upload",
+      method: "post",
       data: formData,
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { "Content-Type": "multipart/form-data" },
     });
 
-    let newRasterUrl = '';
+    let newRasterUrl = "";
     if (ossRes.code === 200 && ossRes.data) {
       newRasterUrl = ossRes.data.url;
     } else {
-      ElMessage.warning('上传失败，将仅在本地显示');
+      ElMessage.warning("上传失败，将仅在本地显示");
     }
 
     // 更新数据库中的底图信息
@@ -1844,12 +2354,12 @@ const confirmImportRaster = async () => {
           rasterVersion: currentVersion + 1,
           rasterWidth: width,
           rasterHeight: height,
-          rasterResolution: parsed.resolution
+          rasterResolution: parsed.resolution,
         } as any);
         ElMessage.success(`底图已更新，版本号: v${currentVersion + 1}`);
       } catch (e) {
-        console.error('更新底图信息失败', e);
-        ElMessage.warning('底图已上传但更新版本号失败');
+        console.error("更新底图信息失败", e);
+        ElMessage.warning("底图已上传但更新版本号失败");
       }
     }
 
@@ -1860,15 +2370,15 @@ const confirmImportRaster = async () => {
       originY: 0,
       resolution: parsed.resolution,
       widthPx: width,
-      heightPx: height
+      heightPx: height,
     };
     mapEditorStore.setRasterBackground(payload);
     importRasterDialogVisible.value = false;
     resetImportRasterState();
-    ElMessage.success('栅格地图已导入，底图加载中… 若未看到请平移/缩放画布');
+    ElMessage.success("栅格地图已导入，底图加载中… 若未看到请平移/缩放画布");
   } catch (err: any) {
-    const msg = err?.message || (err ? String(err) : '未知错误');
-    ElMessage.error('导入栅格地图失败：' + msg);
+    const msg = err?.message || (err ? String(err) : "未知错误");
+    ElMessage.error("导入栅格地图失败：" + msg);
   } finally {
     importRasterLoading.value = false;
   }
@@ -1878,7 +2388,7 @@ const confirmImportRaster = async () => {
 const openRasterCalibrateDialog = () => {
   const raster = mapEditorStore.rasterBackground;
   if (!raster) {
-    ElMessage.warning('请先导入栅格地图');
+    ElMessage.warning("请先导入栅格地图");
     return;
   }
   rasterCalibrateForm.originX = raster.originX;
@@ -1890,17 +2400,17 @@ const openRasterCalibrateDialog = () => {
 const applyRasterCalibration = () => {
   const raster = mapEditorStore.rasterBackground;
   if (!raster) {
-    ElMessage.warning('没有栅格底图');
+    ElMessage.warning("没有栅格底图");
     return;
   }
   mapEditorStore.setRasterBackground({
     ...raster,
     originX: rasterCalibrateForm.originX,
     originY: rasterCalibrateForm.originY,
-    resolution: rasterCalibrateForm.resolution
+    resolution: rasterCalibrateForm.resolution,
   });
   rasterCalibrateDialogVisible.value = false;
-  ElMessage.success('栅格坐标已更新');
+  ElMessage.success("栅格坐标已更新");
 };
 
 const resetRasterOrigin = () => {
@@ -1917,25 +2427,28 @@ const centerRasterInView = () => {
   const centerY = raster.originY + (raster.heightPx * raster.resolution) / 2;
 
   // 获取画布尺寸
-  const canvasState = mapEditorStore.canvasState || { width: 1920, height: 1080 };
+  const canvasState = mapEditorStore.canvasState || {
+    width: 1920,
+    height: 1080,
+  };
 
   // 将视图中心移动到栅格中心
   mapEditorStore.updateCanvasState({
     offsetX: canvasState.width / 2 - centerX,
-    offsetY: canvasState.height / 2 - centerY
+    offsetY: canvasState.height / 2 - centerY,
   });
-  ElMessage.success('已定位到栅格中心');
+  ElMessage.success("已定位到栅格中心");
 };
 
 const removeRasterBackground = async () => {
   try {
-    await ElMessageBox.confirm('确定要移除栅格底图吗？', '确认', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
+    await ElMessageBox.confirm("确定要移除栅格底图吗？", "确认", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
     });
     mapEditorStore.setRasterBackground(null);
-    ElMessage.success('栅格底图已移除');
+    ElMessage.success("栅格底图已移除");
   } catch {
     // 用户取消
   }
@@ -1953,28 +2466,28 @@ const refreshVersionList = () => {
 
 const formatVersionTime = (timestamp: number) => {
   const date = new Date(timestamp);
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
+  return date.toLocaleString("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
   });
 };
 
 const createVersionSnapshot = async () => {
   try {
-    const { value } = await ElMessageBox.prompt('请输入版本描述', '创建快照', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputPlaceholder: '例如：添加了工作站点位',
-      inputValue: `手动保存 ${versionHistoryList.value.length + 1}`
+    const { value } = await ElMessageBox.prompt("请输入版本描述", "创建快照", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      inputPlaceholder: "例如：添加了工作站点位",
+      inputValue: `手动保存 ${versionHistoryList.value.length + 1}`,
     });
     if (value) {
       mapEditorStore.saveVersion(value);
       refreshVersionList();
-      ElMessage.success('版本快照已保存');
+      ElMessage.success("版本快照已保存");
     }
   } catch {
     // 用户取消
@@ -1983,74 +2496,86 @@ const createVersionSnapshot = async () => {
 
 const restoreVersion = async (versionId: string) => {
   try {
-    await ElMessageBox.confirm('确定要恢复到该版本吗？当前未保存的更改将丢失。', '确认恢复', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    });
+    await ElMessageBox.confirm(
+      "确定要恢复到该版本吗？当前未保存的更改将丢失。",
+      "确认恢复",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        type: "warning",
+      },
+    );
     mapEditorStore.restoreVersion(versionId);
     refreshVersionList();
-    ElMessage.success('已恢复到指定版本');
+    ElMessage.success("已恢复到指定版本");
   } catch (err: any) {
-    if (err !== 'cancel') {
-      ElMessage.error('恢复失败：' + (err?.message || '未知错误'));
+    if (err !== "cancel") {
+      ElMessage.error("恢复失败：" + (err?.message || "未知错误"));
     }
   }
 };
 
 const deleteVersion = (versionId: string) => {
   const versions = mapEditorStore.versionHistory;
-  const index = versions.findIndex(v => v.id === versionId);
+  const index = versions.findIndex((v) => v.id === versionId);
   if (index !== -1) {
     versions.splice(index, 1);
     refreshVersionList();
-    ElMessage.success('版本已删除');
+    ElMessage.success("版本已删除");
   }
 };
 
 // 版本对比相关函数
 const openVersionCompareDialog = () => {
-  compareVersionA.value = '';
-  compareVersionB.value = '';
+  compareVersionA.value = "";
+  compareVersionB.value = "";
   compareResult.value = null;
   versionCompareDialogVisible.value = true;
 };
 
 const runVersionCompare = () => {
   if (!compareVersionA.value || !compareVersionB.value) {
-    ElMessage.warning('请选择两个版本进行对比');
+    ElMessage.warning("请选择两个版本进行对比");
     return;
   }
 
   const versions = mapEditorStore.versionHistory;
-  const versionA = versions.find(v => v.id === compareVersionA.value);
-  const versionB = versions.find(v => v.id === compareVersionB.value);
+  const versionA = versions.find((v) => v.id === compareVersionA.value);
+  const versionB = versions.find((v) => v.id === compareVersionB.value);
 
   if (!versionA || !versionB) {
-    ElMessage.error('版本不存在');
+    ElMessage.error("版本不存在");
     return;
   }
 
   // 对比点位
-  const pointsResult = compareElements(versionA.points, versionB.points, 'point');
+  const pointsResult = compareElements(
+    versionA.points,
+    versionB.points,
+    "point",
+  );
 
   // 对比路径
-  const pathsResult = compareElements(versionA.paths, versionB.paths, 'path');
+  const pathsResult = compareElements(versionA.paths, versionB.paths, "path");
 
   // 对比位置
-  const locationsResult = compareElements(versionA.locations, versionB.locations, 'location');
+  const locationsResult = compareElements(
+    versionA.locations,
+    versionB.locations,
+    "location",
+  );
 
   compareResult.value = {
     points: pointsResult,
     paths: pathsResult,
-    locations: locationsResult
+    locations: locationsResult,
   };
 };
 
 interface CompareItem {
   id: string;
   name: string;
-  changeType: 'added' | 'removed' | 'modified' | 'unchanged';
+  changeType: "added" | "removed" | "modified" | "unchanged";
   changes?: Record<string, { from: any; to: any }>;
   [key: string]: any;
 }
@@ -2058,10 +2583,15 @@ interface CompareItem {
 const compareElements = (
   oldList: any[],
   newList: any[],
-  type: 'point' | 'path' | 'location'
-): { added: CompareItem[]; removed: CompareItem[]; modified: CompareItem[]; all: CompareItem[] } => {
-  const oldMap = new Map(oldList.map(item => [item.id, item]));
-  const newMap = new Map(newList.map(item => [item.id, item]));
+  type: "point" | "path" | "location",
+): {
+  added: CompareItem[];
+  removed: CompareItem[];
+  modified: CompareItem[];
+  all: CompareItem[];
+} => {
+  const oldMap = new Map(oldList.map((item) => [item.id, item]));
+  const newMap = new Map(newList.map((item) => [item.id, item]));
 
   const added: CompareItem[] = [];
   const removed: CompareItem[] = [];
@@ -2072,25 +2602,34 @@ const compareElements = (
   newMap.forEach((newItem, id) => {
     const oldItem = oldMap.get(id);
     if (!oldItem) {
-      const item: CompareItem = { ...newItem, changeType: 'added', name: newItem.name || id };
+      const item: CompareItem = {
+        ...newItem,
+        changeType: "added",
+        name: newItem.name || id,
+      };
       added.push(item);
       all.push(item);
     } else {
       // 检查是否修改
       const changes: Record<string, { from: any; to: any }> = {};
-      const keysToCompare = ['name', 'x', 'y', 'type', 'description', 'status'];
-      if (type === 'path') {
-        keysToCompare.push('startPointId', 'endPointId');
+      const keysToCompare = ["name", "x", "y", "type", "description", "status"];
+      if (type === "path") {
+        keysToCompare.push("startPointId", "endPointId");
       }
 
-      keysToCompare.forEach(key => {
+      keysToCompare.forEach((key) => {
         if (oldItem[key] !== newItem[key]) {
           changes[key] = { from: oldItem[key], to: newItem[key] };
         }
       });
 
       if (Object.keys(changes).length > 0) {
-        const item: CompareItem = { ...newItem, changeType: 'modified', changes, name: newItem.name || id };
+        const item: CompareItem = {
+          ...newItem,
+          changeType: "modified",
+          changes,
+          name: newItem.name || id,
+        };
         modified.push(item);
         all.push(item);
       }
@@ -2100,7 +2639,11 @@ const compareElements = (
   // 查找删除的元素
   oldMap.forEach((oldItem, id) => {
     if (!newMap.has(id)) {
-      const item: CompareItem = { ...oldItem, changeType: 'removed', name: oldItem.name || id };
+      const item: CompareItem = {
+        ...oldItem,
+        changeType: "removed",
+        name: oldItem.name || id,
+      };
       removed.push(item);
       all.push(item);
     }
@@ -2120,25 +2663,25 @@ const triggerCsvSelect = () => {
 
 const clearCsvData = () => {
   csvParsedData.value = [];
-  csvFileName.value = '';
+  csvFileName.value = "";
   if (csvInputRef.value) {
-    csvInputRef.value.value = '';
+    csvInputRef.value.value = "";
   }
 };
 
 const parsePointType = (typeStr: string): string => {
-  if (!typeStr) return 'Halt point';
+  if (!typeStr) return "Halt point";
   const normalized = typeStr.trim().toLowerCase();
   const typeMap: Record<string, string> = {
-    'halt': 'Halt point',
-    'halt point': 'Halt point',
-    'park': 'Park point',
-    'park point': 'Park point',
-    'station': 'Station',
-    'charge': 'Charge point',
-    'charge point': 'Charge point'
+    halt: "Halt point",
+    "halt point": "Halt point",
+    park: "Park point",
+    "park point": "Park point",
+    station: "Station",
+    charge: "Charge point",
+    "charge point": "Charge point",
   };
-  return typeMap[normalized] || 'Halt point';
+  return typeMap[normalized] || "Halt point";
 };
 
 const onCsvFileChange = async (e: Event) => {
@@ -2150,22 +2693,22 @@ const onCsvFileChange = async (e: Event) => {
 
   try {
     const text = await file.text();
-    const lines = text.split(/\r?\n/).filter(line => line.trim());
+    const lines = text.split(/\r?\n/).filter((line) => line.trim());
 
     if (lines.length < 2) {
-      ElMessage.warning('CSV 文件内容为空或格式不正确');
+      ElMessage.warning("CSV 文件内容为空或格式不正确");
       return;
     }
 
     // 解析 CSV 头部
     const headerLine = lines[0].toLowerCase();
-    const headers = headerLine.split(',').map(h => h.trim());
+    const headers = headerLine.split(",").map((h) => h.trim());
 
     // 检查必需列
-    const requiredCols = ['name', 'x', 'y'];
-    const missingCols = requiredCols.filter(col => !headers.includes(col));
+    const requiredCols = ["name", "x", "y"];
+    const missingCols = requiredCols.filter((col) => !headers.includes(col));
     if (missingCols.length > 0) {
-      ElMessage.warning(`CSV 文件缺少必需列: ${missingCols.join(', ')}`);
+      ElMessage.warning(`CSV 文件缺少必需列: ${missingCols.join(", ")}`);
       return;
     }
 
@@ -2177,14 +2720,14 @@ const onCsvFileChange = async (e: Event) => {
 
       // 简单解析CSV（处理引号内包含逗号的情况）
       const values: string[] = [];
-      let current = '';
+      let current = "";
       let inQuotes = false;
       for (const char of line) {
         if (char === '"') {
           inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
+        } else if (char === "," && !inQuotes) {
           values.push(current.trim());
-          current = '';
+          current = "";
         } else {
           current += char;
         }
@@ -2194,56 +2737,59 @@ const onCsvFileChange = async (e: Event) => {
       // 构建对象
       const row: any = {};
       headers.forEach((header, idx) => {
-        row[header] = values[idx] || '';
+        row[header] = values[idx] || "";
       });
 
       // 验证必填字段
-      let error = '';
+      let error = "";
       if (!row.name) {
-        error = '缺少名称';
+        error = "缺少名称";
       } else if (!row.x || isNaN(Number(row.x))) {
-        error = 'X坐标无效';
+        error = "X坐标无效";
       } else if (!row.y || isNaN(Number(row.y))) {
-        error = 'Y坐标无效';
+        error = "Y坐标无效";
       }
 
       data.push({
-        name: row.name || '',
+        name: row.name || "",
         code: row.code || undefined,
         x: Number(row.x) || 0,
         y: Number(row.y) || 0,
-        type: parsePointType(row.type || ''),
+        type: parsePointType(row.type || ""),
         description: row.description || undefined,
-        error: error || undefined
+        error: error || undefined,
       });
     }
 
     csvParsedData.value = data;
 
-    const validCount = data.filter(d => !d.error).length;
+    const validCount = data.filter((d) => !d.error).length;
     if (validCount === 0) {
-      ElMessage.warning('CSV 文件中没有有效数据');
+      ElMessage.warning("CSV 文件中没有有效数据");
     } else {
-      ElMessage.success(`已解析 ${data.length} 条记录，其中 ${validCount} 条有效`);
+      ElMessage.success(
+        `已解析 ${data.length} 条记录，其中 ${validCount} 条有效`,
+      );
     }
   } catch (err: any) {
-    ElMessage.error('解析 CSV 文件失败：' + (err?.message || '未知错误'));
+    ElMessage.error("解析 CSV 文件失败：" + (err?.message || "未知错误"));
   }
 };
 
 const confirmImportCsv = async () => {
-  const validData = csvParsedData.value.filter(d => !d.error);
+  const validData = csvParsedData.value.filter((d) => !d.error);
   if (validData.length === 0) {
-    ElMessage.warning('没有有效数据可导入');
+    ElMessage.warning("没有有效数据可导入");
     return;
   }
 
   try {
     // 获取当前激活的图层
-    const activeLayerId = mapEditorStore.activeLayerId || mapEditorStore.layers[0]?.id;
+    const activeLayerId =
+      mapEditorStore.activeLayerId || mapEditorStore.layers[0]?.id;
 
     if (!activeLayerId) {
-      ElMessage.warning('请先创建或选择一个图层');
+      ElMessage.warning("请先创建或选择一个图层");
       return;
     }
 
@@ -2257,12 +2803,12 @@ const confirmImportCsv = async () => {
       y: row.y,
       type: row.type,
       description: row.description,
-      status: 'ACTIVE',
+      status: "ACTIVE",
       editorProps: {
-        radius: 5,
-        color: '#409EFF',
-        labelVisible: true
-      }
+        radius: DEFAULT_POINT_OUTER_RADIUS,
+        color: "#409EFF",
+        labelVisible: true,
+      },
     }));
 
     // 添加到 store（逐个添加）
@@ -2278,7 +2824,7 @@ const confirmImportCsv = async () => {
     importCsvDialogVisible.value = false;
     clearCsvData();
   } catch (err: any) {
-    ElMessage.error('导入点位失败：' + (err?.message || '未知错误'));
+    ElMessage.error("导入点位失败：" + (err?.message || "未知错误"));
   }
 };
 
@@ -2287,8 +2833,8 @@ const handleKeyDown = (e: KeyboardEvent) => {
   const target = e.target as HTMLElement | null;
   const isTypingElement =
     target &&
-    (target.tagName === 'INPUT' ||
-      target.tagName === 'TEXTAREA' ||
+    (target.tagName === "INPUT" ||
+      target.tagName === "TEXTAREA" ||
       (target as any).isContentEditable);
 
   // 在输入框内不处理编辑器级快捷键
@@ -2297,68 +2843,72 @@ const handleKeyDown = (e: KeyboardEvent) => {
   }
 
   // Ctrl+Z 撤销
-  if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+  if (e.ctrlKey && e.key === "z" && !e.shiftKey) {
     e.preventDefault();
     undo();
   }
 
   // Ctrl+Shift+Z 重做
-  if (e.ctrlKey && e.shiftKey && e.key === 'Z') {
+  if (e.ctrlKey && e.shiftKey && e.key === "Z") {
     e.preventDefault();
     redo();
   }
 
   // Ctrl+S 保存
-  if (e.ctrlKey && e.key === 's') {
+  if (e.ctrlKey && e.key === "s") {
     e.preventDefault();
     handleSave();
   }
 
   // Ctrl+A 全选
-  if (e.ctrlKey && e.key === 'a' && !e.shiftKey) {
+  if (e.ctrlKey && e.key === "a" && !e.shiftKey) {
     e.preventDefault();
     mapEditorStore.selectAll();
   }
 
   // Ctrl+C 复制选中元素
-  if (e.ctrlKey && e.key === 'c') {
+  if (e.ctrlKey && e.key === "c") {
     e.preventDefault();
     mapEditorStore.copySelected();
   }
 
   // Ctrl+V 粘贴
-  if (e.ctrlKey && e.key === 'v') {
+  if (e.ctrlKey && e.key === "v") {
     e.preventDefault();
     mapEditorStore.paste(20, 20);
   }
 
   // Ctrl+D 快速复制（带偏移粘贴）
-  if (e.ctrlKey && e.key === 'd') {
+  if (e.ctrlKey && e.key === "d") {
     e.preventDefault();
     handleQuickDuplicate();
   }
 
   // Escape 取消选择
-  if (e.key === 'Escape') {
+  if (e.key === "Escape") {
     mapEditorStore.clearSelection();
   }
 
   // Delete / Backspace 删除选中元素
-  if (!e.ctrlKey && !e.metaKey && (e.key === 'Delete' || e.key === 'Backspace')) {
+  if (
+    !e.ctrlKey &&
+    !e.metaKey &&
+    (e.key === "Delete" || e.key === "Backspace")
+  ) {
     if (!hasSelection.value) {
       // noop
     } else {
       const selectedIds = mapEditorStore.selection.selectedIds;
       const selectedType = mapEditorStore.selection.selectedType;
-      if (selectedType === 'layout' || selectedIds.size === 0) {
+      if (selectedType === "layout" || selectedIds.size === 0) {
         // noop
       } else {
         e.preventDefault();
-        if (selectedType === 'point') {
+        if (selectedType === "point") {
           selectedIds.forEach((id) => mapEditorStore.deletePoint(id));
-        } else if (selectedType === 'path') {
+        } else if (selectedType === "path") {
           selectedIds.forEach((id) => mapEditorStore.deletePath(id));
-        } else if (selectedType === 'location') {
+        } else if (selectedType === "location") {
           selectedIds.forEach((id) => mapEditorStore.deleteLocation(id));
         }
         mapEditorStore.clearSelection();
@@ -2366,36 +2916,18 @@ const handleKeyDown = (e: KeyboardEvent) => {
     }
   }
 
-  // 数字键切换工具（仅在未按下 Ctrl/Meta/Alt 时生效）
-  if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-    switch (e.key) {
-      case '1':
-      case '2':
-        setTool(ToolMode.PAN);
-        break;
-      case '3':
-        setTool(ToolMode.POINT);
-        break;
-      case '4':
-        setTool(ToolMode.PATH);
-        break;
-      case '7':
-        setTool(ToolMode.RULE_REGION);
-        break;
-    }
-  }
+  // 漫游 / 地图元素工具不设数字键快捷键，避免与输入框外误触冲突
 };
-
 
 onUnmounted(() => {
   // 移除键盘事件
-  window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener("keydown", handleKeyDown);
 
   // 清理拖拽事件
-  document.removeEventListener('mousemove', handleResizeMove);
-  document.removeEventListener('mouseup', handleResizeEnd);
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
+  document.removeEventListener("mousemove", handleResizeMove);
+  document.removeEventListener("mouseup", handleResizeEnd);
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
 
   // 清理仿真计时器
   if (simulationTimer) {
@@ -2403,8 +2935,8 @@ onUnmounted(() => {
     simulationTimer = null;
   }
 
-  const appWrapper = document.querySelector('.app-wrapper');
-  appWrapper?.classList.remove('map-editor-header-collapsed');
+  const appWrapper = document.querySelector(".app-wrapper");
+  appWrapper?.classList.remove("map-editor-header-collapsed");
 
   // 重置编辑器
   mapEditorStore.reset();
@@ -2428,8 +2960,13 @@ onUnmounted(() => {
       align-items: center;
       gap: 12px;
       margin-bottom: 12px;
-      .label { min-width: 80px; }
-      .file-name { color: var(--el-text-color-secondary); font-size: 13px; }
+      .label {
+        min-width: 80px;
+      }
+      .file-name {
+        color: var(--el-text-color-secondary);
+        font-size: 13px;
+      }
     }
     .import-raster-info {
       margin-top: 12px;
@@ -2449,20 +2986,27 @@ onUnmounted(() => {
       border-radius: 4px;
       font-size: 13px;
 
-      p { margin: 0 0 8px 0; }
+      p {
+        margin: 0 0 8px 0;
+      }
 
       .csv-format {
         background: var(--el-bg-color);
         padding: 8px 12px;
         border-radius: 4px;
         margin-bottom: 8px;
-        code { color: var(--el-color-primary); }
+        code {
+          color: var(--el-color-primary);
+        }
       }
 
       .format-notes {
         margin: 8px 0;
         padding-left: 20px;
-        li { margin-bottom: 4px; color: var(--el-text-color-regular); }
+        li {
+          margin-bottom: 4px;
+          color: var(--el-text-color-regular);
+        }
       }
 
       .type-hint {
@@ -2477,7 +3021,10 @@ onUnmounted(() => {
       align-items: center;
       gap: 12px;
       margin-bottom: 16px;
-      .file-name { color: var(--el-text-color-secondary); font-size: 13px; }
+      .file-name {
+        color: var(--el-text-color-secondary);
+        font-size: 13px;
+      }
     }
 
     .import-csv-preview {
@@ -2503,14 +3050,19 @@ onUnmounted(() => {
       border-radius: 4px;
       margin-bottom: 16px;
 
-      p { margin: 0 0 8px 0; font-weight: 500; }
+      p {
+        margin: 0 0 8px 0;
+        font-weight: 500;
+      }
 
       .info-row {
         display: flex;
         justify-content: space-between;
         font-size: 13px;
         color: var(--el-text-color-regular);
-        .label { color: var(--el-text-color-secondary); }
+        .label {
+          color: var(--el-text-color-secondary);
+        }
       }
     }
 
@@ -2554,7 +3106,10 @@ onUnmounted(() => {
         align-items: center;
         gap: 8px;
 
-        .label { font-size: 13px; color: var(--el-text-color-regular); }
+        .label {
+          font-size: 13px;
+          color: var(--el-text-color-regular);
+        }
       }
     }
 
@@ -2578,37 +3133,47 @@ onUnmounted(() => {
 
   // 工具栏
   .toolbar {
-    height: 50px;
-    min-height: 50px;
+    height: auto;
+    min-height: 58px;
     flex-shrink: 0;
     background: linear-gradient(0deg, #fafbfc 0%, #fff 100%);
     border-bottom: 1px solid #e4e7ed;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 24px;
+    padding: 6px 24px;
     z-index: 100;
-    
+
     .toolbar-left {
       display: flex;
       align-items: center;
       gap: 12px;
       flex-wrap: nowrap;
 
+      &.toolbar-left-cluster {
+        gap: 4px;
+      }
+
+      .toolbar-cluster-divider {
+        flex-shrink: 0;
+      }
+
       .pan-hand-icon {
         width: 1em;
         height: 1em;
         display: block;
       }
-      
+
       :deep(.el-divider--vertical) {
-        height: 24px;
+        height: 44px;
         margin: 0 6px;
+        align-self: center;
         border-left-color: #e0e3eb;
       }
-      
+
       .el-button-group.creation-tool-group {
         display: inline-flex;
+        align-items: center;
         gap: 6px;
       }
 
@@ -2617,16 +3182,16 @@ onUnmounted(() => {
         align-items: center;
         gap: 4px;
       }
-      
+
       // 确保 tooltip 不影响按钮布局
       :deep(.el-tooltip) {
         display: inline-block;
       }
-      
+
       :deep(.el-tooltip__trigger) {
         display: inline-block;
       }
-      
+
       .zoom-level {
         font-size: 12px;
         color: #606266;
@@ -2638,8 +3203,8 @@ onUnmounted(() => {
         text-align: center;
         margin: 0 4px;
       }
-      
-      .el-button {
+
+      .el-button:not(.map-toolbar-btn) {
         width: 32px;
         height: 32px;
         padding: 4px;
@@ -2648,12 +3213,12 @@ onUnmounted(() => {
         color: #4c4c4c;
         font-weight: 500;
         transition: all 0.2s ease;
-        
+
         &:hover {
           background: rgba(64, 158, 255, 0.08);
           color: #1f2d3d;
         }
-        
+
         &.el-button--primary {
           background: rgba(64, 158, 255, 0.14);
           color: #1f2d3d;
@@ -2670,25 +3235,93 @@ onUnmounted(() => {
           height: 20px;
         }
       }
-      
+
       .el-button-group {
-        .el-button {
+        .el-button:not(.map-toolbar-btn) {
           width: 32px;
           height: 32px;
           padding: 4px;
         }
       }
-      
+
+      /* 图标在上、文字在下（参考深色工具条布局，配色仍用浅色主题） */
+      .map-toolbar-btn {
+        width: auto !important;
+        min-width: 52px;
+        height: auto !important;
+        min-height: 52px;
+        padding: 6px 8px 4px !important;
+        border: none;
+        border-radius: 6px;
+        background: transparent;
+        color: #4c4c4c;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+
+        &:hover {
+          background: rgba(64, 158, 255, 0.08);
+          color: #1f2d3d;
+        }
+
+        &.el-button--primary {
+          background: rgba(64, 158, 255, 0.14);
+          color: #1f2d3d;
+          border: 1px solid rgba(64, 158, 255, 0.3);
+        }
+
+        &.is-disabled {
+          opacity: 0.45;
+        }
+
+        .map-toolbar-btn__inner {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 3px;
+        }
+
+        .map-toolbar-btn__icon {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          line-height: 0;
+
+          :deep(.el-icon) {
+            font-size: 20px;
+          }
+
+          :deep(.svg-icon),
+          :deep(svg) {
+            width: 20px;
+            height: 20px;
+          }
+        }
+
+        .map-toolbar-btn__label {
+          font-size: 11px;
+          line-height: 1.15;
+          font-weight: 500;
+          color: inherit;
+          max-width: 64px;
+          text-align: center;
+          white-space: nowrap;
+        }
+      }
+
       // 分段按钮样式
       .point-tool-wrapper,
       .path-tool-wrapper {
         display: inline-flex;
         align-items: center;
-          height: 32px;
+        height: 32px;
         border: 1px solid #e4e7ed;
         border-radius: 4px;
         background: #fff;
-        
+
         .point-tool-main,
         .path-tool-main {
           border-top-right-radius: 0;
@@ -2698,7 +3331,7 @@ onUnmounted(() => {
           height: 32px;
           padding: 4px;
         }
-        
+
         .point-tool-dropdown,
         .path-tool-dropdown {
           border-top-left-radius: 0;
@@ -2707,12 +3340,12 @@ onUnmounted(() => {
           min-width: auto;
           width: auto;
           height: 32px;
-          
+
           .el-icon {
             font-size: 10px;
           }
         }
-        
+
         .path-type-icon {
           margin-right: 8px;
         }
@@ -2722,7 +3355,7 @@ onUnmounted(() => {
           align-items: center;
           gap: 8px;
           min-width: 160px;
-          
+
           span {
             font-size: 12px;
             color: #303133;
@@ -2734,30 +3367,22 @@ onUnmounted(() => {
           width: 22px;
           height: 22px;
         }
+
+        .dashed-link-toolbar-icon {
+          font-size: 22px;
+          width: 22px;
+          height: 22px;
+        }
       }
 
-      .creation-tool-group .toolbar-tool {
-        order: 0;
-      }
-      
-      .creation-tool-group .toolbar-tool-point {
-        order: 0;
-      }
-      
-      .creation-tool-group .toolbar-tool-path {
-        order: 2;
-      }
-      
-      .creation-tool-group .toolbar-tool-rule {
-        order: 4;
-      }
+      // 不使用 flex order：保持模板顺序为 漫游→点→位置→三种路网连线→虚线链接→规则区域→撤销等
     }
-    
+
     .toolbar-right {
       display: flex;
       align-items: center;
       gap: 8px;
-      
+
       .collapse-toggle {
         width: 36px;
         height: 36px;
@@ -2767,7 +3392,7 @@ onUnmounted(() => {
         color: #4c4c4c;
         padding: 0;
         transition: all 0.2s ease;
-        
+
         &:hover {
           border-color: #409eff;
           color: #409eff;
@@ -2846,11 +3471,11 @@ onUnmounted(() => {
           user-select: none;
           transition: background-color 0.2s;
           flex-shrink: 0;
-          
+
           &:hover {
             background: #f5f7fa;
           }
-          
+
           .panel-title,
           .canval-title,
           .canvas-title {
@@ -2859,18 +3484,18 @@ onUnmounted(() => {
             line-height: 1;
             font-weight: 500;
           }
-          
+
           .collapse-icon {
             font-size: 14px;
             color: #909399;
             transition: transform 0.3s ease;
-            
+
             &.collapsed {
               transform: rotate(-90deg);
             }
           }
         }
-        
+
         .panel-content {
           flex: 1;
           overflow-y: auto;
@@ -2879,7 +3504,7 @@ onUnmounted(() => {
         }
       }
     }
-    
+
     // 可拖拽的分隔条
     .panel-resizer {
       width: 4px;
@@ -2889,17 +3514,17 @@ onUnmounted(() => {
       position: relative;
       z-index: 10;
       transition: background-color 0.2s;
-      
+
       &:hover {
         background: #409eff;
       }
-      
+
       &.resizing {
         background: #409eff;
       }
-      
+
       &::before {
-        content: '';
+        content: "";
         position: absolute;
         left: -2px;
         right: -2px;
@@ -2922,7 +3547,7 @@ onUnmounted(() => {
       }
 
       &::before {
-        content: '';
+        content: "";
         position: absolute;
         left: 0;
         right: 0;
@@ -2931,7 +3556,7 @@ onUnmounted(() => {
         cursor: row-resize;
       }
     }
-    
+
     // 右侧分隔条
     .panel-resizer-right {
       order: 3;
@@ -2942,7 +3567,9 @@ onUnmounted(() => {
       flex: 1;
       display: flex;
       flex-direction: column;
-      background-image: linear-gradient(#eef0f4 1px, transparent 1px), linear-gradient(90deg, #eef0f4 1px, transparent 1px);
+      background-image:
+        linear-gradient(#eef0f4 1px, transparent 1px),
+        linear-gradient(90deg, #eef0f4 1px, transparent 1px);
       background-size: 18px 18px;
       background-color: #fff;
       overflow: hidden;
@@ -3000,7 +3627,7 @@ onUnmounted(() => {
         background: #2563eb;
 
         &::before {
-          content: '';
+          content: "";
           position: absolute;
           right: 0;
           top: -4px;
@@ -3010,7 +3637,7 @@ onUnmounted(() => {
         }
 
         &::after {
-          content: 'X';
+          content: "X";
           position: absolute;
           right: 4px;
           top: -18px;
@@ -3030,7 +3657,7 @@ onUnmounted(() => {
         background: #ef4444;
 
         &::before {
-          content: '';
+          content: "";
           position: absolute;
           top: 0;
           left: -4px;
@@ -3040,7 +3667,7 @@ onUnmounted(() => {
         }
 
         &::after {
-          content: 'Y';
+          content: "Y";
           position: absolute;
           left: -16px;
           top: 4px;
@@ -3079,7 +3706,7 @@ onUnmounted(() => {
         }
       }
     }
-    
+
     // 右侧面板
     .right-panel {
       background: #fff;
@@ -3091,7 +3718,7 @@ onUnmounted(() => {
       order: 4;
     }
   }
-  
+
   // 底部状态栏
   .status-bar {
     height: 30px;
@@ -3155,6 +3782,4 @@ onUnmounted(() => {
   color: #409eff;
   font-size: 12px;
 }
-
-
 </style>

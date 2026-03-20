@@ -98,6 +98,7 @@
 import { ref, computed, watch } from 'vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
+import { DEFAULT_POINT_OUTER_RADIUS } from '@/utils/mapEditor/mapVisualTokens';
 import type { MapPoint } from '@/types/mapEditor';
 
 const props = defineProps<{
@@ -127,7 +128,7 @@ const formData = ref({
   y: 0,
   z: undefined as number | undefined,
   status: '0',
-  radius: 10,
+  radius: DEFAULT_POINT_OUTER_RADIUS,
   color: '#1890ff',
   strokeColor: undefined as string | undefined,
   description: ''
@@ -156,7 +157,7 @@ watch(() => props.point, (point) => {
       y: point.y,
       z: point.z,
       status: point.status || '0',
-      radius: point.editorProps.radius || 10,
+      radius: point.editorProps.radius ?? DEFAULT_POINT_OUTER_RADIUS,
       color: point.editorProps.color || '#1890ff',
       strokeColor: point.editorProps.strokeColor,
       description: point.description || ''

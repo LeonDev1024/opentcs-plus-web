@@ -432,6 +432,7 @@ import { useMapEditorStore } from '@/store/modules/mapEditor';
 import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
 import { getLocationTypeListForSelect } from '@/api/opentcs/map/location';
 import type { LocationVO } from '@/api/opentcs/map/location/types';
+import { DEFAULT_POINT_OUTER_RADIUS } from '@/utils/mapEditor/mapVisualTokens';
 
 const mapEditorStore = useMapEditorStore();
 
@@ -541,7 +542,7 @@ const pointForm = ref<MapPoint>({
   status: '0',
   locked: false,
   editorProps: {
-    radius: 5,
+    radius: DEFAULT_POINT_OUTER_RADIUS,
     color: '#8c8c8c',
     strokeColor: '#d9d9d9',
     labelVisible: true
