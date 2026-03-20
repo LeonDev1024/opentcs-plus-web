@@ -395,6 +395,40 @@ function tryApplyViewportOriginBottomLeft() {
   const h = el.clientHeight || 1080;
   const w = el.clientWidth || 1920;
   if (h < 80 || w < 80) return; // 宽高过小不调整，避免异常布局
+  const originX = Number(mapEditorStore.mapData?.mapInfo?.originX ?? 0) || 0;
+  const originY = Number(mapEditorStore.mapData?.mapInfo?.originY ?? 0) || 0;
+  const s = cs.scale || 1;
+  // 与 mapOriginCoord 的 y 方向约定一致：显示用取反后的 y
+  const mapOriginY = -originY;
+
+  // 当地图原点不在 (0,0) 时，理论上需要同时保证：
+  // - 工厂原点(0,0)实线轴可见
+  // - 地图原点(originX, originY)虚线轴可见
+  //
+  // 但如果 origin 距离太远，窗口无法同时容纳两者（约束区间交集为空）；
+  // 此时会出现“实线有、虚线不见”之类的问题。
+  // 这里优先选择能同时满足的 offset；若交集为空，则退回居中到地图原点，确保虚线一定可见。
+  if (originX !== 0 || originY !== 0) {
+    const pad = DEFAULT_VIEWPORT_ORIGIN_PAD;
+
+    // 计算 (0,0) 实线轴 + (originX,originY) 虚线轴 的整体 bbox（模型坐标系）。
+    const minXModel = Math.min(0, originX);
+    const maxXModel = Math.max(AXIS_ARM, originX + AXIS_ARM);
+    const minYModel = Math.min(-AXIS_ARM, mapOriginY - AXIS_ARM);
+    const maxYModel = Math.max(0, mapOriginY);
+
+    const centerXModel = (minXModel + maxXModel) / 2;
+    const centerYModel = (minYModel + maxYModel) / 2;
+
+    mapEditorStore.updateCanvasState({
+      // 只做平移（offset），不修改 scale：避免与控制台 mm->px 换算比例不一致
+      offsetX: w / 2 - centerXModel * s,
+      offsetY: h / 2 - centerYModel * s
+    });
+    return;
+  }
+
+  // origin 为 (0,0) 时：保持原有默认逻辑（把工厂原点摆到左下角附近）
   mapEditorStore.updateCanvasState({
     offsetX: DEFAULT_VIEWPORT_ORIGIN_PAD,
     offsetY: h - DEFAULT_VIEWPORT_ORIGIN_PAD
@@ -540,11 +574,12 @@ const AXIS_COLOR_Y  = '#dc2626';
  * 所有尺寸使用**固定模型坐标**，与点、路径等地图元素一致，
  * 由 Stage 的 scaleX/scaleY 统一缩放。放大时坐标轴和点一起变大。
  */
-const AXIS_W        = 1.5;        // 线宽（模型单位）
-const AXIS_ARM      = 200;        // 臂长（模型单位）
-const AXIS_ARROW_L  = 12;         // 箭头长度
-const AXIS_ARROW_H  = 5;          // 箭头半宽
-const MAP_DASH      = [8, 5];     // 虚线 pattern（模型单位）
+// 与控制台保持一致：1mm = 1px（默认缩放 100% 时）
+const AXIS_W        = 2;      // 线宽（模型单位，=px）
+const AXIS_ARM      = 120;    // 臂长（模型单位，=mm）
+const AXIS_ARROW_L  = 8;      // 箭头长度
+const AXIS_ARROW_H  = 5;      // 箭头半宽
+const MAP_DASH      = [8, 5]; // 虚线 pattern
 
 // ═══════ 场景/工厂原点（实线） ═══════════════════════════════════════════════
 const axisXLineConfig = {
@@ -587,7 +622,9 @@ const axisYArrowConfig = {
 /** 当前地图的 originX/Y（模型坐标 mm） */
 const mapOriginCoord = computed(() => ({
   x: mapEditorStore.mapData?.mapInfo?.originX ?? 0,
-  y: mapEditorStore.mapData?.mapInfo?.originY ?? 0
+  // 与控制台拓扑视图保持一致：Konva 的 y 轴向下为正，
+  // 后端/控制台的 originY 约定为“向上为正”，因此需要取反。
+  y: -(mapEditorStore.mapData?.mapInfo?.originY ?? 0)
 }));
 
 const mapOriginXLineConfig = computed(() => {

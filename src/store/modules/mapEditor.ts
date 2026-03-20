@@ -447,6 +447,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               description: apiData.description || '',
               width: 1920,
               height: 1080,
+              // 与控制台保持一致：1mm = 1px
               scale: 1,
               offsetX: 0,
               offsetY: 0,

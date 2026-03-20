@@ -325,7 +325,8 @@ const mapElements = ref<{
 const elementsLoading = ref(false);
 
 // 画布缩放比例（1px = 1mm）
-const SCALE = 0.1; // 将坐标转换为画布上的像素（假设画布宽度1000px对应10000mm）
+// 将 mm 坐标直接映射到屏幕像素：1mm -> 1px
+const SCALE = 1;
 
 
 const selectedFactoryId = ref<number | undefined>(undefined);
