@@ -532,6 +532,7 @@ const updateLayout = () => {
   });
 };
 
+
 // 点表单数据
 const pointForm = ref<MapPoint>({
   id: '',

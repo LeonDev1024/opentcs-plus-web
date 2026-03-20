@@ -451,7 +451,10 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               offsetX: 0,
               offsetY: 0,
               scaleX: parseFloat(String(visualLayout.scaleX)) || 50.0,
-              scaleY: parseFloat(String(visualLayout.scaleY)) || 50.0
+              scaleY: parseFloat(String(visualLayout.scaleY)) || 50.0,
+              originX: apiData.originX != null ? Number(apiData.originX) : 0,
+              originY: apiData.originY != null ? Number(apiData.originY) : 0,
+              rotation: apiData.rotation != null ? Number(apiData.rotation) : 0
             },
             layerGroups: normalizedGroups,
             layers: normalizedLayers,
@@ -495,7 +498,10 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               offsetX: 0,
               offsetY: 0,
               scaleX: 50.0,
-              scaleY: 50.0
+              scaleY: 50.0,
+              originX: apiData.originX != null ? Number(apiData.originX) : (apiData.mapInfo.originX != null ? Number(apiData.mapInfo.originX) : 0),
+              originY: apiData.originY != null ? Number(apiData.originY) : (apiData.mapInfo.originY != null ? Number(apiData.mapInfo.originY) : 0),
+              rotation: apiData.rotation != null ? Number(apiData.rotation) : 0
             },
             layerGroups: legGroups,
             layers: legLayers,
