@@ -1786,21 +1786,6 @@ onMounted(async () => {
     try {
       await mapEditorStore.loadMap(loadedMapId);
       ElMessage.success("地图加载成功");
-
-      // 加载完成后，检查地图原点偏移，自动调整视图使两个原点都可见
-      const mapInfo = mapEditorStore.mapData?.mapInfo;
-      if (mapInfo) {
-        const originX = Number(mapInfo.originX) || 0;
-        const originY = Number(mapInfo.originY) || 0;
-        // 如果有原点偏移，调整视图偏移使两个原点都能显示在视口中心附近
-        if (originX !== 0 || originY !== 0) {
-          // 计算视图偏移：将原点从 (0,0) 移动到视口中心偏左上一点的位置
-          mapEditorStore.updateCanvasState({
-            offsetX: 150,
-            offsetY: 150
-          });
-        }
-      }
     } catch (error: any) {
       const errorMessage =
         error?.response?.data?.msg || error?.message || "加载失败";
