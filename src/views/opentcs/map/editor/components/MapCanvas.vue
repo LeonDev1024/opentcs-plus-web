@@ -572,11 +572,15 @@ const AXIS_COLOR_Y  = '#dc2626';
  * 所有尺寸使用**固定模型坐标**，与点、路径等地图元素一致，
  * 由 Stage 的 scaleX/scaleY 统一缩放。放大时坐标轴和点一起变大。
  */
-const AXIS_W        = 1.5;        // 线宽（模型单位）
-const AXIS_ARM      = 200;        // 臂长（模型单位）
-const AXIS_ARROW_L  = 12;         // 箭头长度
-const AXIS_ARROW_H  = 5;          // 箭头半宽
-const MAP_DASH      = [8, 5];     // 虚线 pattern（模型单位）
+// 与控制台拓扑视图保持一致：控制台使用 SCALE=0.1（约 1px = 10mm）
+// MapCanvas 的坐标轴是在“模型坐标”绘制，然后再乘以 stage.scale（canvasState.scale）。
+// 为保证在默认缩放下（canvasState.scale=0.1）轴线在屏幕上的长度/粗细一致，
+// 这里将控制台像素尺寸折算到模型单位。
+const AXIS_W        = 20;         // 线宽（模型单位）
+const AXIS_ARM      = 1200;       // 臂长（模型单位）
+const AXIS_ARROW_L  = 80;         // 箭头长度（模型单位）
+const AXIS_ARROW_H  = 50;         // 箭头半宽（模型单位）
+const MAP_DASH      = [80, 50];  // 虚线 pattern（模型单位）
 
 // ═══════ 场景/工厂原点（实线） ═══════════════════════════════════════════════
 const axisXLineConfig = {
