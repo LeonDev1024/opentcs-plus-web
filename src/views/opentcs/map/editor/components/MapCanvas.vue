@@ -395,6 +395,38 @@ function tryApplyViewportOriginBottomLeft() {
   const h = el.clientHeight || 1080;
   const w = el.clientWidth || 1920;
   if (h < 80 || w < 80) return; // 宽高过小不调整，避免异常布局
+  const originX = Number(mapEditorStore.mapData?.mapInfo?.originX ?? 0) || 0;
+  const originY = Number(mapEditorStore.mapData?.mapInfo?.originY ?? 0) || 0;
+  const s = cs.scale || 1;
+
+  // 当地图原点不在 (0,0) 时，理论上需要同时保证：
+  // - 工厂原点(0,0)实线轴可见
+  // - 地图原点(originX, originY)虚线轴可见
+  //
+  // 但如果 origin 距离太远，窗口无法同时容纳两者（约束区间交集为空）；
+  // 此时会出现“实线有、虚线不见”之类的问题。
+  // 这里优先选择能同时满足的 offset；若交集为空，则退回居中到地图原点，确保虚线一定可见。
+  if (originX !== 0 || originY !== 0) {
+    const pad = DEFAULT_VIEWPORT_ORIGIN_PAD;
+
+    // 计算 (0,0) 实线轴 + (originX,originY) 虚线轴 的整体 bbox（模型坐标系）。
+    const minXModel = Math.min(0, originX);
+    const maxXModel = Math.max(AXIS_ARM, originX + AXIS_ARM);
+    const minYModel = Math.min(-AXIS_ARM, originY - AXIS_ARM);
+    const maxYModel = Math.max(0, originY);
+
+    const centerXModel = (minXModel + maxXModel) / 2;
+    const centerYModel = (minYModel + maxYModel) / 2;
+
+    mapEditorStore.updateCanvasState({
+      // 只做平移（offset），不修改 scale：避免与控制台 mm->px 换算比例不一致
+      offsetX: w / 2 - centerXModel * s,
+      offsetY: h / 2 - centerYModel * s
+    });
+    return;
+  }
+
+  // origin 为 (0,0) 时：保持原有默认逻辑（把工厂原点摆到左下角附近）
   mapEditorStore.updateCanvasState({
     offsetX: DEFAULT_VIEWPORT_ORIGIN_PAD,
     offsetY: h - DEFAULT_VIEWPORT_ORIGIN_PAD

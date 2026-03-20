@@ -97,6 +97,12 @@ export interface MapEditorResponse {
   createTime?: string;
   /** 更新时间 */
   updateTime?: string;
+  /** 地图原点X坐标（毫米） */
+  originX?: number;
+  /** 地图原点Y坐标（毫米） */
+  originY?: number;
+  /** 地图旋转角度（度） */
+  rotation?: number;
   /** 点位数据 */
   points?: any[];
   /** 路径数据 */

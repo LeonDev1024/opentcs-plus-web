@@ -447,7 +447,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               description: apiData.description || '',
               width: 1920,
               height: 1080,
-              scale: 1,
+              // 统一：地图原点 originX/originY 的单位为毫米（mm），
+              // 地图管理控制台按 1px = 10mm（SCALE=0.1）换算，这里默认使用同一换算比例，避免视觉位置差异过大。
+              scale: 0.1,
               offsetX: 0,
               offsetY: 0,
               scaleX: parseFloat(String(visualLayout.scaleX)) || 50.0,
@@ -494,7 +496,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               description: apiData.mapInfo.description || '',
               width: parseFloat(apiData.mapInfo.layoutWidth) || 1920,
               height: parseFloat(apiData.mapInfo.layoutHeight) || 1080,
-              scale: parseFloat(apiData.mapInfo.scale) || 1,
+              scale: parseFloat(apiData.mapInfo.scale) || 0.1,
               offsetX: 0,
               offsetY: 0,
               scaleX: 50.0,
