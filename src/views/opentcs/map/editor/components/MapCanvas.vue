@@ -398,6 +398,8 @@ function tryApplyViewportOriginBottomLeft() {
   const originX = Number(mapEditorStore.mapData?.mapInfo?.originX ?? 0) || 0;
   const originY = Number(mapEditorStore.mapData?.mapInfo?.originY ?? 0) || 0;
   const s = cs.scale || 1;
+  // 与 mapOriginCoord 的 y 方向约定一致：显示用取反后的 y
+  const mapOriginY = -originY;
 
   // 当地图原点不在 (0,0) 时，理论上需要同时保证：
   // - 工厂原点(0,0)实线轴可见
@@ -412,8 +414,8 @@ function tryApplyViewportOriginBottomLeft() {
     // 计算 (0,0) 实线轴 + (originX,originY) 虚线轴 的整体 bbox（模型坐标系）。
     const minXModel = Math.min(0, originX);
     const maxXModel = Math.max(AXIS_ARM, originX + AXIS_ARM);
-    const minYModel = Math.min(-AXIS_ARM, originY - AXIS_ARM);
-    const maxYModel = Math.max(0, originY);
+    const minYModel = Math.min(-AXIS_ARM, mapOriginY - AXIS_ARM);
+    const maxYModel = Math.max(0, mapOriginY);
 
     const centerXModel = (minXModel + maxXModel) / 2;
     const centerYModel = (minYModel + maxYModel) / 2;
@@ -623,7 +625,9 @@ const axisYArrowConfig = {
 /** 当前地图的 originX/Y（模型坐标 mm） */
 const mapOriginCoord = computed(() => ({
   x: mapEditorStore.mapData?.mapInfo?.originX ?? 0,
-  y: mapEditorStore.mapData?.mapInfo?.originY ?? 0
+  // 与控制台拓扑视图保持一致：Konva 的 y 轴向下为正，
+  // 后端/控制台的 originY 约定为“向上为正”，因此需要取反。
+  y: -(mapEditorStore.mapData?.mapInfo?.originY ?? 0)
 }));
 
 const mapOriginXLineConfig = computed(() => {
