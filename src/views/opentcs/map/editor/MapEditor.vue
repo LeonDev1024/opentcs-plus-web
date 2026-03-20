@@ -366,9 +366,12 @@
         <!-- 底部信息 -->
         <div class="canvas-footer">
           <span class="mode-info">编辑模式</span>
-          <span class="footer-sep">，</span>
+          <span class="footer-sep">·</span>
           <span class="muted">地图ID：</span>
           <span class="mono">{{ mapId || "-" }}</span>
+          <span class="footer-sep">，</span>
+          <span class="muted">缩放：</span>
+          <span class="zoom-percent" @click="resetZoom">{{ zoomPercent }}%</span>
         </div>
       </div>
     </div>
@@ -1362,6 +1365,14 @@ const scaleY = computed(() => {
 // 画布缩放比例
 const canvasScale = computed(() => {
   return mapEditorStore.canvasState?.scale ?? 1;
+});
+
+// 缩放百分比（以初始 origin 展示 scale 为基准，确保初始时为 100%）
+const zoomPercent = computed(() => {
+  const base = mapEditorStore.mapData?.mapInfo?.scale ?? 1;
+  const baseScale = typeof base === 'number' ? base : base != null ? parseFloat(String(base)) : 1;
+  const denom = Number.isFinite(baseScale) && baseScale !== 0 ? baseScale : 1;
+  return Math.round((canvasScale.value / denom) * 100);
 });
 
 // 模型坐标 → 实际长度显示（单位 mm，≥1000 时显示为 m）
@@ -3586,6 +3597,20 @@ onUnmounted(() => {
 
         .mono {
           font-family: monospace;
+        }
+
+        .zoom-percent {
+          color: #409eff;
+          font-weight: 600;
+          cursor: pointer;
+          user-select: none;
+          padding: 2px 8px;
+          border-radius: 4px;
+          background: #f5f7fa;
+
+          &:hover {
+            text-decoration: underline;
+          }
         }
       }
     }
