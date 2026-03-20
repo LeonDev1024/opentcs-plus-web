@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { POINT_TYPE_RADIUS } from '@/utils/mapEditor/mapVisualTokens';
 
 /**
  * 点位类型配置 composable
@@ -19,28 +20,28 @@ export function usePointTypeConfig() {
       stroke: '#096DD9',
       glyph: undefined,     // Halt点不显示字母
       glyphColor: '#FFFFFF',
-      radius: 5
+      radius: POINT_TYPE_RADIUS[POINT_TYPE.HALT]
     },
     [POINT_TYPE.PARK]: {
       fill: '#67C23A',      // 绿色 - 长时间停车点
       stroke: '#237804',
       glyph: 'P',
       glyphColor: '#FFFFFF',
-      radius: 7
+      radius: POINT_TYPE_RADIUS[POINT_TYPE.PARK]
     },
     [POINT_TYPE.STATION]: {
       fill: '#E6A23C',      // 橙色 - 工作站点
       stroke: '#D48806',
       glyph: 'S',
       glyphColor: '#FFFFFF',
-      radius: 6
+      radius: POINT_TYPE_RADIUS[POINT_TYPE.STATION]
     },
     [POINT_TYPE.CHARGE]: {
       fill: '#F56C6C',      // 红色 - 充电点
       stroke: '#C21F1F',
       glyph: '⚡',
       glyphColor: '#FFFFFF',
-      radius: 7
+      radius: POINT_TYPE_RADIUS[POINT_TYPE.CHARGE]
     }
   };
 

@@ -117,6 +117,11 @@ export interface MapPath {
     strokeWidth: number;    // 线条宽度
     lineStyle: 'solid' | 'dashed' | 'dotted';
     arrowVisible: boolean;  // 是否显示箭头
+    /**
+     * 车道箭头展示：新建路径均为 one-way（先点起点再点终点即方向）。
+     * two-way 仅可能来自后端/导入数据，前端不再提供手动切换。
+     */
+    laneMode?: 'one-way' | 'two-way';
     label?: string;
     labelVisible: boolean;
   };

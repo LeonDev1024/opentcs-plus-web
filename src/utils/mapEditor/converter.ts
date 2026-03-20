@@ -2,6 +2,7 @@
  * 数据转换工具 - 编辑器数据与后端实体数据相互转换
  */
 import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
+import { DEFAULT_POINT_OUTER_RADIUS } from '@/utils/mapEditor/mapVisualTokens';
 
 /**
  * 点数据转换器
@@ -40,7 +41,7 @@ export class PointConverter {
       description: vo.description,
       status: vo.status,
       editorProps: {
-        radius: 5,
+        radius: DEFAULT_POINT_OUTER_RADIUS,
         color: '#1890ff',
         labelVisible: true
       },

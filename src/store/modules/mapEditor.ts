@@ -245,6 +245,10 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         strokeWidth: p?.editorProps?.strokeWidth ?? 2,
         lineStyle: p?.editorProps?.lineStyle ?? 'solid',
         arrowVisible: p?.editorProps?.arrowVisible !== false,
+        laneMode:
+          p?.editorProps?.laneMode === 'two-way' || p?.editorProps?.laneMode === '双向'
+            ? 'two-way'
+            : 'one-way',
         label: p?.editorProps?.label,
         labelVisible: p?.editorProps?.labelVisible !== false
       }
