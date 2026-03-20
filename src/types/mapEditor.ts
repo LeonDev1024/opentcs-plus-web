@@ -206,6 +206,11 @@ export interface MapEditorData {
     offsetY: number;      // 偏移Y
     scaleX?: number;      // X轴比例（单位：mm）
     scaleY?: number;      // Y轴比例（单位：mm）
+    /** 地图原点相对于场景原点的偏移（毫米）。默认 0,0（与场景原点重合）。 */
+    originX?: number;
+    originY?: number;
+    /** 地图相对于场景的旋转角度（度） */
+    rotation?: number;
   };
   
   // 图层组数据
