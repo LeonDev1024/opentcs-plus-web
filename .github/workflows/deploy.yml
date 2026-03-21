@@ -22,22 +22,22 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: pnpm-lock.yaml
+          cache-dependency-path: package-lock.json
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
+        uses: @actions/npm@latest@v2
         with:
           version: 9
 
       - name: Install dependencies
         run: |
-          pnpm install --frozen-lockfile --registry=https://registry.npmmirror.com
+          npm install --frozen-lockfile --registry=https://registry.npmmirror.com
 
       - name: ESLint check
-        run: pnpm lint:eslint
+        run: npm run lint:eslint
 
       - name: Check Vue build
-        run: pnpm build:prod
+        run: npm run build:prod
 
   #=================== 构建镜像 ===================
   build:
