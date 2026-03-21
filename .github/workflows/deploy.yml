@@ -11,7 +11,6 @@ env:
   NODE_VERSION: '20'
 
 jobs:
-  #=================== 代码检查 ===================
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -24,11 +23,6 @@ jobs:
           cache: 'npm'
           cache-dependency-path: package-lock.json
 
-      - name: Install pnpm
-        uses: @actions/npm@latest@v2
-        with:
-          version: 9
-
       - name: Install dependencies
         run: |
           npm install --frozen-lockfile --registry=https://registry.npmmirror.com
@@ -39,11 +33,10 @@ jobs:
       - name: Check Vue build
         run: npm run build:prod
 
-  #=================== 构建镜像 ===================
   build:
     needs: lint
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     permissions:
       contents: read
       packages: write
@@ -81,11 +74,10 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  #=================== 部署到服务器 ===================
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
 
     steps:
       - name: Deploy to Server
@@ -97,12 +89,8 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || '22' }}
           script: |
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
             docker pull ${{ env.REGISTRY }}/${{ github.repository }}:latest
-
             cd /opt/opentcs-deploy
             docker compose up -d --build frontend
-
             sleep 10
-            curl -sf http://localhost/health || echo "Frontend may not be ready"
             echo "Deployment completed!"
