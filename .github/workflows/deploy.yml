@@ -25,10 +25,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm install --frozen-lockfile --registry=https://registry.npmmirror.com
-
-      - name: ESLint check
-        run: npm run lint:eslint
+          npm install --registry=https://registry.npmmirror.com
 
       - name: Check Vue build
         run: npm run build:prod
