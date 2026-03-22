@@ -41,8 +41,9 @@ service.interceptors.request.use(
     const isToken = config.headers?.isToken === false;
     // 是否需要防止数据重复提交
     const isRepeatSubmit = config.headers?.repeatSubmit === false;
-    // 是否需要加密
-    const isEncrypt = config.headers?.isEncrypt === 'true';
+    // 是否需要加密（部分接口传布尔 true，兼容字符串 'true'）
+    const enc = config.headers?.isEncrypt;
+    const isEncrypt = enc === true || enc === 'true';
 
     if (getToken() && !isToken) {
       config.headers['Authorization'] = 'Bearer ' + getToken(); // 让每个请求携带自定义token 请根据实际情况自行修改
