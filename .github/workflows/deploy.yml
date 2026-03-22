@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: Deploy to Server
 
 on:
   push:
@@ -6,49 +6,8 @@ on:
   pull_request:
     branches: [main, master]
 
-env:
-  REGISTRY: ghcr.io
-  NODE_VERSION: '20'
-  IMAGE_NAME: leondev1024/opentcs-plus-web
-
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha
-
-      - name: Build and push Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: script/deploy/frontend/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
   deploy:
-    needs: build
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
 
@@ -62,18 +21,17 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || '22' }}
           command_timeout: 20m
           script: |
-            # 进入部署目录
             cd /opt/opentcs-deploy
             
-            # 克隆最新代码（或使用已有的）
-            if [ ! -d "opentcs-plus-web" ]; then
+            # 克隆最新代码
+            if [ -d "opentcs-plus-web" ]; then
+              cd opentcs-plus-web
+              git fetch origin
+              git reset --hard origin/master
+            else
               git clone https://github.com/LeonDev1024/opentcs-plus-web.git opentcs-plus-web
+              cd opentcs-plus-web
             fi
-            
-            cd opentcs-plus-web
-            
-            # 拉取最新代码
-            git pull origin master
             
             # 构建并启动前端
             docker build -t opentcs-web:latest -f script/deploy/frontend/Dockerfile .
