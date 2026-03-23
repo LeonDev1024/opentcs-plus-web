@@ -22,26 +22,19 @@ jobs:
           port: ${{ secrets.DEPLOY_PORT || '22' }}
           command_timeout: 20m
           script: |
+            # 登录 GitHub Container Registry
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # 拉取最新前端镜像
+            docker pull ghcr.io/LeonDev1024/opentcs-plus-web/frontend:latest
+
+            # 进入部署目录
             cd /opt/opentcs-deploy
-            
-            # 克隆最新代码
-            if [ -d "opentcs-plus-web" ]; then
-              cd opentcs-plus-web
-              git fetch origin
-              git reset --hard origin/master
-            else
-              git clone https://github.com/LeonDev1024/opentcs-plus-web.git opentcs-plus-web
-              cd opentcs-plus-web
-            fi
-            
-            # 构建并启动前端
-            docker build -t opentcs-web:latest -f script/deploy/frontend/Dockerfile .
-            
-            # 停止旧容器
-            docker stop opentcs-web 2>/dev/null || true
-            docker rm opentcs-web 2>/dev/null || true
-            
-            # 启动新容器
-            docker run -d --name opentcs-web -p 80:80 opentcs-web:latest
-            
+
+            # 更新 docker-compose.yml 中的前端镜像
+            sed -i 's|ghcr.io/LeonDev1024/opentcs-plus-web/frontend:latest|ghcr.io/LeonDev1024/opentcs-plus-web/frontend:latest|g' docker-compose.yml
+
+            # 只重启前端服务
+            docker compose up -d frontend
+
             echo "Frontend deployment completed!"
