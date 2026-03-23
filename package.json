@@ -65,6 +65,7 @@
     "@vue/eslint-config-prettier": "10.2.0",
     "@vue/eslint-config-typescript": "14.4.0",
     "autoprefixer": "10.4.20",
+    "baseline-browser-mapping": "^2.10.10",
     "eslint": "9.21.0",
     "eslint-plugin-prettier": "5.2.3",
     "eslint-plugin-vue": "9.32.0",
