@@ -25,11 +25,11 @@ jobs:
             # 登录 GitHub Container Registry
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # 拉取最新前端镜像
-            docker pull ghcr.io/LeonDev1024/opentcs-plus-web/frontend:latest
+            # 拉取最新前端镜像（使用小写名称）
+            docker pull ghcr.io/leondev1024/opentcs-plus-web/frontend:latest
 
             # 创建临时容器并复制静态文件到宿主机
-            docker create --name temp-frontend ghcr.io/LeonDev1024/opentcs-plus-web/frontend:latest
+            docker create --name temp-frontend ghcr.io/leondev1024/opentcs-plus-web/frontend:latest
             docker cp temp-frontend:/usr/share/nginx/html/. /var/www/opentcs/
             docker rm temp-frontend
 
