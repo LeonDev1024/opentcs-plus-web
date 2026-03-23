@@ -28,13 +28,12 @@ jobs:
             # 拉取最新前端镜像
             docker pull ghcr.io/LeonDev1024/opentcs-plus-web/frontend:latest
 
-            # 进入部署目录
-            cd /opt/opentcs-deploy
+            # 创建临时容器并复制静态文件到宿主机
+            docker create --name temp-frontend ghcr.io/LeonDev1024/opentcs-plus-web/frontend:latest
+            docker cp temp-frontend:/usr/share/nginx/html/. /var/www/opentcs/
+            docker rm temp-frontend
 
-            # 更新 docker-compose.yml 中的前端镜像
-            sed -i 's|ghcr.io/LeonDev1024/opentcs-plus-web/frontend:latest|ghcr.io/LeonDev1024/opentcs-plus-web/frontend:latest|g' docker-compose.yml
-
-            # 只重启前端服务
-            docker compose up -d frontend
+            # 确保 Nginx 正在运行
+            sudo nginx -t && sudo systemctl reload nginx || sudo nginx
 
             echo "Frontend deployment completed!"
