@@ -8,8 +8,8 @@ export interface NavigationMapVO {
   mapId: string;
   name: string;
   floorNumber: number | null;
-  // AMR 型号（必填，对应 vehicle_type.name）
-  amrModel?: string;
+  // 车辆类型ID（必填，对应 vehicle_type.id）
+  vehicleTypeId?: number;
   // 地图定位参数（相对于场景原点，用于多地图统一显示）
   originX?: number;
   originY?: number;
@@ -36,8 +36,8 @@ export interface NavigationMapForm {
   mapId: string;
   name: string;
   floorNumber?: number | null;
-  // AMR 型号（必填，对应 vehicle_type.name）
-  amrModel?: string;
+  // 车辆类型ID（必填，对应 vehicle_type.id）
+  vehicleTypeId?: number;
   // 地图定位参数（相对于场景原点）
   originX?: number;
   originY?: number;

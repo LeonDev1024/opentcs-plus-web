@@ -246,9 +246,9 @@
         <el-form-item label="所属楼层" prop="floorNumber">
           <el-input-number v-model="form.floorNumber" :placeholder="'-1表示地下楼层，0表示1楼'" style="width: 100%;" />
         </el-form-item>
-        <el-form-item label="AMR型号" prop="amrModel">
-          <el-select v-model="form.amrModel" placeholder="请选择AMR型号" style="width: 100%;">
-            <el-option v-for="type in amrTypeList" :key="type.id" :label="type.name" :value="type.name" />
+        <el-form-item label="车辆类型" prop="vehicleTypeId">
+          <el-select v-model="form.vehicleTypeId" placeholder="请选择车辆类型" style="width: 100%;">
+            <el-option v-for="type in amrTypeList" :key="type.id" :label="type.name" :value="type.id" />
           </el-select>
         </el-form-item>
 
@@ -615,7 +615,7 @@ const form = reactive<NavigationMapForm>({
   mapId: '',
   name: '',
   floorNumber: 0,
-  amrModel: '',
+  vehicleTypeId: undefined,
   originX: 0,
   originY: 0,
   rotation: 0,
@@ -626,7 +626,7 @@ const form = reactive<NavigationMapForm>({
 const rules = {
   mapId: [{ required: true, message: '地图ID不能为空', trigger: 'blur' }],
   name: [{ required: true, message: '地图名称不能为空', trigger: 'blur' }],
-  amrModel: [{ required: true, message: '请选择AMR型号', trigger: 'change' }]
+  vehicleTypeId: [{ required: true, message: '请选择车辆类型', trigger: 'change' }]
 };
 
 const formRef = ref<FormInstance>();
@@ -865,7 +865,7 @@ const reset = () => {
   form.mapId = '';
   form.name = '';
   form.floorNumber = 0;
-  form.amrModel = '';
+  form.vehicleTypeId = undefined;
   form.originX = 0;
   form.originY = 0;
   form.rotation = 0;
