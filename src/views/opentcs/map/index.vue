@@ -695,6 +695,7 @@ const loadMaps = async () => {
   if (!selectedFactoryId.value) {
     mapList.value = [];
     selectedMapId.value = '';
+    mapElements.value = { points: [], paths: [], locations: [] };
     return;
   }
   loading.value = true;
@@ -705,6 +706,8 @@ const loadMaps = async () => {
     mapList.value = Array.isArray(data) ? data : [];
     if (mapList.value.length > 0 && !selectedMapId.value) {
       selectedMapId.value = String(mapList.value[0].mapId);
+      // 自动加载第一个地图的元素
+      loadMapElements(mapList.value[0].mapId);
     }
   } finally {
     loading.value = false;
