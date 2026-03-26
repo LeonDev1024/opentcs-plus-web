@@ -231,25 +231,125 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   /** 将后端路径转为前端 MapPath（sourcePointId/destPointId->startPointId/endPointId，id 转 string，补 geometry/editorProps） */
   const normalizePath = (p: Record<string, any>, defaultLayerId: string, allPoints?: any[]): MapPath => {
     const id = p?.id != null ? String(p.id) : `path_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const startPointId = p?.startPointId ?? p?.sourcePointId;
-    const endPointId = p?.endPointId ?? p?.destPointId;
+    // 注意：后端不同版本里 start/end 可能并不等于前端点位的 id
+    // 后续我们会在成功解析出起终点坐标时，把 startPointId/endPointId 规范回“点位 id”
+    let startPointId = p?.startPointId ?? p?.sourcePointId;
+    let endPointId = p?.endPointId ?? p?.destPointId;
     // 创建新的 geometry 对象，避免引用问题
     const geometry: any = {
       controlPoints: (p?.geometry?.controlPoints || []).slice(),
       pathType: p?.geometry?.pathType || 'line'
     };
-    // 如果没有控制点但有起点和终点，则根据已加载的 points 填充控制点坐标
-    if (geometry.controlPoints.length === 0 && startPointId != null && endPointId != null) {
-      // 优先使用传入的 allPoints，否则尝试从 mapData 获取
+
+    // 1) 如果后端直接提供了布局控制点（layoutControlPoints），优先使用它
+    const layoutControlPoints = p?.layoutControlPoints;
+    if (
+      geometry.controlPoints.length === 0
+      && Array.isArray(layoutControlPoints)
+      && layoutControlPoints.length >= 2
+    ) {
+      geometry.controlPoints = layoutControlPoints
+        .map((cp: any, index: number) => ({
+          id: `cp_${id}_lp_${index}`,
+          x: Number(cp?.x ?? cp?.xPosition ?? 0),
+          y: Number(cp?.y ?? cp?.yPosition ?? 0),
+          z: cp?.z != null ? Number(cp.z) : undefined
+        }))
+        .filter((cp: any) => Number.isFinite(cp.x) && Number.isFinite(cp.y));
+
+      // 若后端未给出可直接匹配的点位 id，则用“最近点”反推起终点 id
+      if (geometry.controlPoints.length >= 2) {
+        const pointsSource = allPoints || mapData.value?.elements?.points || [];
+        if (Array.isArray(pointsSource) && pointsSource.length >= 2) {
+          const a = geometry.controlPoints[0];
+          const b = geometry.controlPoints[geometry.controlPoints.length - 1];
+          const nearestBy = (target: { x: number; y: number }) => {
+            let best: any = null;
+            let bestDist = Number.POSITIVE_INFINITY;
+            for (const pt of pointsSource) {
+              const px = Number(pt?.x ?? pt?.xPosition ?? 0);
+              const py = Number(pt?.y ?? pt?.yPosition ?? 0);
+              const dx = px - target.x;
+              const dy = py - target.y;
+              const d = dx * dx + dy * dy;
+              if (Number.isFinite(d) && d < bestDist) {
+                bestDist = d;
+                best = pt;
+              }
+            }
+            return best;
+          };
+          const ns = nearestBy({ x: a.x, y: a.y });
+          const ne = nearestBy({ x: b.x, y: b.y });
+          if (ns?.id != null) startPointId = ns.id;
+          if (ne?.id != null) endPointId = ne.id;
+        }
+      }
+    }
+
+    // 2) 若仍没有足够控制点，尝试用起止点坐标重建
+    // 说明：后端字段在不同版本里可能有不一致（sourcePointId/destPointId 与 points.id/points.pointId 未必能匹配）。
+    // 因此这里做多策略兜底：先按 id/pointId 匹配，匹配失败则从 path.name 解析 Point-xxxx。
+    if (geometry.controlPoints.length < 2 && startPointId != null && endPointId != null) {
       const pointsSource = allPoints || mapData.value?.elements?.points || [];
-      // 路径的 startPointId/endPointId 是后端的 pointId，需要同时匹配 id 和 pointId
-      const startPoint = pointsSource.find((pt: any) => String(pt.id) === String(startPointId) || String(pt.pointId) === String(startPointId));
-      const endPoint = pointsSource.find((pt: any) => String(pt.id) === String(endPointId) || String(pt.pointId) === String(endPointId));
+
+      const matchPointByIdOrPointId = (candidateId: any) => {
+        if (candidateId == null) return undefined;
+        return pointsSource.find(
+          (pt: any) =>
+            String(pt.id) === String(candidateId)
+            || String(pt.pointId) === String(candidateId)
+        );
+      };
+
+      let startPoint = matchPointByIdOrPointId(startPointId);
+      let endPoint = matchPointByIdOrPointId(endPointId);
+
+      // 兜底：从路径名提取点位名
+      if (!startPoint || !endPoint) {
+        const rawName = String(p?.name ?? '');
+        const pointNums = [...rawName.matchAll(/Point-(\d+)/gi)].map(m => m[1]).filter(Boolean);
+        if (pointNums.length >= 2) {
+          const n1 = pointNums[0];
+          const n2 = pointNums[1];
+          const formatted1 = `Point-${String(n1).padStart(4, '0')}`;
+          const formatted2 = `Point-${String(n2).padStart(4, '0')}`;
+          startPoint =
+            startPoint
+            || pointsSource.find((pt: any) => String(pt?.name ?? '').toLowerCase() === formatted1.toLowerCase())
+            || pointsSource.find((pt: any) => String(pt?.pointId ?? '') === String(n1))
+            || pointsSource.find((pt: any) => String(pt?.id ?? '') === String(n1));
+          endPoint =
+            endPoint
+            || pointsSource.find((pt: any) => String(pt?.name ?? '').toLowerCase() === formatted2.toLowerCase())
+            || pointsSource.find((pt: any) => String(pt?.pointId ?? '') === String(n2))
+            || pointsSource.find((pt: any) => String(pt?.id ?? '') === String(n2));
+        }
+      }
+
+      // 最后兜底：如果点位数量刚好够，直接取前两个点连起来（避免完全不渲染）
+      if ((!startPoint || !endPoint) && Array.isArray(pointsSource) && pointsSource.length >= 2) {
+        startPoint = startPoint || pointsSource[0];
+        endPoint = endPoint || pointsSource[1];
+      }
+
       if (startPoint && endPoint) {
+        // 规范起终点 id：用于后续“重复画线去重”和“箭头/选中逻辑”
+        if (startPoint.id != null) startPointId = startPoint.id;
+        if (endPoint.id != null) endPointId = endPoint.id;
+
         geometry.controlPoints = [
-          { id: `cp_${id}_0`, x: startPoint.x ?? startPoint.xPosition ?? 0, y: startPoint.y ?? startPoint.yPosition ?? 0 },
-          { id: `cp_${id}_1`, x: endPoint.x ?? endPoint.xPosition ?? 0, y: endPoint.y ?? endPoint.yPosition ?? 0 }
-        ];
+          {
+            id: `cp_${id}_0`,
+            x: Number(startPoint.x ?? startPoint.xPosition ?? 0),
+            y: Number(startPoint.y ?? startPoint.yPosition ?? 0)
+          },
+          {
+            id: `cp_${id}_1`,
+            x: Number(endPoint.x ?? endPoint.xPosition ?? 0),
+            y: Number(endPoint.y ?? endPoint.yPosition ?? 0)
+          }
+        ].filter((cp: any) => Number.isFinite(cp.x) && Number.isFinite(cp.y));
       }
     }
     // 解析 properties 中的 editorProps
@@ -754,10 +854,11 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             name: path?.name ?? pathId,
             sourcePointId,
             destPointId,
-            routingType: laneMode === 'two-way' ? 'BIDIRECTIONAL' : 'FORWARD',
             locked: path?.locked ?? null,
             // path.length 在库里是 NOT NULL
             length: estimateLength(path?.geometry) ?? 0,
+            // 几何连接类型：DIRECT / ELBOW / BEZIER
+            connectionType: path?.type ?? 'DIRECT',
             properties: JSON.stringify({
               status: path?.status,
               editorProps: path?.editorProps
@@ -947,6 +1048,36 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
    * 添加路径
    */
   const addPath = (path: Omit<MapPath, 'id'>) => {
+    // 防止重复画线：相同起点/终点/连线类型/车道模式/图层则复用已有路径
+    const startId = path.startPointId != null ? String(path.startPointId) : null;
+    const endId = path.endPointId != null ? String(path.endPointId) : null;
+    if (startId && endId) {
+      const laneMode = path.editorProps?.laneMode;
+      const connectionType = path.type ?? 'direct';
+      const layerId = path.layerId;
+
+      const normalizeConnectionTypeForCompare = (p: MapPath): string => {
+        // 优先使用前端显式 type
+        if (p.type) return p.type;
+        // 兼容后端未返回 type 的情况：从 geometry.pathType 推导
+        const pt = p.geometry?.pathType;
+        if (pt === 'curve') return 'curve';
+        if (pt === 'orthogonal') return 'orthogonal';
+        // 默认把 line/未知都当成 direct（用于去重）
+        return 'direct';
+      };
+
+      const existing = paths.value.find(p => {
+        const sameStart = p.startPointId != null && String(p.startPointId) === startId;
+        const sameEnd = p.endPointId != null && String(p.endPointId) === endId;
+        const sameType = normalizeConnectionTypeForCompare(p) === connectionType;
+        const sameLaneMode = (p.editorProps?.laneMode ?? undefined) === laneMode;
+        const sameLayer = (p.layerId ?? undefined) === (layerId ?? undefined);
+        return sameStart && sameEnd && sameType && sameLaneMode && sameLayer;
+      });
+      if (existing) return existing;
+    }
+
     const newPath: MapPath = {
       ...path,
       id: `path_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
@@ -1554,7 +1685,21 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const clearRasterBackground = () => {
     rasterBackground.value = null;
   };
-  
+
+  /**
+   * 初始化编辑器状态：默认漫游模式 + 自动选中第一个点
+   */
+  const initEditorState = () => {
+    // 设置为漫游模式（平移）
+    currentTool.value = ToolModeEnum.PAN;
+
+    // 自动选中第一个点（如果有）
+    if (points.value.length > 0) {
+      const firstPoint = points.value[0];
+      selectElement(firstPoint.id, 'point');
+    }
+  };
+
   return {
     // State
     mapData,
@@ -1630,7 +1775,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     clearVersionHistory,
     reset,
     setRasterBackground,
-    clearRasterBackground
+    clearRasterBackground,
+    initEditorState
   };
 });
 
