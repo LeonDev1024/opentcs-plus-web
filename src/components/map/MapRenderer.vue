@@ -188,14 +188,10 @@ function transformPoint(x: number, y: number) {
   let tx = x + (props.originX ?? 0);
   let ty = y + (props.originY ?? 0);
 
-  // Y 轴翻转（预览模式）
-  if (props.flipY) {
-    ty = -ty;
-  }
-
-  if (x === -151) {
-    console.log('[MapRenderer] transformPoint:', { x, y, tx, ty, flipY: props.flipY });
-  }
+  // Y 轴翻转（预览模式）：地图 Y 向上，Konva Y 向下
+  // 如果 flipY=true，先翻转 Y 坐标，然后让 Konva 画布不再翻转
+  // 实际上，地图编辑器使用 Y 向上坐标系，flipY 应该让 stage scaleY = 1，而不是 -1
+  // 所以这里不做额外翻转，让 stage 处理
 
   return { x: tx, y: ty };
 }
@@ -218,20 +214,13 @@ const stageConfig = computed(() => {
     const centerY = props.height / 2;
     stageX = centerX - bounds.cx * props.scale;
     stageY = centerY - bounds.cy * props.scale;
-
-    if (props.flipY) {
-      stageY = centerY + bounds.cy * props.scale;
-    }
   }
 
-  // Y 轴翻转
-  if (props.flipY) {
-    scaleY = -props.scale;
-    // Y 翻转时，需要调整 y 偏移到画布底部
-    if (!props.autoCenter) {
-      stageY = props.height - props.offsetY;
-    }
-  }
+  // Y 轴翻转：预览模式不需要在 Konva 层面翻转，数据已经是正确坐标
+  // if (props.flipY) {
+  //   scaleY = -props.scale;
+  // }
+  // 保持 scaleY = props.scale，让数据转换处理坐标
 
   return {
     width: props.width,
