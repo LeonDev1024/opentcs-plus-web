@@ -38,52 +38,95 @@
         >
           <!-- 地图层：随视图平移+缩放，被 canvas overflow:hidden 裁切 -->
           <div class="canvas-map-layer" :style="mapLayerStyle">
-            <!-- 地图元素（编辑模式下隐藏，只展示坐标轴） -->
+            <!-- 预览模式：底图与元素可叠加显示 -->
             <div v-if="!isEditingOrigin && activeMap?.rasterUrl" class="map-layer-image">
               <img class="canvas-img" :src="activeMap.rasterUrl" alt="地图底图" />
             </div>
-            <svg v-else-if="!isEditingOrigin && activeMap && (mapElements.points.length > 0 || mapElements.paths.length > 0)"
+            <MapRenderer
+              v-if="previewUseRenderer && !isEditingOrigin && activeMap && (mapElements.points.length > 0 || mapElements.paths.length > 0 || mapElements.locations.length > 0)"
+              class="preview-konva-layer"
+              :style="{
+                width: `${previewCanvasSize.w}px`,
+                height: `${previewCanvasSize.h}px`,
+                left: `${-rendererClipCompensation.x}px`,
+                top: `${-rendererClipCompensation.y}px`
+              }"
+              :points="rendererPoints"
+              :paths="rendererPaths"
+              :locations="rendererLocations"
+              :width="previewCanvasSize.w"
+              :height="previewCanvasSize.h"
+              :scale="1"
+              :offset-x="0"
+              :offset-y="0"
+              :readonly="true"
+              :auto-center="false"
+            />
+            <svg v-else-if="!isEditingOrigin && activeMap && (mapElements.points.length > 0 || mapElements.paths.length > 0 || mapElements.locations.length > 0)"
               class="map-layer-svg"
             >
-              <g v-for="path in processedPaths" :key="path.id">
-                <line
-                  v-if="path.startPoint && path.endPoint"
-                  :x1="path.startPoint.x * SCALE"
-                  :y1="-path.startPoint.y * SCALE"
-                  :x2="path.endPoint.x * SCALE"
-                  :y2="-path.endPoint.y * SCALE"
-                  stroke="#409eff"
-                  stroke-width="2"
-                />
-              </g>
-              <g v-for="point in mapElements.points" :key="point.id">
-                <circle
-                  :cx="point.x * SCALE"
-                  :cy="-point.y * SCALE"
-                  :r="point.editorProps?.radius || 8"
-                  :fill="point.editorProps?.color || '#409eff'"
-                  stroke="#fff"
-                  stroke-width="2"
-                />
-                <text
-                  v-if="point.editorProps?.labelVisible && point.name"
-                  :x="point.x * SCALE"
-                  :y="-point.y * SCALE - 12"
-                  fill="#666"
-                  font-size="10"
-                  text-anchor="middle"
-                >{{ point.name }}</text>
-              </g>
-              <g v-for="location in mapElements.locations" :key="location.id">
-                <rect
-                  :x="(location.x - (location.editorProps?.width || 20) / 2) * SCALE"
-                  :y="(-location.y - (location.editorProps?.height || 20) / 2) * SCALE"
-                  :width="(location.editorProps?.width || 20) * SCALE"
-                  :height="(location.editorProps?.height || 20) * SCALE"
-                  :fill="location.editorProps?.color || '#67c23a'"
-                  stroke="#fff"
-                  stroke-width="1"
-                />
+              <!-- 与工厂原点对齐：点位为地图坐标时需加 origin；并将内容平移到视口附近（避免固定 -50000 偏移把小坐标画到屏外） -->
+              <g :transform="previewSvgCenterTransform">
+                <g v-for="path in pathsForPreview" :key="'path-' + path.id">
+                  <path
+                    v-if="path.preview.mode === 'path'"
+                    :d="path.preview.d"
+                    fill="none"
+                    stroke="#409eff"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <polyline
+                    v-else-if="path.preview.mode === 'polyline'"
+                    :points="path.preview.points"
+                    fill="none"
+                    stroke="#409eff"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <line
+                    v-else-if="path.preview.mode === 'line'"
+                    :x1="path.preview.x1"
+                    :y1="path.preview.y1"
+                    :x2="path.preview.x2"
+                    :y2="path.preview.y2"
+                    stroke="#409eff"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </g>
+                <g v-for="point in mapElements.points" :key="'pt-' + point.id">
+                  <circle
+                    :cx="(point.x + previewOrigin.ox) * SCALE"
+                    :cy="-(point.y + previewOrigin.oy) * SCALE"
+                    :r="point.editorProps?.radius || 8"
+                    :fill="point.editorProps?.color || '#409eff'"
+                    stroke="#fff"
+                    stroke-width="2"
+                  />
+                  <text
+                    v-if="point.editorProps?.labelVisible !== false && point.name"
+                    :x="(point.x + previewOrigin.ox) * SCALE"
+                    :y="-(point.y + previewOrigin.oy) * SCALE - 12"
+                    :transform="svgTextUnflipAt((point.x + previewOrigin.ox) * SCALE, -(point.y + previewOrigin.oy) * SCALE - 12)"
+                    fill="#666"
+                    font-size="10"
+                    text-anchor="middle"
+                  >{{ point.name }}</text>
+                </g>
+                <g v-for="location in mapElements.locations" :key="'loc-' + location.id">
+                  <rect
+                    :x="(location.x + previewOrigin.ox - (location.editorProps?.width || 20) / 2) * SCALE"
+                    :y="-(location.y + previewOrigin.oy + (location.editorProps?.height || 20) / 2) * SCALE"
+                    :width="(location.editorProps?.width || 20) * SCALE"
+                    :height="(location.editorProps?.height || 20) * SCALE"
+                    :fill="location.editorProps?.color || '#67c23a'"
+                    stroke="#fff"
+                    stroke-width="1"
+                  />
+                </g>
               </g>
             </svg>
 
@@ -303,6 +346,8 @@ import { listType } from '@/api/opentcs/vehicle/type';
 import type { TypeVO } from '@/api/opentcs/vehicle/type/types';
 import { loadMapEditorData } from '@/api/opentcs/map';
 import type { MapEditorResponse } from '@/api/opentcs/map/types';
+import { HttpStatus } from '@/enums/RespEnum';
+import MapRenderer from '@/components/map/MapRenderer.vue';
 import { useMapEditorTabsStore } from '@/store/modules/mapEditorTabs';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance } from 'element-plus';
@@ -328,6 +373,57 @@ const elementsLoading = ref(false);
 // 将 mm 坐标直接映射到屏幕像素：1mm -> 1px
 const SCALE = 1;
 
+/**
+ * 请求拦截器返回的是 AjaxResult：{ code, msg, data }。
+ * 不能依赖 data.mapId 判断，否则 data 无 mapId 时会把整包当 payload，导致 points 永远为空。
+ */
+function unwrapAjaxMapPayload(raw: unknown): Record<string, any> {
+  const r = raw as Record<string, any>;
+  if (!r || typeof r !== 'object') return {};
+  const inner = r.data;
+  const shouldUseInner =
+    inner != null
+    && typeof inner === 'object'
+    && !Array.isArray(inner)
+    && (
+      r.code === HttpStatus.SUCCESS
+      || r.code === 200
+      || (
+        r.code === undefined
+        && ((inner as Record<string, any>).points !== undefined
+          || (inner as Record<string, any>).paths !== undefined
+          || (inner as Record<string, any>).locations !== undefined
+          || (inner as Record<string, any>).elements !== undefined
+          || (inner as Record<string, any>).mapInfo !== undefined)
+      )
+    );
+  if (shouldUseInner) {
+    return inner as Record<string, any>;
+  }
+  return r;
+}
+
+function pickElementsArray<T>(a: T[] | undefined | null, b: T[] | undefined | null): T[] {
+  if (Array.isArray(a) && a.length > 0) return a;
+  if (Array.isArray(b) && b.length > 0) return b;
+  if (Array.isArray(a)) return a;
+  if (Array.isArray(b)) return b;
+  return [];
+}
+
+function parsePropertiesPayload(raw: any): Record<string, any> {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
+}
 
 const selectedFactoryId = ref<number | undefined>(undefined);
 const selectedMapId = ref<string>('');
@@ -639,7 +735,12 @@ const activeMap = computed(() => mapList.value.find(m => String(m.mapId) === sel
 const processedPaths = computed(() => {
   const pointsMap = new Map();
   mapElements.value.points?.forEach(p => {
-    pointsMap.set(String(p.id), p);
+    if (p?.id !== undefined && p?.id !== null) {
+      pointsMap.set(String(p.id), p);
+    }
+    if (p?.pointId !== undefined && p?.pointId !== null) {
+      pointsMap.set(String(p.pointId), p);
+    }
   });
 
   return (mapElements.value.paths || []).map(path => {
@@ -657,6 +758,327 @@ const processedPaths = computed(() => {
     return { ...path, startPoint, endPoint };
   });
 });
+
+/** 与 MapCanvas 一致：优先 geometry.controlPoints，否则 layoutControlPoints */
+function extractPathControlPoints(path: any): any[] | null {
+  const g = path.geometry?.controlPoints;
+  if (Array.isArray(g) && g.length >= 2) return g;
+  const l = path.layoutControlPoints;
+  if (Array.isArray(l) && l.length >= 2) return l;
+  return null;
+}
+
+/** 与 getPathConfig 中 path.type / geometry.pathType 判定一致 */
+function pathConnectionKind(path: any): 'curve' | 'orthogonal' | 'direct' {
+  const geoPt = (path.geometry?.pathType || '').toString().toLowerCase();
+  if (geoPt === 'curve') return 'curve';
+  const t = (path.type || path.connectionType || path.pathType || '').toString().toLowerCase();
+  if (t === 'curve' || t === 'bezier' || t === 'spline') return 'curve';
+  if (t === 'orthogonal' || t === 'right_angle' || t === 'rightangle') return 'orthogonal';
+  return 'direct';
+}
+
+type PathPreviewSpec =
+  | { mode: 'path'; d: string }
+  | { mode: 'polyline'; points: string }
+  | { mode: 'line'; x1: number; y1: number; x2: number; y2: number }
+  | { mode: 'none' };
+
+/** 中间控制点到弦线的距离平方（mm²），用于无 pathType 时识别“弓高”曲线控制点 */
+function pointToSegmentDistSq(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const apx = px - ax;
+  const apy = py - ay;
+  const ab2 = abx * abx + aby * aby;
+  if (ab2 < 1e-12) return apx * apx + apy * apy;
+  let t = (apx * abx + apy * aby) / ab2;
+  t = Math.max(0, Math.min(1, t));
+  const qx = ax + t * abx;
+  const qy = ay + t * aby;
+  const dx = px - qx;
+  const dy = py - qy;
+  return dx * dx + dy * dy;
+}
+
+/** 当前选中地图原点（mm），预览层与多地图原点虚线一致 */
+const previewOrigin = computed(() => ({
+  ox: Number(activeMap.value?.originX ?? 0),
+  oy: Number(activeMap.value?.originY ?? 0)
+}));
+
+const previewUseRenderer = true;
+
+const previewCanvasSize = computed(() => {
+  const { w, h } = getCanvasRect();
+  return { w: Math.max(1, Math.round(w)), h: Math.max(1, Math.round(h)) };
+});
+
+const rendererClipCompensation = computed(() => {
+  let minX = 0;
+  let minY = 0;
+  const push = (x: number, y: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+  };
+
+  for (const p of mapElements.value.points || []) {
+    push(Number(p.x ?? p.xPosition ?? 0) + previewOrigin.value.ox, -(Number(p.y ?? p.yPosition ?? 0) + previewOrigin.value.oy));
+  }
+  for (const l of mapElements.value.locations || []) {
+    const lx = Number(l.x ?? l.xPosition ?? 0) + previewOrigin.value.ox;
+    const ly = -(Number(l.y ?? l.yPosition ?? 0) + previewOrigin.value.oy);
+    push(lx, ly);
+    if (Array.isArray(l.geometry?.vertices)) {
+      for (const v of l.geometry.vertices) {
+        push(Number(v.x ?? v.xPosition ?? 0) + previewOrigin.value.ox, -(Number(v.y ?? v.yPosition ?? 0) + previewOrigin.value.oy));
+      }
+    }
+  }
+  for (const path of processedPaths.value) {
+    const cps = extractPathControlPoints(path);
+    if (Array.isArray(cps)) {
+      for (const cp of cps) {
+        push(Number(cp.x ?? cp.xPosition ?? 0) + previewOrigin.value.ox, -(Number(cp.y ?? cp.yPosition ?? 0) + previewOrigin.value.oy));
+      }
+    }
+  }
+
+  return {
+    x: minX < 0 ? Math.ceil(-minX) + 8 : 0,
+    y: minY < 0 ? Math.ceil(-minY) + 8 : 0
+  };
+});
+
+const rendererPoints = computed(() => {
+  const { ox, oy } = previewOrigin.value;
+  const { x: sx, y: sy } = rendererClipCompensation.value;
+  return (mapElements.value.points || []).map((p: any) => ({
+    ...p,
+    x: Number(p.x ?? p.xPosition ?? 0) + ox + sx,
+    // MapRenderer 运行在已翻转的地图层中，这里反转一次使预览上下方向与编辑器一致
+    y: -(Number(p.y ?? p.yPosition ?? 0) + oy) + sy,
+    editorProps: {
+      ...p.editorProps,
+      radius: p.editorProps?.radius ?? 10,
+      color: p.editorProps?.color ?? '#409eff',
+      labelVisible: p.editorProps?.labelVisible ?? true
+    }
+  }));
+});
+
+const rendererPaths = computed(() => {
+  const { ox, oy } = previewOrigin.value;
+  const { x: sx, y: sy } = rendererClipCompensation.value;
+  return processedPaths.value.map((path: any) => {
+    const cps = extractPathControlPoints(path);
+    let controlPoints = Array.isArray(cps)
+      ? cps.map((cp: any) => ({
+        ...cp,
+        x: Number(cp.x ?? cp.xPosition ?? 0) + ox + sx,
+        y: -(Number(cp.y ?? cp.yPosition ?? 0) + oy) + sy
+      }))
+      : [];
+    if (controlPoints.length < 2 && path.startPoint && path.endPoint) {
+      controlPoints = [
+        {
+          id: `cp_${path.id}_0`,
+          x: Number(path.startPoint.x ?? path.startPoint.xPosition ?? 0) + ox + sx,
+          y: -(Number(path.startPoint.y ?? path.startPoint.yPosition ?? 0) + oy) + sy
+        },
+        {
+          id: `cp_${path.id}_1`,
+          x: Number(path.endPoint.x ?? path.endPoint.xPosition ?? 0) + ox + sx,
+          y: -(Number(path.endPoint.y ?? path.endPoint.yPosition ?? 0) + oy) + sy
+        }
+      ];
+    }
+    return {
+      ...path,
+      geometry: {
+        ...(path.geometry || {}),
+        controlPoints,
+        pathType: path.geometry?.pathType || pathConnectionKind(path)
+      },
+      editorProps: {
+        ...path.editorProps,
+        strokeColor: path.editorProps?.strokeColor ?? 'rgba(186, 206, 245, 0.95)',
+        strokeWidth: path.editorProps?.strokeWidth ?? (path.editorProps?.lineStyle === 'dashed' ? 4 : 18),
+        lineStyle: path.editorProps?.lineStyle ?? 'solid',
+        arrowVisible: path.editorProps?.arrowVisible ?? true
+      }
+    };
+  });
+});
+
+const rendererLocations = computed(() => {
+  const { ox, oy } = previewOrigin.value;
+  const { x: sx, y: sy } = rendererClipCompensation.value;
+  return (mapElements.value.locations || []).map((l: any) => ({
+    ...l,
+    x: Number(l.x ?? l.xPosition ?? 0) + ox + sx,
+    y: -(Number(l.y ?? l.yPosition ?? 0) + oy) + sy,
+    geometry: l.geometry && Array.isArray(l.geometry.vertices)
+      ? {
+        ...l.geometry,
+        vertices: l.geometry.vertices.map((v: any) => ({
+          ...v,
+          x: Number(v.x ?? v.xPosition ?? 0) + ox + sx,
+          y: -(Number(v.y ?? v.yPosition ?? 0) + oy) + sy
+        }))
+      }
+      : l.geometry,
+    editorProps: {
+      ...l.editorProps,
+      width: l.editorProps?.width ?? 24,
+      height: l.editorProps?.height ?? 24,
+      color: l.editorProps?.color ?? '#67c23a',
+      labelVisible: l.editorProps?.labelVisible ?? true
+    }
+  }));
+});
+
+/**
+ * 预览路径：直线用 line；正交/多段用 polyline；
+ * 曲线（Konva tension）不能用折线连控制点，三点时用 SVG 二次贝塞尔 Q 近似。
+ */
+function buildPathPreviewSpec(path: any): PathPreviewSpec {
+  const { ox, oy } = previewOrigin.value;
+  const cps = extractPathControlPoints(path);
+  const kind = pathConnectionKind(path);
+
+  const fp = (cp: any) => ({
+    fx: Number(cp?.x ?? cp?.xPosition ?? 0) + ox,
+    fy: Number(cp?.y ?? cp?.yPosition ?? 0) + oy
+  });
+  const sv = (fx: number, fy: number) => {
+    if (!Number.isFinite(fx) || !Number.isFinite(fy)) return null;
+    return { x: fx * SCALE, y: -fy * SCALE };
+  };
+
+  const lineFromCp = (a: any, b: any): PathPreviewSpec => {
+    const pa = sv(fp(a).fx, fp(a).fy);
+    const pb = sv(fp(b).fx, fp(b).fy);
+    if (!pa || !pb) return { mode: 'none' };
+    return { mode: 'line', x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y };
+  };
+
+  if (!cps || cps.length < 2) {
+    if (path.startPoint && path.endPoint) {
+      const pa = sv(Number(path.startPoint.x) + ox, Number(path.startPoint.y) + oy);
+      const pb = sv(Number(path.endPoint.x) + ox, Number(path.endPoint.y) + oy);
+      if (pa && pb) return { mode: 'line', x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y };
+    }
+    return { mode: 'none' };
+  }
+
+  if (cps.length === 2) {
+    return lineFromCp(cps[0], cps[1]);
+  }
+
+  if (cps.length === 3) {
+    const f0 = fp(cps[0]);
+    const f1 = fp(cps[1]);
+    const f2 = fp(cps[2]);
+    const midOffSq = pointToSegmentDistSq(f1.fx, f1.fy, f0.fx, f0.fy, f2.fx, f2.fy);
+    // 弓高约 >3mm：按曲线画 Q；与编辑器「三点 + 中间为法向偏移」一致，避免折线穿过端点
+    const useQuad = kind === 'curve' || midOffSq > 9;
+    if (useQuad) {
+      const p0 = sv(f0.fx, f0.fy);
+      const p1 = sv(f1.fx, f1.fy);
+      const p2 = sv(f2.fx, f2.fy);
+      if (p0 && p1 && p2) {
+        return {
+          mode: 'path',
+          d: `M ${p0.x},${p0.y} Q ${p1.x},${p1.y} ${p2.x},${p2.y}`
+        };
+      }
+      return { mode: 'none' };
+    }
+  }
+
+  const parts: string[] = [];
+  for (const cp of cps) {
+    const p = sv(fp(cp).fx, fp(cp).fy);
+    if (p) parts.push(`${p.x},${p.y}`);
+  }
+  if (parts.length < 2) return { mode: 'none' };
+  return { mode: 'polyline', points: parts.join(' ') };
+}
+
+const pathsForPreview = computed(() =>
+  processedPaths.value.map(p => ({
+    ...p,
+    preview: buildPathPreviewSpec(p)
+  }))
+);
+
+/** 根据全部元素计算工厂坐标系包围盒，用于把拓扑平移到视口附近 */
+const previewContentBounds = computed(() => {
+  const { ox, oy } = previewOrigin.value;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  const expand = (fx: number, fy: number) => {
+    if (!Number.isFinite(fx) || !Number.isFinite(fy)) return;
+    minX = Math.min(minX, fx);
+    maxX = Math.max(maxX, fx);
+    minY = Math.min(minY, fy);
+    maxY = Math.max(maxY, fy);
+  };
+
+  for (const p of mapElements.value.points || []) {
+    expand(Number(p.x ?? p.xPosition ?? 0) + ox, Number(p.y ?? p.yPosition ?? 0) + oy);
+  }
+
+  for (const l of mapElements.value.locations || []) {
+    const x = Number(l.x ?? l.xPosition ?? 0);
+    const y = Number(l.y ?? l.yPosition ?? 0);
+    const hw = Number(l.editorProps?.width ?? 20) / 2;
+    const hh = Number(l.editorProps?.height ?? 20) / 2;
+    expand(x - hw + ox, y - hh + oy);
+    expand(x + hw + ox, y + hh + oy);
+  }
+
+  for (const path of processedPaths.value) {
+    const cps = extractPathControlPoints(path);
+    if (cps) {
+      for (const cp of cps) {
+        expand(Number(cp.x ?? cp.xPosition ?? 0) + ox, Number(cp.y ?? cp.yPosition ?? 0) + oy);
+      }
+    } else if (path.startPoint && path.endPoint) {
+      expand(Number(path.startPoint.x) + ox, Number(path.startPoint.y) + oy);
+      expand(Number(path.endPoint.x) + ox, Number(path.endPoint.y) + oy);
+    }
+  }
+
+  if (!Number.isFinite(minX)) return null;
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    cx: (minX + maxX) / 2,
+    cy: (minY + maxY) / 2
+  };
+});
+
+const previewSvgCenterTransform = computed(() => {
+  const b = previewContentBounds.value;
+  if (!b) return 'translate(0,0)';
+  return `translate(${-b.cx * SCALE},${b.cy * SCALE})`;
+});
+
+/**
+ * 抵消 .canvas-map-layer 上 `scale(..., -1)` 对字形的纵向翻转，
+ * 与坐标轴文案 `.axis-origin` / `.axis-x::after` 使用的 `scaleY(-1)` 同理。
+ * SVG 变换从右到左复合，故用「平移到锚点 → 竖直翻转 → 平移回」。
+ */
+function svgTextUnflipAt(cx: number, cy: number): string {
+  return `translate(${cx},${cy}) scale(1,-1) translate(${-cx},${-cy})`;
+}
 
 const filteredMaps = computed(() => {
   return [...mapList.value].sort((a, b) => {
@@ -691,10 +1113,15 @@ const formatMapId = (mapId?: string) => {
 
 const noop = () => {};
 
+function hasAnyElements(points: any[], paths: any[], locations: any[]) {
+  return points.length > 0 || paths.length > 0 || locations.length > 0;
+}
+
 const loadMaps = async () => {
   if (!selectedFactoryId.value) {
     mapList.value = [];
     selectedMapId.value = '';
+    mapElements.value = { points: [], paths: [], locations: [] };
     return;
   }
   loading.value = true;
@@ -706,8 +1133,25 @@ const loadMaps = async () => {
     if (mapList.value.length > 0 && !selectedMapId.value) {
       selectedMapId.value = String(mapList.value[0].mapId);
     }
+    // URL 或缓存的 mapId 若不在当前工厂列表中，回退到第一张
+    if (
+      selectedMapId.value
+      && mapList.value.length > 0
+      && !mapList.value.some(m => String(m.mapId) === selectedMapId.value)
+    ) {
+      selectedMapId.value = String(mapList.value[0].mapId);
+    }
   } finally {
     loading.value = false;
+  }
+  // 无论当前选中来自列表默认还是 URL，统一拉取元素（避免仅因 mapId 判断错误导致空白）
+  if (selectedMapId.value) {
+    const selectedMap = mapList.value.find(m => String(m.mapId) === selectedMapId.value);
+    if (selectedMap) {
+      await loadMapElements(selectedMap);
+    } else {
+      await loadMapElements(selectedMapId.value);
+    }
   }
 };
 
@@ -790,16 +1234,104 @@ const handleEdit = (row: NavigationMapVO) => {
   });
 };
 
-// 加载地图元素数据
-const loadMapElements = async (mapId: string | number) => {
+// 加载地图元素数据（兼容 AjaxResult、elements 嵌套、与编辑器一致的字段名）
+const loadMapElements = async (mapIdOrMap: string | number | NavigationMapVO) => {
   elementsLoading.value = true;
   try {
-    const res = await loadMapEditorData(mapId);
-    const data = res as unknown as MapEditorResponse;
+    const normalizePayload = (payloadRaw: unknown) => {
+      const payload = unwrapAjaxMapPayload(payloadRaw) as MapEditorResponse & Record<string, any>;
+      const nested =
+        payload.elements && typeof payload.elements === 'object' && !Array.isArray(payload.elements)
+          ? (payload.elements as Record<string, any>)
+          : null;
+      const pointsRaw = pickElementsArray(payload.points, nested?.points);
+      const pathsRaw = pickElementsArray(payload.paths, nested?.paths);
+      const locationsRaw = pickElementsArray(payload.locations, nested?.locations);
+      return { pointsRaw, pathsRaw, locationsRaw };
+    };
+
+    // 转换点位数据：后端返回 xPosition/yPosition，前端期望 x/y
+    const normalizePoints = (points: any[]) => {
+      return (points || []).map(p => ({
+        ...(parsePropertiesPayload(p?.properties)?.point ?? {}),
+        ...p,
+        pointId: p.pointId ?? p.id,
+        x: p.x ?? p.xPosition ?? 0,
+        y: p.y ?? p.yPosition ?? 0,
+        editorProps: {
+          ...(parsePropertiesPayload(p?.properties)?.editorProps ?? {}),
+          ...(p.editorProps ?? {})
+        }
+      }));
+    };
+
+    // 转换路径数据（保留 geometry / layoutControlPoints 供折线预览）
+    const normalizePaths = (paths: any[]) => {
+      return (paths || []).map(p => {
+        const propsPayload = parsePropertiesPayload(p?.properties);
+        const geometryFromProps = propsPayload?.geometry;
+        const editorPropsFromProps = propsPayload?.editorProps;
+        return {
+          ...(propsPayload?.path ?? {}),
+          ...p,
+          startPointId: p.startPointId ?? p.sourcePointId ?? p.sourcePoint?.id ?? p.startPoint?.id,
+          endPointId: p.endPointId ?? p.destPointId ?? p.destPoint?.id ?? p.endPoint?.id,
+          geometry: {
+            ...(geometryFromProps && typeof geometryFromProps === 'object' ? geometryFromProps : {}),
+            ...(p.geometry && typeof p.geometry === 'object' ? p.geometry : {})
+          },
+          editorProps: {
+            ...(editorPropsFromProps && typeof editorPropsFromProps === 'object' ? editorPropsFromProps : {}),
+            ...(p.editorProps ?? {})
+          }
+        };
+      });
+    };
+
+    // 转换位置数据
+    const normalizeLocations = (locations: any[]) => {
+      return (locations || []).map(l => {
+        const propsPayload = parsePropertiesPayload(l?.properties);
+        const geometryFromProps = propsPayload?.geometry;
+        const editorPropsFromProps = propsPayload?.editorProps;
+        return {
+          ...(propsPayload?.location ?? {}),
+          ...l,
+          x: l.x ?? l.xPosition ?? 0,
+          y: l.y ?? l.yPosition ?? 0,
+          geometry: {
+            ...(geometryFromProps && typeof geometryFromProps === 'object' ? geometryFromProps : {}),
+            ...(l.geometry && typeof l.geometry === 'object' ? l.geometry : {})
+          },
+          editorProps: {
+            ...(editorPropsFromProps && typeof editorPropsFromProps === 'object' ? editorPropsFromProps : {}),
+            ...(l.editorProps ?? {})
+          }
+        };
+      });
+    };
+    const mapId = typeof mapIdOrMap === 'object' ? mapIdOrMap.mapId : mapIdOrMap;
+    const mapPk = typeof mapIdOrMap === 'object' ? mapIdOrMap.id : undefined;
+
+    // 主请求：按业务 mapId 拉取（与编辑器一致）
+    const primaryRes = await loadMapEditorData(mapId);
+    let { pointsRaw, pathsRaw, locationsRaw } = normalizePayload(primaryRes);
+
+    // 兜底：如果空数据，尝试用数据库主键 id 再拉一次（部分环境后端按主键查）
+    if (!hasAnyElements(pointsRaw, pathsRaw, locationsRaw) && mapPk !== undefined && String(mapPk) !== String(mapId)) {
+      const fallbackRes = await loadMapEditorData(mapPk);
+      const fallback = normalizePayload(fallbackRes);
+      if (hasAnyElements(fallback.pointsRaw, fallback.pathsRaw, fallback.locationsRaw)) {
+        pointsRaw = fallback.pointsRaw;
+        pathsRaw = fallback.pathsRaw;
+        locationsRaw = fallback.locationsRaw;
+      }
+    }
+
     mapElements.value = {
-      points: data.points || [],
-      paths: data.paths || [],
-      locations: data.locations || []
+      points: normalizePoints(pointsRaw),
+      paths: normalizePaths(pathsRaw),
+      locations: normalizeLocations(locationsRaw)
     };
   } catch (error) {
     console.error('加载地图元素失败:', error);
@@ -826,7 +1358,7 @@ const selectMap = (row: NavigationMapVO) => {
     }
   });
   // 加载地图元素
-  loadMapElements(row.mapId);
+  loadMapElements(row);
 };
 
 // 提交
@@ -896,16 +1428,7 @@ onMounted(() => {
   if (!Number.isNaN(factoryIdFromQuery) && factoryIdFromQuery > 0) {
     selectedFactoryId.value = factoryIdFromQuery;
     if (mapIdFromQuery) selectedMapId.value = mapIdFromQuery;
-    loadMaps().then(() => {
-      // 若 query 里的 mapId 在当前工厂不存在，则回退到第一张
-      if (selectedMapId.value && !mapList.value.some(m => String(m.mapId) === selectedMapId.value)) {
-        selectedMapId.value = mapList.value.length > 0 ? String(mapList.value[0].mapId) : '';
-      }
-      // 加载地图元素
-      if (selectedMapId.value) {
-        loadMapElements(selectedMapId.value);
-      }
-    });
+    void loadMaps();
   }
   // 如果 URL 没有 factoryId，getFactoryList 会自动选择第一个工厂
 });
@@ -1021,11 +1544,19 @@ onBeforeUnmount(() => {
 
 .map-layer-svg {
   position: absolute;
-  width: 100000px;
-  height: 100000px;
-  left: -50000px;
-  top: -50000px;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
   overflow: visible;
+}
+
+.preview-konva-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
 }
 
 .canvas-img {

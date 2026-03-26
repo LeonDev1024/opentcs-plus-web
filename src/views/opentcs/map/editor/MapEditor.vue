@@ -1804,6 +1804,11 @@ onMounted(async () => {
     try {
       await mapEditorStore.loadMap(loadedMapId);
       ElMessage.success("地图加载成功");
+
+      // 初始化编辑器状态：默认漫游模式 + 自动选中第一个点
+      nextTick(() => {
+        mapEditorStore.initEditorState();
+      });
     } catch (error: any) {
       const errorMessage =
         error?.response?.data?.msg || error?.message || "加载失败";
