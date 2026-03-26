@@ -47,6 +47,7 @@ export interface MapLayer {
 // ==================== 点（Point）模型 ====================
 export interface MapPoint {
   id: string;
+  pointId?: string; // 后端原始 pointId，用于路径关联
   layerId: string;
 
   // 基础属性（对应后端 PointVO）
@@ -198,6 +199,8 @@ export interface MapEditorData {
     id: string | number;
     name: string;
     mapVersion: string;
+    /** 地图状态: 0-草稿(DRAFT), 1-已发布(PUBLISHED) */
+    status?: string;
     description?: string;
     width: number;        // 画布宽度
     height: number;       // 画布高度

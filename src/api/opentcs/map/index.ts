@@ -65,17 +65,29 @@ export const delMap = (id: string | number | Array<string | number>) => {
 export const saveMapEditorData = (mapId: string | number, data: MapEditorSaveData) => {
   // 将编辑器数据序列化为 JSON
   const jsonData = JSON.stringify(data, null, 2);
-  
+
   // 创建 FormData 上传文件
   const formData = new FormData();
   const blob = new Blob([jsonData], { type: 'application/json' });
   formData.append('file', blob, `map_${data.mapInfo?.mapVersion || '1.0'}.json`);
-  
+
   return request({
     url: `/map/model/${mapId}/editor-data/upload`,
     method: 'post',
     data: formData,
     headers: { 'Content-Type': 'multipart/form-data' }
+  });
+};
+
+/**
+ * 保存地图（保存语义数据到数据库 + 生成 JSON 快照）
+ * @param data 地图编辑器数据
+ */
+export const saveMap = (data: MapEditorSaveData) => {
+  return request({
+    url: '/map/editor/save',
+    method: 'post',
+    data
   });
 };
 
@@ -88,6 +100,17 @@ export const loadMapEditorData = (mapId: string | number): AxiosPromise<MapEdito
     url: `/map/editor/load`,
     method: 'post',
     data: { mapId }
+  });
+};
+
+/**
+ * 发布地图
+ * @param mapId 地图ID
+ */
+export const publishMap = (mapId: string | number) => {
+  return request({
+    url: `/map/editor/publish/${mapId}`,
+    method: 'post'
   });
 };
 

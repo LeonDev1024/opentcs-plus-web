@@ -273,6 +273,16 @@
       </div>
       <div class="toolbar-right">
         <el-button
+          v-if="mapEditorStore.mapData?.mapInfo?.status !== '1'"
+          type="success"
+          size="small"
+          icon="Check"
+          @click="handlePublish"
+          :loading="publishLoading"
+        >
+          发布
+        </el-button>
+        <el-button
           type="primary"
           size="small"
           icon="Document"
@@ -369,7 +379,15 @@
           <span class="footer-sep">·</span>
           <span class="muted">地图ID：</span>
           <span class="mono">{{ mapId || "-" }}</span>
-          <span class="footer-sep">，</span>
+          <span class="footer-sep">·</span>
+          <el-tag
+            :type="mapEditorStore.mapData?.mapInfo?.status === '1' ? 'success' : 'warning'"
+            size="small"
+            class="version-tag"
+          >
+            v{{ mapEditorStore.mapData?.mapInfo?.mapVersion || '1.0' }}
+          </el-tag>
+          <span class="footer-sep">·</span>
           <span class="muted">缩放：</span>
           <span class="zoom-percent" @click="resetZoom">{{ zoomPercent }}%</span>
         </div>
@@ -985,7 +1003,7 @@ import type { MapPoint } from "@/types/mapEditor";
 import { DEFAULT_POINT_OUTER_RADIUS } from "@/utils/mapEditor/mapVisualTokens";
 import PathTypeIcon from "./components/icons/PathTypeIcon.vue";
 import SvgIcon from "@/components/SvgIcon/index.vue";
-import { exportMapFile, importMapFile } from "@/api/opentcs/map";
+import { exportMapFile, importMapFile, publishMap } from "@/api/opentcs/map";
 import { updateNavigationMap } from "@/api/opentcs/factory/map";
 import {
   Document,
@@ -1807,6 +1825,44 @@ onMounted(async () => {
     }
   });
 });
+
+// 发布状态加载中
+const publishLoading = ref(false);
+
+// 发布地图
+const handlePublish = async () => {
+  try {
+    const mapId = mapEditorStore.currentMapModelId;
+    if (!mapId) {
+      ElMessage.error("地图ID不存在");
+      return;
+    }
+    await ElMessageBox.confirm("发布后该地图将生效，确定要发布吗？", "发布确认", {
+      confirmButtonText: "确定发布",
+      cancelButtonText: "取消",
+      type: "warning",
+    });
+
+    publishLoading.value = true;
+    await publishMap(mapId);
+
+    // 更新本地状态
+    if (mapEditorStore.mapData?.mapInfo) {
+      mapEditorStore.mapData.mapInfo.status = "1";
+    }
+
+    ElMessage.success("发布成功");
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      const errorMessage =
+        error?.response?.data?.msg || error?.message || "发布失败";
+      ElMessage.error("发布失败：" + errorMessage);
+      console.error("发布错误详情:", error);
+    }
+  } finally {
+    publishLoading.value = false;
+  }
+};
 
 // 保存
 const handleSave = async () => {
@@ -3457,6 +3513,13 @@ onUnmounted(() => {
 
           &:hover {
             background: #f5f7fa;
+          }
+
+          .version-tag {
+            font-size: 10px;
+            padding: 0 4px;
+            height: 16px;
+            line-height: 14px;
           }
 
           .panel-title,
