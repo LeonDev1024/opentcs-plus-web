@@ -799,10 +799,38 @@ const loadMapElements = async (mapId: string | number) => {
   try {
     const res = await loadMapEditorData(mapId);
     const data = res as unknown as MapEditorResponse;
+
+    // 转换点位数据：后端返回 xPosition/yPosition，前端期望 x/y
+    const normalizePoints = (points: any[]) => {
+      return (points || []).map(p => ({
+        ...p,
+        x: p.x ?? p.xPosition ?? 0,
+        y: p.y ?? p.yPosition ?? 0
+      }));
+    };
+
+    // 转换路径数据
+    const normalizePaths = (paths: any[]) => {
+      return (paths || []).map(p => ({
+        ...p,
+        startPointId: p.startPointId ?? p.sourcePointId,
+        endPointId: p.endPointId ?? p.destPointId
+      }));
+    };
+
+    // 转换位置数据
+    const normalizeLocations = (locations: any[]) => {
+      return (locations || []).map(l => ({
+        ...l,
+        x: l.x ?? l.xPosition ?? 0,
+        y: l.y ?? l.yPosition ?? 0
+      }));
+    };
+
     mapElements.value = {
-      points: data.points || [],
-      paths: data.paths || [],
-      locations: data.locations || []
+      points: normalizePoints(data.points),
+      paths: normalizePaths(data.paths),
+      locations: normalizeLocations(data.locations)
     };
   } catch (error) {
     console.error('加载地图元素失败:', error);
