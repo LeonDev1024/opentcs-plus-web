@@ -861,8 +861,8 @@ function svgTextUnflipAt(cx: number, cy: number): string {
 // ==================== MapRenderer 数据转换 ====================
 // 为 MapRenderer 转换点位数据
 const mapRendererPoints = computed(() => {
-  console.log('[Map] mapElements.points:', mapElements.value.points);
-  const points = mapElements.value.points.map(p => ({
+  console.log('[MapRenderer] mapElements.points:', mapElements.value.points);
+  const result = mapElements.value.points.map(p => ({
     id: String(p.id ?? p.pointId ?? Math.random()),
     pointId: p.pointId ?? p.id,
     layerId: 'default',
@@ -877,6 +877,8 @@ const mapRendererPoints = computed(() => {
       labelVisible: p.editorProps?.labelVisible ?? true
     }
   }));
+  console.log('[MapRenderer] mapRendererPoints:', result);
+  return result;
 });
 
 // 为 MapRenderer 转换路径数据
