@@ -190,6 +190,10 @@ function transformPoint(x: number, y: number) {
     ty = -ty;
   }
 
+  if (x === -151) {
+    console.log('[MapRenderer] transformPoint:', { x, y, tx, ty, flipY: props.flipY });
+  }
+
   return { x: tx, y: ty };
 }
 
