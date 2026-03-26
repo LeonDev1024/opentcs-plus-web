@@ -42,28 +42,93 @@
             <div v-if="!isEditingOrigin && activeMap?.rasterUrl" class="map-layer-image">
               <img class="canvas-img" :src="activeMap.rasterUrl" alt="地图底图" />
             </div>
-            <!-- 预览模式：使用 MapRenderer 渲染 -->
-            <div v-if="!isEditingOrigin && activeMap && (mapElements.points.length > 0 || mapElements.paths.length > 0 || mapElements.locations.length > 0)"
-              class="map-renderer-wrapper"
-              :style="mapRendererContainerStyle"
+            <MapRenderer
+              v-if="previewUseRenderer && !isEditingOrigin && activeMap && (mapElements.points.length > 0 || mapElements.paths.length > 0 || mapElements.locations.length > 0)"
+              class="preview-konva-layer"
+              :style="{
+                width: `${previewCanvasSize.w}px`,
+                height: `${previewCanvasSize.h}px`,
+                left: `${-rendererClipCompensation.x}px`,
+                top: `${-rendererClipCompensation.y}px`
+              }"
+              :points="rendererPoints"
+              :paths="rendererPaths"
+              :locations="rendererLocations"
+              :width="previewCanvasSize.w"
+              :height="previewCanvasSize.h"
+              :scale="1"
+              :offset-x="0"
+              :offset-y="0"
+              :readonly="true"
+              :auto-center="false"
+            />
+            <svg v-else-if="!isEditingOrigin && activeMap && (mapElements.points.length > 0 || mapElements.paths.length > 0 || mapElements.locations.length > 0)"
+              class="map-layer-svg"
             >
-              <MapRenderer
-                :points="mapRendererPoints"
-                :paths="mapRendererPaths"
-                :locations="mapRendererLocations"
-                :width="1920"
-                :height="1080"
-                :scale="canvasScale"
-                :offset-x="viewOffset.x"
-                :offset-y="viewOffset.y"
-                :flip-y="true"
-                :origin-x="previewOrigin.ox"
-                :origin-y="previewOrigin.oy"
-                :auto-center="true"
-                :readonly="true"
-                @scale-change="(s) => canvasScale = s"
-              />
-            </div>
+              <!-- 与工厂原点对齐：点位为地图坐标时需加 origin；并将内容平移到视口附近（避免固定 -50000 偏移把小坐标画到屏外） -->
+              <g :transform="previewSvgCenterTransform">
+                <g v-for="path in pathsForPreview" :key="'path-' + path.id">
+                  <path
+                    v-if="path.preview.mode === 'path'"
+                    :d="path.preview.d"
+                    fill="none"
+                    stroke="#409eff"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <polyline
+                    v-else-if="path.preview.mode === 'polyline'"
+                    :points="path.preview.points"
+                    fill="none"
+                    stroke="#409eff"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                  <line
+                    v-else-if="path.preview.mode === 'line'"
+                    :x1="path.preview.x1"
+                    :y1="path.preview.y1"
+                    :x2="path.preview.x2"
+                    :y2="path.preview.y2"
+                    stroke="#409eff"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                </g>
+                <g v-for="point in mapElements.points" :key="'pt-' + point.id">
+                  <circle
+                    :cx="(point.x + previewOrigin.ox) * SCALE"
+                    :cy="-(point.y + previewOrigin.oy) * SCALE"
+                    :r="point.editorProps?.radius || 8"
+                    :fill="point.editorProps?.color || '#409eff'"
+                    stroke="#fff"
+                    stroke-width="2"
+                  />
+                  <text
+                    v-if="point.editorProps?.labelVisible !== false && point.name"
+                    :x="(point.x + previewOrigin.ox) * SCALE"
+                    :y="-(point.y + previewOrigin.oy) * SCALE - 12"
+                    :transform="svgTextUnflipAt((point.x + previewOrigin.ox) * SCALE, -(point.y + previewOrigin.oy) * SCALE - 12)"
+                    fill="#666"
+                    font-size="10"
+                    text-anchor="middle"
+                  >{{ point.name }}</text>
+                </g>
+                <g v-for="location in mapElements.locations" :key="'loc-' + location.id">
+                  <rect
+                    :x="(location.x + previewOrigin.ox - (location.editorProps?.width || 20) / 2) * SCALE"
+                    :y="-(location.y + previewOrigin.oy + (location.editorProps?.height || 20) / 2) * SCALE"
+                    :width="(location.editorProps?.width || 20) * SCALE"
+                    :height="(location.editorProps?.height || 20) * SCALE"
+                    :fill="location.editorProps?.color || '#67c23a'"
+                    stroke="#fff"
+                    stroke-width="1"
+                  />
+                </g>
+              </g>
+            </svg>
 
             <!-- 普通模式：工厂坐标轴 O(0,0)（实线）+ 地图原点虚线 -->
             <template v-if="!isEditingOrigin">
@@ -282,11 +347,11 @@ import type { TypeVO } from '@/api/opentcs/vehicle/type/types';
 import { loadMapEditorData } from '@/api/opentcs/map';
 import type { MapEditorResponse } from '@/api/opentcs/map/types';
 import { HttpStatus } from '@/enums/RespEnum';
+import MapRenderer from '@/components/map/MapRenderer.vue';
 import { useMapEditorTabsStore } from '@/store/modules/mapEditorTabs';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance } from 'element-plus';
 import { watch, onBeforeUnmount } from 'vue';
-import MapRenderer from '@/components/map/MapRenderer.vue';
 
 const router = useRouter();
 const mapEditorTabsStore = useMapEditorTabsStore();
@@ -316,12 +381,23 @@ function unwrapAjaxMapPayload(raw: unknown): Record<string, any> {
   const r = raw as Record<string, any>;
   if (!r || typeof r !== 'object') return {};
   const inner = r.data;
-  if (
-    inner != null &&
-    typeof inner === 'object' &&
-    !Array.isArray(inner) &&
-    (r.code === HttpStatus.SUCCESS || r.code === 200)
-  ) {
+  const shouldUseInner =
+    inner != null
+    && typeof inner === 'object'
+    && !Array.isArray(inner)
+    && (
+      r.code === HttpStatus.SUCCESS
+      || r.code === 200
+      || (
+        r.code === undefined
+        && ((inner as Record<string, any>).points !== undefined
+          || (inner as Record<string, any>).paths !== undefined
+          || (inner as Record<string, any>).locations !== undefined
+          || (inner as Record<string, any>).elements !== undefined
+          || (inner as Record<string, any>).mapInfo !== undefined)
+      )
+    );
+  if (shouldUseInner) {
     return inner as Record<string, any>;
   }
   return r;
@@ -333,6 +409,20 @@ function pickElementsArray<T>(a: T[] | undefined | null, b: T[] | undefined | nu
   if (Array.isArray(a)) return a;
   if (Array.isArray(b)) return b;
   return [];
+}
+
+function parsePropertiesPayload(raw: any): Record<string, any> {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return {};
 }
 
 const selectedFactoryId = ref<number | undefined>(undefined);
@@ -717,6 +807,138 @@ const previewOrigin = computed(() => ({
   oy: Number(activeMap.value?.originY ?? 0)
 }));
 
+const previewUseRenderer = true;
+
+const previewCanvasSize = computed(() => {
+  const { w, h } = getCanvasRect();
+  return { w: Math.max(1, Math.round(w)), h: Math.max(1, Math.round(h)) };
+});
+
+const rendererClipCompensation = computed(() => {
+  let minX = 0;
+  let minY = 0;
+  const push = (x: number, y: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+  };
+
+  for (const p of mapElements.value.points || []) {
+    push(Number(p.x ?? p.xPosition ?? 0) + previewOrigin.value.ox, -(Number(p.y ?? p.yPosition ?? 0) + previewOrigin.value.oy));
+  }
+  for (const l of mapElements.value.locations || []) {
+    const lx = Number(l.x ?? l.xPosition ?? 0) + previewOrigin.value.ox;
+    const ly = -(Number(l.y ?? l.yPosition ?? 0) + previewOrigin.value.oy);
+    push(lx, ly);
+    if (Array.isArray(l.geometry?.vertices)) {
+      for (const v of l.geometry.vertices) {
+        push(Number(v.x ?? v.xPosition ?? 0) + previewOrigin.value.ox, -(Number(v.y ?? v.yPosition ?? 0) + previewOrigin.value.oy));
+      }
+    }
+  }
+  for (const path of processedPaths.value) {
+    const cps = extractPathControlPoints(path);
+    if (Array.isArray(cps)) {
+      for (const cp of cps) {
+        push(Number(cp.x ?? cp.xPosition ?? 0) + previewOrigin.value.ox, -(Number(cp.y ?? cp.yPosition ?? 0) + previewOrigin.value.oy));
+      }
+    }
+  }
+
+  return {
+    x: minX < 0 ? Math.ceil(-minX) + 8 : 0,
+    y: minY < 0 ? Math.ceil(-minY) + 8 : 0
+  };
+});
+
+const rendererPoints = computed(() => {
+  const { ox, oy } = previewOrigin.value;
+  const { x: sx, y: sy } = rendererClipCompensation.value;
+  return (mapElements.value.points || []).map((p: any) => ({
+    ...p,
+    x: Number(p.x ?? p.xPosition ?? 0) + ox + sx,
+    // MapRenderer 运行在已翻转的地图层中，这里反转一次使预览上下方向与编辑器一致
+    y: -(Number(p.y ?? p.yPosition ?? 0) + oy) + sy,
+    editorProps: {
+      ...p.editorProps,
+      radius: p.editorProps?.radius ?? 10,
+      color: p.editorProps?.color ?? '#409eff',
+      labelVisible: p.editorProps?.labelVisible ?? true
+    }
+  }));
+});
+
+const rendererPaths = computed(() => {
+  const { ox, oy } = previewOrigin.value;
+  const { x: sx, y: sy } = rendererClipCompensation.value;
+  return processedPaths.value.map((path: any) => {
+    const cps = extractPathControlPoints(path);
+    let controlPoints = Array.isArray(cps)
+      ? cps.map((cp: any) => ({
+        ...cp,
+        x: Number(cp.x ?? cp.xPosition ?? 0) + ox + sx,
+        y: -(Number(cp.y ?? cp.yPosition ?? 0) + oy) + sy
+      }))
+      : [];
+    if (controlPoints.length < 2 && path.startPoint && path.endPoint) {
+      controlPoints = [
+        {
+          id: `cp_${path.id}_0`,
+          x: Number(path.startPoint.x ?? path.startPoint.xPosition ?? 0) + ox + sx,
+          y: -(Number(path.startPoint.y ?? path.startPoint.yPosition ?? 0) + oy) + sy
+        },
+        {
+          id: `cp_${path.id}_1`,
+          x: Number(path.endPoint.x ?? path.endPoint.xPosition ?? 0) + ox + sx,
+          y: -(Number(path.endPoint.y ?? path.endPoint.yPosition ?? 0) + oy) + sy
+        }
+      ];
+    }
+    return {
+      ...path,
+      geometry: {
+        ...(path.geometry || {}),
+        controlPoints,
+        pathType: path.geometry?.pathType || pathConnectionKind(path)
+      },
+      editorProps: {
+        ...path.editorProps,
+        strokeColor: path.editorProps?.strokeColor ?? 'rgba(186, 206, 245, 0.95)',
+        strokeWidth: path.editorProps?.strokeWidth ?? (path.editorProps?.lineStyle === 'dashed' ? 4 : 18),
+        lineStyle: path.editorProps?.lineStyle ?? 'solid',
+        arrowVisible: path.editorProps?.arrowVisible ?? true
+      }
+    };
+  });
+});
+
+const rendererLocations = computed(() => {
+  const { ox, oy } = previewOrigin.value;
+  const { x: sx, y: sy } = rendererClipCompensation.value;
+  return (mapElements.value.locations || []).map((l: any) => ({
+    ...l,
+    x: Number(l.x ?? l.xPosition ?? 0) + ox + sx,
+    y: -(Number(l.y ?? l.yPosition ?? 0) + oy) + sy,
+    geometry: l.geometry && Array.isArray(l.geometry.vertices)
+      ? {
+        ...l.geometry,
+        vertices: l.geometry.vertices.map((v: any) => ({
+          ...v,
+          x: Number(v.x ?? v.xPosition ?? 0) + ox + sx,
+          y: -(Number(v.y ?? v.yPosition ?? 0) + oy) + sy
+        }))
+      }
+      : l.geometry,
+    editorProps: {
+      ...l.editorProps,
+      width: l.editorProps?.width ?? 24,
+      height: l.editorProps?.height ?? 24,
+      color: l.editorProps?.color ?? '#67c23a',
+      labelVisible: l.editorProps?.labelVisible ?? true
+    }
+  }));
+});
+
 /**
  * 预览路径：直线用 line；正交/多段用 polyline；
  * 曲线（Konva tension）不能用折线连控制点，三点时用 SVG 二次贝塞尔 Q 近似。
@@ -858,124 +1080,6 @@ function svgTextUnflipAt(cx: number, cy: number): string {
   return `translate(${cx},${cy}) scale(1,-1) translate(${-cx},${-cy})`;
 }
 
-// ==================== MapRenderer 数据转换 ====================
-// 为 MapRenderer 转换点位数据
-const mapRendererPoints = computed(() => {
-  console.log('[MapRenderer] mapElements.points:', mapElements.value.points);
-  const result = mapElements.value.points.map(p => ({
-    id: String(p.id ?? p.pointId ?? Math.random()),
-    pointId: p.pointId ?? p.id,
-    layerId: 'default',
-    name: p.name || '',
-    x: Number(p.x ?? 0),
-    y: Number(p.y ?? 0),
-    type: p.type || 'Halt point',
-    status: 'ACTIVE',
-    editorProps: {
-      radius: p.editorProps?.radius ?? p.radius ?? 10,
-      color: p.editorProps?.color || '#409eff',
-      labelVisible: p.editorProps?.labelVisible ?? true
-    }
-  }));
-  console.log('[MapRenderer] mapRendererPoints:', result);
-  return result;
-});
-
-// 为 MapRenderer 转换路径数据
-const mapRendererPaths = computed(() => {
-  return mapElements.value.paths.map(p => {
-    // 后端返回 sourcePointId/destPointId，需要映射为 startPointId/endPointId
-    const startPointId = p.startPointId ?? p.sourcePointId ?? p.startPoint?.id;
-    const endPointId = p.endPointId ?? p.destPointId ?? p.endPoint?.id;
-
-    // 处理 layoutControlPoints（后端返回的布局控制点）
-    let controlPoints: any[] = [];
-    if (p.layoutControlPoints && Array.isArray(p.layoutControlPoints)) {
-      controlPoints = p.layoutControlPoints.map((cp: any, i: number) => ({
-        id: cp.id || `cp_${i}`,
-        x: Number(cp.x ?? cp.xPosition ?? 0),
-        y: Number(cp.y ?? cp.yPosition ?? 0)
-      }));
-    } else if (p.geometry?.controlPoints && Array.isArray(p.geometry.controlPoints)) {
-      controlPoints = p.geometry.controlPoints.map((cp: any, i: number) => ({
-        id: cp.id || `cp_${i}`,
-        x: Number(cp.x ?? cp.xPosition ?? 0),
-        y: Number(cp.y ?? cp.yPosition ?? 0)
-      }));
-    }
-
-    return {
-      id: String(p.id ?? p.pathId ?? Math.random()),
-      layerId: 'default',
-      name: p.name || '',
-      startPointId,
-      endPointId,
-      status: 'ACTIVE',
-      geometry: {
-        controlPoints,
-        pathType: p.type === 'curve' || p.connectionType === 'BEZIER' ? 'curve' : 'line'
-      },
-      editorProps: {
-        strokeColor: '#409eff',
-        strokeWidth: 12,
-        lineStyle: 'solid',
-        arrowVisible: true
-      }
-    };
-  });
-});
-
-// 为 MapRenderer 转换位置数据
-const mapRendererLocations = computed(() => {
-  return mapElements.value.locations.map(l => {
-    // 从 geometry.vertices 计算中心点
-    let x = Number(l.x ?? 0);
-    let y = Number(l.y ?? 0);
-
-    // 如果 x/y 为0，从 geometry.vertices 计算
-    if ((!x && !y) && l.geometry?.vertices?.length > 0) {
-      const vertices = l.geometry.vertices;
-      let sumX = 0, sumY = 0;
-      vertices.forEach((v: any) => {
-        sumX += Number(v.x ?? 0);
-        sumY += Number(v.y ?? 0);
-      });
-      x = sumX / vertices.length;
-      y = sumY / vertices.length;
-    }
-
-    // 位置类型从 locationTypeId 映射
-    const typeMap: Record<number, string> = { 1: 'load', 2: 'unload', 3: 'default' };
-    const locationType = typeMap[l.locationTypeId] || 'default';
-
-    return {
-      id: String(l.id ?? l.locationId ?? Math.random()),
-      layerId: 'default',
-      name: l.name || '',
-      x,
-      y,
-      type: locationType,
-      status: 'ACTIVE',
-      geometry: l.geometry || {},
-      editorProps: {
-        width: l.editorProps?.width ?? 24,
-        height: l.editorProps?.height ?? 24,
-        color: l.editorProps?.strokeColor || l.editorProps?.fillColor || '#67c23a',
-        labelVisible: l.editorProps?.labelVisible ?? true
-      }
-    };
-  });
-});
-
-// MapRenderer 容器尺寸
-const mapRendererContainerStyle = computed(() => {
-  const { h } = getCanvasRect();
-  return {
-    width: '100%',
-    height: h + 'px'
-  };
-});
-
 const filteredMaps = computed(() => {
   return [...mapList.value].sort((a, b) => {
     const fa = a.floorNumber ?? 9999;
@@ -1009,6 +1113,10 @@ const formatMapId = (mapId?: string) => {
 
 const noop = () => {};
 
+function hasAnyElements(points: any[], paths: any[], locations: any[]) {
+  return points.length > 0 || paths.length > 0 || locations.length > 0;
+}
+
 const loadMaps = async () => {
   if (!selectedFactoryId.value) {
     mapList.value = [];
@@ -1038,7 +1146,12 @@ const loadMaps = async () => {
   }
   // 无论当前选中来自列表默认还是 URL，统一拉取元素（避免仅因 mapId 判断错误导致空白）
   if (selectedMapId.value) {
-    await loadMapElements(selectedMapId.value);
+    const selectedMap = mapList.value.find(m => String(m.mapId) === selectedMapId.value);
+    if (selectedMap) {
+      await loadMapElements(selectedMap);
+    } else {
+      await loadMapElements(selectedMapId.value);
+    }
   }
 };
 
@@ -1122,72 +1235,55 @@ const handleEdit = (row: NavigationMapVO) => {
 };
 
 // 加载地图元素数据（兼容 AjaxResult、elements 嵌套、与编辑器一致的字段名）
-const loadMapElements = async (mapId: string | number) => {
+const loadMapElements = async (mapIdOrMap: string | number | NavigationMapVO) => {
   elementsLoading.value = true;
   try {
-    const res = await loadMapEditorData(mapId);
-    console.log('[Map] loadMapElements raw response:', res);
-    const payload = unwrapAjaxMapPayload(res) as MapEditorResponse & Record<string, any>;
-    console.log('[Map] payload:', payload);
-    const nested =
-      payload.elements && typeof payload.elements === 'object' && !Array.isArray(payload.elements)
-        ? (payload.elements as Record<string, any>)
-        : null;
-
-    const pointsRaw = pickElementsArray(payload.points, nested?.points);
-    const pathsRaw = pickElementsArray(payload.paths, nested?.paths);
-    const locationsRaw = pickElementsArray(payload.locations, nested?.locations);
-
-    console.log('[Map] pointsRaw:', pointsRaw);
-    console.log('[Map] pathsRaw:', pathsRaw);
-    console.log('[Map] locationsRaw:', locationsRaw);
+    const normalizePayload = (payloadRaw: unknown) => {
+      const payload = unwrapAjaxMapPayload(payloadRaw) as MapEditorResponse & Record<string, any>;
+      const nested =
+        payload.elements && typeof payload.elements === 'object' && !Array.isArray(payload.elements)
+          ? (payload.elements as Record<string, any>)
+          : null;
+      const pointsRaw = pickElementsArray(payload.points, nested?.points);
+      const pathsRaw = pickElementsArray(payload.paths, nested?.paths);
+      const locationsRaw = pickElementsArray(payload.locations, nested?.locations);
+      return { pointsRaw, pathsRaw, locationsRaw };
+    };
 
     // 转换点位数据：后端返回 xPosition/yPosition，前端期望 x/y
     const normalizePoints = (points: any[]) => {
-      return (points || []).map(p => {
-        // 解析 properties 字段为 editorProps
-        let editorProps = {};
-        try {
-          if (p.properties) {
-            const parsed = JSON.parse(p.properties);
-            editorProps = parsed.editorProps || {};
-          }
-        } catch (e) {
-          // ignore parse error
+      return (points || []).map(p => ({
+        ...(parsePropertiesPayload(p?.properties)?.point ?? {}),
+        ...p,
+        pointId: p.pointId ?? p.id,
+        x: p.x ?? p.xPosition ?? 0,
+        y: p.y ?? p.yPosition ?? 0,
+        editorProps: {
+          ...(parsePropertiesPayload(p?.properties)?.editorProps ?? {}),
+          ...(p.editorProps ?? {})
         }
-        return {
-          ...p,
-          pointId: p.pointId ?? p.id,
-          // 后端返回小写 xposition 和大写 xPosition
-          x: p.x ?? p.xPosition ?? p.xposition ?? 0,
-          y: p.y ?? p.yPosition ?? p.yposition ?? 0,
-          type: p.type || 'Halt point',
-          radius: p.radius,
-          editorProps
-        };
-      });
+      }));
     };
 
     // 转换路径数据（保留 geometry / layoutControlPoints 供折线预览）
     const normalizePaths = (paths: any[]) => {
       return (paths || []).map(p => {
-        // 解析 properties 字段为 editorProps
-        let editorProps = {};
-        try {
-          if (p.properties) {
-            const parsed = JSON.parse(p.properties);
-            editorProps = parsed.editorProps || {};
-          }
-        } catch (e) {
-          // ignore parse error
-        }
+        const propsPayload = parsePropertiesPayload(p?.properties);
+        const geometryFromProps = propsPayload?.geometry;
+        const editorPropsFromProps = propsPayload?.editorProps;
         return {
+          ...(propsPayload?.path ?? {}),
           ...p,
-          startPointId: p.startPointId ?? p.sourcePointId ?? p.startPoint?.id,
-          endPointId: p.endPointId ?? p.destPointId ?? p.endPoint?.id,
-          connectionType: p.connectionType,
-          layoutControlPoints: p.layoutControlPoints,
-          editorProps
+          startPointId: p.startPointId ?? p.sourcePointId ?? p.sourcePoint?.id ?? p.startPoint?.id,
+          endPointId: p.endPointId ?? p.destPointId ?? p.destPoint?.id ?? p.endPoint?.id,
+          geometry: {
+            ...(geometryFromProps && typeof geometryFromProps === 'object' ? geometryFromProps : {}),
+            ...(p.geometry && typeof p.geometry === 'object' ? p.geometry : {})
+          },
+          editorProps: {
+            ...(editorPropsFromProps && typeof editorPropsFromProps === 'object' ? editorPropsFromProps : {}),
+            ...(p.editorProps ?? {})
+          }
         };
       });
     };
@@ -1195,27 +1291,42 @@ const loadMapElements = async (mapId: string | number) => {
     // 转换位置数据
     const normalizeLocations = (locations: any[]) => {
       return (locations || []).map(l => {
-        // 解析 properties 字段
-        let editorProps = {};
-        let geometry = {};
-        try {
-          if (l.properties) {
-            const parsed = JSON.parse(l.properties);
-            editorProps = parsed.editorProps || {};
-            geometry = parsed.geometry || {};
-          }
-        } catch (e) {
-          // ignore parse error
-        }
+        const propsPayload = parsePropertiesPayload(l?.properties);
+        const geometryFromProps = propsPayload?.geometry;
+        const editorPropsFromProps = propsPayload?.editorProps;
         return {
+          ...(propsPayload?.location ?? {}),
           ...l,
-          x: l.x ?? l.xPosition ?? l.xposition ?? 0,
-          y: l.y ?? l.yPosition ?? l.yposition ?? 0,
-          editorProps,
-          geometry
+          x: l.x ?? l.xPosition ?? 0,
+          y: l.y ?? l.yPosition ?? 0,
+          geometry: {
+            ...(geometryFromProps && typeof geometryFromProps === 'object' ? geometryFromProps : {}),
+            ...(l.geometry && typeof l.geometry === 'object' ? l.geometry : {})
+          },
+          editorProps: {
+            ...(editorPropsFromProps && typeof editorPropsFromProps === 'object' ? editorPropsFromProps : {}),
+            ...(l.editorProps ?? {})
+          }
         };
       });
     };
+    const mapId = typeof mapIdOrMap === 'object' ? mapIdOrMap.mapId : mapIdOrMap;
+    const mapPk = typeof mapIdOrMap === 'object' ? mapIdOrMap.id : undefined;
+
+    // 主请求：按业务 mapId 拉取（与编辑器一致）
+    const primaryRes = await loadMapEditorData(mapId);
+    let { pointsRaw, pathsRaw, locationsRaw } = normalizePayload(primaryRes);
+
+    // 兜底：如果空数据，尝试用数据库主键 id 再拉一次（部分环境后端按主键查）
+    if (!hasAnyElements(pointsRaw, pathsRaw, locationsRaw) && mapPk !== undefined && String(mapPk) !== String(mapId)) {
+      const fallbackRes = await loadMapEditorData(mapPk);
+      const fallback = normalizePayload(fallbackRes);
+      if (hasAnyElements(fallback.pointsRaw, fallback.pathsRaw, fallback.locationsRaw)) {
+        pointsRaw = fallback.pointsRaw;
+        pathsRaw = fallback.pathsRaw;
+        locationsRaw = fallback.locationsRaw;
+      }
+    }
 
     mapElements.value = {
       points: normalizePoints(pointsRaw),
@@ -1247,7 +1358,7 @@ const selectMap = (row: NavigationMapVO) => {
     }
   });
   // 加载地图元素
-  loadMapElements(row.mapId);
+  loadMapElements(row);
 };
 
 // 提交
@@ -1438,6 +1549,14 @@ onBeforeUnmount(() => {
   width: 1px;
   height: 1px;
   overflow: visible;
+}
+
+.preview-konva-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
 }
 
 .canvas-img {
