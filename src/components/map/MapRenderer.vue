@@ -202,6 +202,8 @@ const stageConfig = computed(() => {
   let scaleX = props.scale;
   let scaleY = props.scale;
 
+  console.log('[MapRenderer] stageConfig:', { bounds, props: { offsetX: props.offsetX, offsetY: props.offsetY, scale: props.scale, flipY: props.flipY, autoCenter: props.autoCenter, originX: props.originX, originY: props.originY } });
+
   // 自动居中
   if (bounds && props.autoCenter) {
     // 计算居中偏移：让内容中心对齐到画布中心
