@@ -866,12 +866,12 @@ const mapRendererPoints = computed(() => {
     pointId: p.pointId ?? p.id,
     layerId: 'default',
     name: p.name || '',
-    x: Number(p.x ?? p.xPosition ?? 0),
-    y: Number(p.y ?? p.yPosition ?? 0),
+    x: Number(p.x ?? 0),
+    y: Number(p.y ?? 0),
     type: p.type || 'Halt point',
     status: 'ACTIVE',
     editorProps: {
-      radius: p.editorProps?.radius ?? 10,
+      radius: p.editorProps?.radius ?? p.radius ?? 10,
       color: p.editorProps?.color || '#409eff',
       labelVisible: p.editorProps?.labelVisible ?? true
     }
@@ -924,21 +924,44 @@ const mapRendererPaths = computed(() => {
 
 // 为 MapRenderer 转换位置数据
 const mapRendererLocations = computed(() => {
-  return mapElements.value.locations.map(l => ({
-    id: String(l.id ?? Math.random()),
-    layerId: 'default',
-    name: l.name || '',
-    x: Number(l.x ?? l.xPosition ?? 0),
-    y: Number(l.y ?? l.yPosition ?? 0),
-    type: l.type || 'default',
-    status: 'ACTIVE',
-    editorProps: {
-      width: l.editorProps?.width ?? 24,
-      height: l.editorProps?.height ?? 24,
-      color: l.editorProps?.color || '#67c23a',
-      labelVisible: l.editorProps?.labelVisible ?? true
+  return mapElements.value.locations.map(l => {
+    // 从 geometry.vertices 计算中心点
+    let x = Number(l.x ?? 0);
+    let y = Number(l.y ?? 0);
+
+    // 如果 x/y 为0，从 geometry.vertices 计算
+    if ((!x && !y) && l.geometry?.vertices?.length > 0) {
+      const vertices = l.geometry.vertices;
+      let sumX = 0, sumY = 0;
+      vertices.forEach((v: any) => {
+        sumX += Number(v.x ?? 0);
+        sumY += Number(v.y ?? 0);
+      });
+      x = sumX / vertices.length;
+      y = sumY / vertices.length;
     }
-  }));
+
+    // 位置类型从 locationTypeId 映射
+    const typeMap: Record<number, string> = { 1: 'load', 2: 'unload', 3: 'default' };
+    const locationType = typeMap[l.locationTypeId] || 'default';
+
+    return {
+      id: String(l.id ?? l.locationId ?? Math.random()),
+      layerId: 'default',
+      name: l.name || '',
+      x,
+      y,
+      type: locationType,
+      status: 'ACTIVE',
+      geometry: l.geometry || {},
+      editorProps: {
+        width: l.editorProps?.width ?? 24,
+        height: l.editorProps?.height ?? 24,
+        color: l.editorProps?.strokeColor || l.editorProps?.fillColor || '#67c23a',
+        labelVisible: l.editorProps?.labelVisible ?? true
+      }
+    };
+  });
 });
 
 // MapRenderer 容器尺寸
@@ -1112,30 +1135,77 @@ const loadMapElements = async (mapId: string | number) => {
 
     // 转换点位数据：后端返回 xPosition/yPosition，前端期望 x/y
     const normalizePoints = (points: any[]) => {
-      return (points || []).map(p => ({
-        ...p,
-        pointId: p.pointId ?? p.id,
-        x: p.x ?? p.xPosition ?? 0,
-        y: p.y ?? p.yPosition ?? 0
-      }));
+      return (points || []).map(p => {
+        // 解析 properties 字段为 editorProps
+        let editorProps = {};
+        try {
+          if (p.properties) {
+            const parsed = JSON.parse(p.properties);
+            editorProps = parsed.editorProps || {};
+          }
+        } catch (e) {
+          // ignore parse error
+        }
+        return {
+          ...p,
+          pointId: p.pointId ?? p.id,
+          // 后端返回小写 xposition 和大写 xPosition
+          x: p.x ?? p.xPosition ?? p.xposition ?? 0,
+          y: p.y ?? p.yPosition ?? p.yposition ?? 0,
+          type: p.type || 'Halt point',
+          radius: p.radius,
+          editorProps
+        };
+      });
     };
 
     // 转换路径数据（保留 geometry / layoutControlPoints 供折线预览）
     const normalizePaths = (paths: any[]) => {
-      return (paths || []).map(p => ({
-        ...p,
-        startPointId: p.startPointId ?? p.sourcePointId ?? p.sourcePoint?.id ?? p.startPoint?.id,
-        endPointId: p.endPointId ?? p.destPointId ?? p.destPoint?.id ?? p.endPoint?.id
-      }));
+      return (paths || []).map(p => {
+        // 解析 properties 字段为 editorProps
+        let editorProps = {};
+        try {
+          if (p.properties) {
+            const parsed = JSON.parse(p.properties);
+            editorProps = parsed.editorProps || {};
+          }
+        } catch (e) {
+          // ignore parse error
+        }
+        return {
+          ...p,
+          startPointId: p.startPointId ?? p.sourcePointId ?? p.startPoint?.id,
+          endPointId: p.endPointId ?? p.destPointId ?? p.endPoint?.id,
+          connectionType: p.connectionType,
+          layoutControlPoints: p.layoutControlPoints,
+          editorProps
+        };
+      });
     };
 
     // 转换位置数据
     const normalizeLocations = (locations: any[]) => {
-      return (locations || []).map(l => ({
-        ...l,
-        x: l.x ?? l.xPosition ?? 0,
-        y: l.y ?? l.yPosition ?? 0
-      }));
+      return (locations || []).map(l => {
+        // 解析 properties 字段
+        let editorProps = {};
+        let geometry = {};
+        try {
+          if (l.properties) {
+            const parsed = JSON.parse(l.properties);
+            editorProps = parsed.editorProps || {};
+            geometry = parsed.geometry || {};
+          }
+        } catch (e) {
+          // ignore parse error
+        }
+        return {
+          ...l,
+          x: l.x ?? l.xPosition ?? l.xposition ?? 0,
+          y: l.y ?? l.yPosition ?? l.yposition ?? 0,
+          editorProps,
+          geometry
+        };
+      });
     };
 
     mapElements.value = {
