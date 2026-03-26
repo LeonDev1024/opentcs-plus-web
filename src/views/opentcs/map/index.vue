@@ -880,28 +880,46 @@ const mapRendererPoints = computed(() => {
 
 // 为 MapRenderer 转换路径数据
 const mapRendererPaths = computed(() => {
-  return mapElements.value.paths.map(p => ({
-    id: String(p.id ?? Math.random()),
-    layerId: 'default',
-    name: p.name || '',
-    startPointId: p.startPointId,
-    endPointId: p.endPointId,
-    status: 'ACTIVE',
-    geometry: {
-      controlPoints: (p.layoutControlPoints || p.geometry?.controlPoints || []).map((cp: any, i: number) => ({
+  return mapElements.value.paths.map(p => {
+    // 后端返回 sourcePointId/destPointId，需要映射为 startPointId/endPointId
+    const startPointId = p.startPointId ?? p.sourcePointId ?? p.startPoint?.id;
+    const endPointId = p.endPointId ?? p.destPointId ?? p.endPoint?.id;
+
+    // 处理 layoutControlPoints（后端返回的布局控制点）
+    let controlPoints: any[] = [];
+    if (p.layoutControlPoints && Array.isArray(p.layoutControlPoints)) {
+      controlPoints = p.layoutControlPoints.map((cp: any, i: number) => ({
         id: cp.id || `cp_${i}`,
         x: Number(cp.x ?? cp.xPosition ?? 0),
         y: Number(cp.y ?? cp.yPosition ?? 0)
-      })),
-      pathType: p.type === 'curve' ? 'curve' : 'line'
-    },
-    editorProps: {
-      strokeColor: '#409eff',
-      strokeWidth: 12,
-      lineStyle: 'solid',
-      arrowVisible: true
+      }));
+    } else if (p.geometry?.controlPoints && Array.isArray(p.geometry.controlPoints)) {
+      controlPoints = p.geometry.controlPoints.map((cp: any, i: number) => ({
+        id: cp.id || `cp_${i}`,
+        x: Number(cp.x ?? cp.xPosition ?? 0),
+        y: Number(cp.y ?? cp.yPosition ?? 0)
+      }));
     }
-  }));
+
+    return {
+      id: String(p.id ?? p.pathId ?? Math.random()),
+      layerId: 'default',
+      name: p.name || '',
+      startPointId,
+      endPointId,
+      status: 'ACTIVE',
+      geometry: {
+        controlPoints,
+        pathType: p.type === 'curve' || p.connectionType === 'BEZIER' ? 'curve' : 'line'
+      },
+      editorProps: {
+        strokeColor: '#409eff',
+        strokeWidth: 12,
+        lineStyle: 'solid',
+        arrowVisible: true
+      }
+    };
+  });
 });
 
 // 为 MapRenderer 转换位置数据
