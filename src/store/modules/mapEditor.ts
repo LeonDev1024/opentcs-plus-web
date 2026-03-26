@@ -2,7 +2,7 @@
  * 地图编辑器 Store
  */
 import { defineStore } from 'pinia';
-import { ref, reactive, computed } from 'vue';
+import { ref, reactive, computed, toRaw } from 'vue';
 import type {
   MapEditorData,
   MapLayer,
@@ -18,7 +18,7 @@ import type {
 } from '@/types/mapEditor';
 import { ToolMode as ToolModeEnum, LayerType } from '@/types/mapEditor';
 import { CommandManager } from '@/utils/mapEditor/command';
-import { loadMapEditorData, saveMapEditorData } from '@/api/opentcs/map';
+import { loadMapEditorData, saveMapEditorData, saveMap as saveMapApi } from '@/api/opentcs/map';
 import type { MapEditorResponse, VisualLayoutData } from '@/api/opentcs/map/types';
 
 export const useMapEditorStore = defineStore('mapEditor', () => {
@@ -193,11 +193,23 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   /** 将后端点转为前端 MapPoint（xPosition/yPosition->x/y，id 转 string，补 editorProps/layerId/status） */
   const normalizePoint = (p: Record<string, any>, defaultLayerId: string): MapPoint => {
     const id = p?.id != null ? String(p.id) : `point_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const pointId = p?.pointId ?? p?.id; // 保留后端的 pointId 用于路径关联
     const x = p?.x ?? (p?.xPosition != null ? Number(p.xPosition) : 0);
     const y = p?.y ?? (p?.yPosition != null ? Number(p.yPosition) : 0);
+    // 解析 properties 中的 editorProps
+    let parsedEditorProps: any = {};
+    if (p?.properties) {
+      try {
+        const parsed = typeof p.properties === 'string' ? JSON.parse(p.properties) : p.properties;
+        parsedEditorProps = parsed?.editorProps || {};
+      } catch (e) {
+        // 忽略解析错误
+      }
+    }
     return {
       ...p,
       id,
+      pointId, // 保存 pointId 到前端模型
       layerId: p?.layerId ?? defaultLayerId,
       name: p?.name ?? id,
       x,
@@ -205,31 +217,50 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       z: p?.z ?? (p?.zPosition != null ? Number(p.zPosition) : undefined),
       status: p?.status ?? 'active',
       editorProps: {
-        radius: p?.editorProps?.radius ?? p?.radius ?? 20,
-        color: p?.editorProps?.color ?? '#4CAF50',
-        strokeColor: p?.editorProps?.strokeColor,
-        textColor: p?.editorProps?.textColor,
-        icon: p?.editorProps?.icon,
-        label: p?.editorProps?.label ?? p?.label,
-        labelVisible: p?.editorProps?.labelVisible !== false
+        radius: parsedEditorProps?.radius ?? p?.editorProps?.radius ?? p?.radius ?? 20,
+        color: parsedEditorProps?.color ?? p?.editorProps?.color ?? '#4CAF50',
+        strokeColor: parsedEditorProps?.strokeColor ?? p?.editorProps?.strokeColor,
+        textColor: parsedEditorProps?.textColor ?? p?.editorProps?.textColor,
+        icon: parsedEditorProps?.icon ?? p?.editorProps?.icon,
+        label: parsedEditorProps?.label ?? p?.editorProps?.label ?? p?.label,
+        labelVisible: parsedEditorProps?.labelVisible ?? p?.editorProps?.labelVisible ?? p?.labelVisible ?? true
       }
     };
   };
 
   /** 将后端路径转为前端 MapPath（sourcePointId/destPointId->startPointId/endPointId，id 转 string，补 geometry/editorProps） */
-  const normalizePath = (p: Record<string, any>, defaultLayerId: string): MapPath => {
+  const normalizePath = (p: Record<string, any>, defaultLayerId: string, allPoints?: any[]): MapPath => {
     const id = p?.id != null ? String(p.id) : `path_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const startPointId = p?.startPointId ?? p?.sourcePointId;
     const endPointId = p?.endPointId ?? p?.destPointId;
-    const geometry = p?.geometry ?? {
-      controlPoints: [],
-      pathType: 'line' as const
+    // 创建新的 geometry 对象，避免引用问题
+    const geometry: any = {
+      controlPoints: (p?.geometry?.controlPoints || []).slice(),
+      pathType: p?.geometry?.pathType || 'line'
     };
-    if (geometry.controlPoints && geometry.controlPoints.length === 0 && startPointId != null && endPointId != null) {
-      geometry.controlPoints = [
-        { id: `cp_${id}_0`, x: 0, y: 0 },
-        { id: `cp_${id}_1`, x: 0, y: 0 }
-      ];
+    // 如果没有控制点但有起点和终点，则根据已加载的 points 填充控制点坐标
+    if (geometry.controlPoints.length === 0 && startPointId != null && endPointId != null) {
+      // 优先使用传入的 allPoints，否则尝试从 mapData 获取
+      const pointsSource = allPoints || mapData.value?.elements?.points || [];
+      // 路径的 startPointId/endPointId 是后端的 pointId，需要同时匹配 id 和 pointId
+      const startPoint = pointsSource.find((pt: any) => String(pt.id) === String(startPointId) || String(pt.pointId) === String(startPointId));
+      const endPoint = pointsSource.find((pt: any) => String(pt.id) === String(endPointId) || String(pt.pointId) === String(endPointId));
+      if (startPoint && endPoint) {
+        geometry.controlPoints = [
+          { id: `cp_${id}_0`, x: startPoint.x ?? startPoint.xPosition ?? 0, y: startPoint.y ?? startPoint.yPosition ?? 0 },
+          { id: `cp_${id}_1`, x: endPoint.x ?? endPoint.xPosition ?? 0, y: endPoint.y ?? endPoint.yPosition ?? 0 }
+        ];
+      }
+    }
+    // 解析 properties 中的 editorProps
+    let parsedEditorProps: any = {};
+    if (p?.properties) {
+      try {
+        const parsed = typeof p.properties === 'string' ? JSON.parse(p.properties) : p.properties;
+        parsedEditorProps = parsed?.editorProps || {};
+      } catch (e) {
+        // 忽略解析错误
+      }
     }
     return {
       ...p,
@@ -241,16 +272,13 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       status: p?.status ?? 'active',
       geometry,
       editorProps: {
-        strokeColor: p?.editorProps?.strokeColor ?? '#2196F3',
-        strokeWidth: p?.editorProps?.strokeWidth ?? 2,
-        lineStyle: p?.editorProps?.lineStyle ?? 'solid',
-        arrowVisible: p?.editorProps?.arrowVisible !== false,
-        laneMode:
-          p?.editorProps?.laneMode === 'two-way' || p?.editorProps?.laneMode === '双向'
-            ? 'two-way'
-            : 'one-way',
-        label: p?.editorProps?.label,
-        labelVisible: p?.editorProps?.labelVisible !== false
+        strokeColor: parsedEditorProps?.strokeColor ?? p?.editorProps?.strokeColor ?? '#2196F3',
+        strokeWidth: parsedEditorProps?.strokeWidth ?? p?.editorProps?.strokeWidth ?? 2,
+        lineStyle: parsedEditorProps?.lineStyle ?? p?.editorProps?.lineStyle ?? 'solid',
+        arrowVisible: parsedEditorProps?.arrowVisible ?? p?.editorProps?.arrowVisible ?? true,
+        laneMode: parsedEditorProps?.laneMode ?? p?.editorProps?.laneMode ?? 'one-way',
+        label: parsedEditorProps?.label ?? p?.editorProps?.label,
+        labelVisible: parsedEditorProps?.labelVisible ?? p?.editorProps?.labelVisible ?? true
       }
     };
   };
@@ -270,6 +298,20 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       closed: true
     };
     if (geometry && typeof geometry.closed === 'undefined') geometry.closed = true;
+    // 解析 properties 中的 editorProps 和 geometry
+    let parsedEditorProps: any = {};
+    let parsedGeometry = geometry;
+    if (l?.properties) {
+      try {
+        const parsed = typeof l.properties === 'string' ? JSON.parse(l.properties) : l.properties;
+        parsedEditorProps = parsed?.editorProps || {};
+        if (parsed?.geometry) {
+          parsedGeometry = parsed.geometry;
+        }
+      } catch (e) {
+        // 忽略解析错误
+      }
+    }
     return {
       ...l,
       id,
@@ -278,13 +320,13 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       x,
       y,
       status: l?.status ?? 'active',
-      geometry,
+      geometry: parsedGeometry,
       editorProps: {
-        fillColor: l?.editorProps?.fillColor ?? 'rgba(33, 150, 243, 0.3)',
-        fillOpacity: l?.editorProps?.fillOpacity ?? 0.3,
-        strokeColor: l?.editorProps?.strokeColor ?? '#2196F3',
-        strokeWidth: l?.editorProps?.strokeWidth ?? 1,
-        labelVisible: l?.editorProps?.labelVisible !== false
+        fillColor: parsedEditorProps?.fillColor ?? l?.editorProps?.fillColor ?? 'rgba(33, 150, 243, 0.3)',
+        fillOpacity: parsedEditorProps?.fillOpacity ?? l?.editorProps?.fillOpacity ?? 0.3,
+        strokeColor: parsedEditorProps?.strokeColor ?? l?.editorProps?.strokeColor ?? '#2196F3',
+        strokeWidth: parsedEditorProps?.strokeWidth ?? l?.editorProps?.strokeWidth ?? 1,
+        labelVisible: parsedEditorProps?.labelVisible ?? l?.editorProps?.labelVisible ?? true
       }
     };
   };
@@ -461,7 +503,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             layers: normalizedLayers,
             elements: {
               points: rawPoints.map((p: Record<string, any>) => normalizePoint(p, defaultPointLayerId)),
-              paths: rawPaths.map((p: Record<string, any>) => normalizePath(p, defaultPathLayerId)),
+              paths: rawPaths.map((p: Record<string, any>) => normalizePath(p, defaultPathLayerId, rawPoints)),
               locations: rawLocations.map((l: Record<string, any>) => normalizeLocation(l, defaultLocationLayerId))
             },
             metadata: {
@@ -508,7 +550,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             layers: legLayers,
             elements: {
               points: rp.map((p: Record<string, any>) => normalizePoint(p, dpId)),
-              paths: rpath.map((p: Record<string, any>) => normalizePath(p, dpathId)),
+              paths: rpath.map((p: Record<string, any>) => normalizePath(p, dpathId, rp)),
               locations: rloc.map((l: Record<string, any>) => normalizeLocation(l, dlocId))
             },
             metadata: {
@@ -607,7 +649,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   /**
    * 保存地图数据
    */
-  const saveMap = async () => {
+  const saveMapEditor = async () => {
     if (!currentMapModelId.value) {
       throw new Error('没有可保存的地图模型ID');
     }
@@ -632,17 +674,145 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       mapData.value.mapInfo.width = canvasState.width;
       mapData.value.mapInfo.height = canvasState.height;
       mapData.value.metadata.updatedAt = new Date().toISOString();
-      
+
       // 验证数据
       if (!mapData.value.mapInfo.name) {
         mapData.value.mapInfo.name = `地图_${currentMapModelId.value}`;
       }
-      
-      // 保存到后端
-      await saveMapEditorData(currentMapModelId.value, mapData.value);
-      
+
+      // 使用 toRaw 获取原始数据，避免循环引用
+      const rawData = toRaw(mapData.value);
+
+      const toLongOrNull = (v: unknown): number | null => {
+        if (v == null) return null;
+        const s = typeof v === 'number' ? String(v) : String(v).trim();
+        if (!/^-?\d+$/.test(s)) return null;
+        const n = Number(s);
+        return Number.isFinite(n) ? n : null;
+      };
+
+      const toNumberOrNull = (v: unknown): number | null => {
+        if (v == null) return null;
+        const n = typeof v === 'number' ? v : Number(String(v));
+        return Number.isFinite(n) ? n : null;
+      };
+
+      const serializePoints = (pointsToSave: any[]) => {
+        return (pointsToSave || []).map((p) => {
+          const pointId = p?.id != null ? String(p.id) : undefined;
+          return {
+            // 后端会在 service 层强制 setId(null)，这里先保证反序列化阶段不失败
+            id: null,
+            // point_id 在库里是 NOT NULL
+            pointId: pointId || `point_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+            layerId: toLongOrNull(p?.layerId),
+            name: p?.name ?? pointId,
+            xPosition: toNumberOrNull(p?.x) ?? toNumberOrNull(p?.xPosition) ?? 0,
+            yPosition: toNumberOrNull(p?.y) ?? toNumberOrNull(p?.yPosition) ?? 0,
+            zPosition: toNumberOrNull(p?.z) ?? toNumberOrNull(p?.zPosition) ?? 0,
+            type: p?.type ?? 'HALT_POSITION',
+            radius: toNumberOrNull(p?.editorProps?.radius) ?? toNumberOrNull(p?.radius) ?? 0,
+            locked: p?.locked ?? null,
+            label: p?.editorProps?.label ?? p?.label ?? null,
+            // 额外信息存到 properties，避免丢失前端配置
+            properties: JSON.stringify({
+              status: p?.status,
+              editorProps: p?.editorProps
+            })
+          };
+        });
+      };
+
+      const serializePaths = (pathsToSave: any[]) => {
+        const estimateLength = (geometry: any) => {
+          const cps: any[] = geometry?.controlPoints || [];
+          if (!Array.isArray(cps) || cps.length < 2) return null;
+          let sum = 0;
+          for (let i = 1; i < cps.length; i += 1) {
+            const a = cps[i - 1];
+            const b = cps[i];
+            const ax = toNumberOrNull(a?.x) ?? 0;
+            const ay = toNumberOrNull(a?.y) ?? 0;
+            const bx = toNumberOrNull(b?.x) ?? 0;
+            const by = toNumberOrNull(b?.y) ?? 0;
+            sum += Math.hypot(ax - bx, ay - by);
+          }
+          return sum;
+        };
+
+        return (pathsToSave || []).map((path) => {
+          const backendId = path?.id != null ? String(path.id) : undefined;
+          const laneMode = path?.editorProps?.laneMode;
+          const pathId = backendId
+            ? backendId
+            : (path?.pathId != null ? String(path.pathId) : `path_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
+          const sourcePointId = String(path?.startPointId ?? path?.sourcePointId ?? '');
+          const destPointId = String(path?.endPointId ?? path?.destPointId ?? '');
+          return {
+            id: null,
+            pathId,
+            name: path?.name ?? pathId,
+            sourcePointId,
+            destPointId,
+            routingType: laneMode === 'two-way' ? 'BIDIRECTIONAL' : 'FORWARD',
+            locked: path?.locked ?? null,
+            // path.length 在库里是 NOT NULL
+            length: estimateLength(path?.geometry) ?? 0,
+            properties: JSON.stringify({
+              status: path?.status,
+              editorProps: path?.editorProps
+            }),
+            // 用于前端重建几何形状（但注解 exist=false，不入库）
+            layoutControlPoints: (path?.geometry?.controlPoints || []).map((cp: any) => ({
+              x: toNumberOrNull(cp?.x),
+              y: toNumberOrNull(cp?.y)
+            }))
+          };
+        });
+      };
+
+      const serializeLocations = (locationsToSave: any[]) => {
+        return (locationsToSave || []).map((l) => {
+          const locationId = l?.id != null ? String(l.id) : undefined;
+          return {
+            id: null,
+            locationId,
+            locationTypeId: toLongOrNull(l?.locationTypeId),
+            name: l?.name ?? locationId,
+            xPosition: toNumberOrNull(l?.x) ?? toNumberOrNull(l?.xPosition),
+            yPosition: toNumberOrNull(l?.y) ?? toNumberOrNull(l?.yPosition),
+            zPosition: toNumberOrNull(l?.z) ?? toNumberOrNull(l?.zPosition),
+            locked: l?.locked ?? null,
+            isOccupied: null,
+            properties: JSON.stringify({
+              status: l?.status,
+              geometry: l?.geometry,
+              editorProps: l?.editorProps
+            })
+          };
+        });
+      };
+
+      const saveData = {
+        mapId: String(currentMapModelId.value),
+        name: rawData.mapInfo?.name,
+        mapVersion: rawData.mapInfo?.mapVersion || '1.0',
+        originX: rawData.mapInfo?.originX || 0,
+        originY: rawData.mapInfo?.originY || 0,
+        rotation: rawData.mapInfo?.rotation || 0,
+        points: serializePoints(rawData.elements?.points || []),
+        paths: serializePaths(rawData.elements?.paths || []),
+        locations: serializeLocations(rawData.elements?.locations || [])
+      };
+
+      // 保存到后端（语义数据）
+      await saveMapApi(saveData);
+
+      // 保存成功后不更新前端版本号，避免循环引用问题
+      // 用户可以手动刷新页面查看新版本，或者重新加载地图
+
       isDirty.value = false;
-      
+
       return mapData.value;
     } catch (error) {
       console.error('保存地图失败:', error);
@@ -1414,7 +1584,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     
     // Actions
     loadMap,
-    saveMap,
+    saveMap: saveMapEditor,
     updateLayoutProperties,
     setTool,
     setPointType,

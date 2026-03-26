@@ -89,6 +89,8 @@ export interface MapEditorResponse {
   name?: string;
   /** 地图版本 */
   modelVersion?: string;
+  /** 地图状态: 0-草稿(DRAFT), 1-已发布(PUBLISHED) */
+  status?: string;
   /** 描述 */
   description?: string;
   /** 创建时间 */
