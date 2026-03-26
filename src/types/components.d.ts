@@ -78,6 +78,7 @@ declare module 'vue' {
     ImageUpload: typeof import('./../components/ImageUpload/index.vue')['default']
     LangSelect: typeof import('./../components/LangSelect/index.vue')['default']
     LocationIconSelect: typeof import('./../components/LocationIconSelect/index.vue')['default']
+    MapRenderer: typeof import('./../components/map/MapRenderer.vue')['default']
     MessageType: typeof import('./../components/Process/MessageType.vue')['default']
     Pagination: typeof import('./../components/Pagination/index.vue')['default']
     ParentView: typeof import('./../components/ParentView/index.vue')['default']

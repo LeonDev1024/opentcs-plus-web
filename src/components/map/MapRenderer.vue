@@ -231,11 +231,19 @@ const stageConfig = computed(() => {
     scaleY,
     x: stageX,
     y: stageY,
-    draggable: !props.readonly
+    draggable: !props.readonly,
+    bounds,
+    originX: props.originX,
+    originY: props.originY,
+    flipY: props.flipY,
+    autoCenter: props.autoCenter
   };
 });
 
-const visiblePoints = computed(() => props.points || []);
+const visiblePoints = computed(() => {
+  console.log('[MapRenderer] props.points:', props.points);
+  return props.points || [];
+});
 const visiblePaths = computed(() => props.paths || []);
 const visibleLocations = computed(() => props.locations || []);
 
