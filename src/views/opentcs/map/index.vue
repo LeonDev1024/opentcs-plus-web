@@ -861,7 +861,8 @@ function svgTextUnflipAt(cx: number, cy: number): string {
 // ==================== MapRenderer 数据转换 ====================
 // 为 MapRenderer 转换点位数据
 const mapRendererPoints = computed(() => {
-  return mapElements.value.points.map(p => ({
+  console.log('[Map] mapElements.points:', mapElements.value.points);
+  const points = mapElements.value.points.map(p => ({
     id: String(p.id ?? p.pointId ?? Math.random()),
     pointId: p.pointId ?? p.id,
     layerId: 'default',
@@ -1123,7 +1124,9 @@ const loadMapElements = async (mapId: string | number) => {
   elementsLoading.value = true;
   try {
     const res = await loadMapEditorData(mapId);
+    console.log('[Map] loadMapElements raw response:', res);
     const payload = unwrapAjaxMapPayload(res) as MapEditorResponse & Record<string, any>;
+    console.log('[Map] payload:', payload);
     const nested =
       payload.elements && typeof payload.elements === 'object' && !Array.isArray(payload.elements)
         ? (payload.elements as Record<string, any>)
@@ -1132,6 +1135,10 @@ const loadMapElements = async (mapId: string | number) => {
     const pointsRaw = pickElementsArray(payload.points, nested?.points);
     const pathsRaw = pickElementsArray(payload.paths, nested?.paths);
     const locationsRaw = pickElementsArray(payload.locations, nested?.locations);
+
+    console.log('[Map] pointsRaw:', pointsRaw);
+    console.log('[Map] pathsRaw:', pathsRaw);
+    console.log('[Map] locationsRaw:', locationsRaw);
 
     // 转换点位数据：后端返回 xPosition/yPosition，前端期望 x/y
     const normalizePoints = (points: any[]) => {
