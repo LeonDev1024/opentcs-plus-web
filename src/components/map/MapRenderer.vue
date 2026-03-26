@@ -104,6 +104,11 @@ interface Props {
   offsetX?: number;
   offsetY?: number;
   readonly?: boolean;
+  // 预览模式专用
+  flipY?: boolean;        // Y轴翻转（预览模式使用）
+  originX?: number;       // 地图原点X偏移
+  originY?: number;       // 地图原点Y偏移
+  autoCenter?: boolean;   // 自动居中内容
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -115,7 +120,11 @@ const props = withDefaults(defineProps<Props>(), {
   scale: 1,
   offsetX: 0,
   offsetY: 0,
-  readonly: true
+  readonly: true,
+  flipY: false,
+  originX: 0,
+  originY: 0,
+  autoCenter: false
 });
 
 const emit = defineEmits<{
@@ -131,16 +140,100 @@ const DASHED_LINK_DASH_PATTERN = [12, 8];
 // ==================== Refs ====================
 const containerRef = ref<HTMLElement | null>(null);
 
+// ==================== 坐标转换 ====================
+// 计算内容包围盒，用于自动居中
+const contentBounds = computed(() => {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+
+  for (const p of props.points || []) {
+    const x = Number(p.x ?? 0);
+    const y = Number(p.y ?? 0);
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+  for (const l of props.locations || []) {
+    const x = Number(l.x ?? 0);
+    const y = Number(l.y ?? 0);
+    const hw = (l.editorProps?.width ?? 24) / 2;
+    const hh = (l.editorProps?.height ?? 24) / 2;
+    minX = Math.min(minX, x - hw);
+    maxX = Math.max(maxX, x + hw);
+    minY = Math.min(minY, y - hh);
+    maxY = Math.max(maxY, y + hh);
+  }
+  for (const path of props.paths || []) {
+    const cps = path.geometry?.controlPoints ?? [];
+    for (const cp of cps) {
+      const x = Number(cp.x ?? 0);
+      const y = Number(cp.y ?? 0);
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  }
+
+  if (!Number.isFinite(minX)) return null;
+  return { minX, maxX, minY, maxY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+});
+
+// 坐标转换：根据 flipY 和 origin 进行坐标变换
+function transformPoint(x: number, y: number) {
+  // 应用原点偏移
+  let tx = x + (props.originX ?? 0);
+  let ty = y + (props.originY ?? 0);
+
+  // Y 轴翻转（预览模式）
+  if (props.flipY) {
+    ty = -ty;
+  }
+
+  return { x: tx, y: ty };
+}
+
 // ==================== 计算属性 ====================
-const stageConfig = computed(() => ({
-  width: props.width,
-  height: props.height,
-  scaleX: props.scale,
-  scaleY: props.scale,
-  x: props.offsetX,
-  y: props.offsetY,
-  draggable: !props.readonly
-}));
+const stageConfig = computed(() => {
+  const bounds = props.autoCenter ? contentBounds.value : null;
+
+  let stageX = props.offsetX;
+  let stageY = props.offsetY;
+  let scaleX = props.scale;
+  let scaleY = props.scale;
+
+  // 自动居中
+  if (bounds && props.autoCenter) {
+    // 计算居中偏移：让内容中心对齐到画布中心
+    const centerX = props.width / 2;
+    const centerY = props.height / 2;
+    stageX = centerX - bounds.cx * props.scale;
+    stageY = centerY - bounds.cy * props.scale;
+
+    if (props.flipY) {
+      stageY = centerY + bounds.cy * props.scale;
+    }
+  }
+
+  // Y 轴翻转
+  if (props.flipY) {
+    scaleY = -props.scale;
+    // Y 翻转时，需要调整 y 偏移到画布底部
+    if (!props.autoCenter) {
+      stageY = props.height - props.offsetY;
+    }
+  }
+
+  return {
+    width: props.width,
+    height: props.height,
+    scaleX,
+    scaleY,
+    x: stageX,
+    y: stageY,
+    draggable: !props.readonly
+  };
+});
 
 const visiblePoints = computed(() => props.points || []);
 const visiblePaths = computed(() => props.paths || []);
@@ -175,9 +268,10 @@ function resolvePointBullseyeStyle(point: MapPoint) {
 function getPointBullseyeOuterConfig(point: MapPoint) {
   const visual = getPointVisualMeta(point);
   const st = resolvePointBullseyeStyle(point);
+  const { x, y } = transformPoint(Number(point.x ?? 0), Number(point.y ?? 0));
   return {
-    x: point.x,
-    y: point.y,
+    x,
+    y,
     radius: visual.radius,
     fill: '#ffffff',
     stroke: st.outerStroke,
@@ -189,9 +283,10 @@ function getPointBullseyeOuterConfig(point: MapPoint) {
 function getPointBullseyeCoreConfig(point: MapPoint) {
   const visual = getPointVisualMeta(point);
   const st = resolvePointBullseyeStyle(point);
+  const { x, y } = transformPoint(Number(point.x ?? 0), Number(point.y ?? 0));
   return {
-    x: point.x,
-    y: point.y,
+    x,
+    y,
     radius: visual.radius * 0.66,
     fill: st.coreFill,
     stroke: st.coreStroke,
@@ -200,13 +295,16 @@ function getPointBullseyeCoreConfig(point: MapPoint) {
   };
 }
 
-function getPointBullseyeDotVisible = (point: MapPoint) => !shouldRenderPointGlyph(point);
+function getPointBullseyeDotVisible(point: MapPoint): boolean {
+  return !shouldRenderPointGlyph(point);
+}
 
 function getPointBullseyeDotConfig(point: MapPoint) {
   const visual = getPointVisualMeta(point);
+  const { x, y } = transformPoint(Number(point.x ?? 0), Number(point.y ?? 0));
   return {
-    x: point.x,
-    y: point.y,
+    x,
+    y,
     radius: Math.max(1.2, visual.radius * 0.22),
     fill: '#ffffff',
     listening: false
@@ -218,9 +316,12 @@ function shouldShowPointLabel(point: MapPoint) {
 }
 
 function getPointLabelConfig(point: MapPoint) {
+  const { x, y } = transformPoint(Number(point.x ?? 0), Number(point.y ?? 0));
+  const radius = point.editorProps?.radius ?? DEFAULT_POINT_RADIUS;
+  const labelY = point.editorProps?.labelPosition === 'bottom' ? radius + 16 : -radius - 14;
   return {
-    x: point.x,
-    y: point.y - (point.editorProps?.radius || DEFAULT_POINT_RADIUS) - 14,
+    x,
+    y: y + labelY,
     text: point.name || '',
     fontSize: 11,
     fontFamily: 'Arial, sans-serif',
@@ -244,9 +345,10 @@ function shouldRenderPointGlyph(point: MapPoint) {
 
 function getPointGlyphConfig(point: MapPoint) {
   const visual = getPointVisualMeta(point);
+  const { x, y } = transformPoint(Number(point.x ?? 0), Number(point.y ?? 0));
   return {
-    x: point.x,
-    y: point.y,
+    x,
+    y,
     text: POINT_GLYPH_MAP[point.type || ''] || '',
     fontSize: visual.radius * 1.1,
     fontFamily: 'Arial, sans-serif',
@@ -262,7 +364,8 @@ function getPointGlyphConfig(point: MapPoint) {
 function getPathConfig(path: MapPath) {
   const points: number[] = [];
   path.geometry?.controlPoints?.forEach((cp: any) => {
-    points.push(cp.x, cp.y);
+    const { x, y } = transformPoint(Number(cp.x ?? 0), Number(cp.y ?? 0));
+    points.push(x, y);
   });
 
   const connectionType = path.type as 'direct' | 'orthogonal' | 'curve' | undefined;
@@ -297,8 +400,11 @@ function getPathArrowConfigs(path: MapPath) {
   const cps = path.geometry?.controlPoints;
   if (!cps || cps.length < 2) return [];
 
-  const endCp = cps[cps.length - 1];
-  const prevCp = cps[cps.length - 2];
+  // 转换所有控制点坐标
+  const transformedCps = cps.map((cp: any) => transformPoint(Number(cp.x ?? 0), Number(cp.y ?? 0)));
+
+  const endCp = transformedCps[transformedCps.length - 1];
+  const prevCp = transformedCps[transformedCps.length - 2];
   if (!endCp || !prevCp) return [];
 
   const dx = endCp.x - prevCp.x;
@@ -344,10 +450,11 @@ function getLocationRectConfig(location: MapLocation) {
   const w = location.editorProps?.width || 24;
   const h = location.editorProps?.height || 24;
   const color = location.editorProps?.color || LOCATION_TYPE_COLORS[location.type || ''] || LOCATION_TYPE_COLORS.default;
+  const { x, y } = transformPoint(Number(location.x ?? 0), Number(location.y ?? 0));
 
   return {
-    x: location.x - w / 2,
-    y: location.y - h / 2,
+    x: x - w / 2,
+    y: y - h / 2,
     width: w,
     height: h,
     fill: color,
@@ -361,7 +468,8 @@ function getLocationConfig(location: MapLocation) {
   const vertices = location.geometry?.vertices || [];
   const points: number[] = [];
   vertices.forEach((v: any) => {
-    points.push(v.x, v.y);
+    const { x, y } = transformPoint(Number(v.x ?? 0), Number(v.y ?? 0));
+    points.push(x, y);
   });
 
   const color = location.editorProps?.color || LOCATION_TYPE_COLORS[location.type || ''] || LOCATION_TYPE_COLORS.default;
@@ -379,11 +487,12 @@ function getLocationConfig(location: MapLocation) {
 function getLocationIconConfig(location: MapLocation) {
   const iconUrl = location.editorProps?.icon;
   if (!iconUrl) return null;
+  const { x, y } = transformPoint(Number(location.x ?? 0), Number(location.y ?? 0));
 
   return {
     image: new Image(),
-    x: location.x - 10,
-    y: location.y - 10,
+    x: x - 10,
+    y: y - 10,
     width: 20,
     height: 20
   };
@@ -391,9 +500,10 @@ function getLocationIconConfig(location: MapLocation) {
 
 function getLocationSymbolConfig(location: MapLocation) {
   const w = location.editorProps?.width || 24;
+  const { x, y } = transformPoint(Number(location.x ?? 0), Number(location.y ?? 0));
   return {
-    x: location.x,
-    y: location.y,
+    x,
+    y,
     text: location.editorProps?.label || '',
     fontSize: 10,
     fontFamily: 'Arial, sans-serif',
@@ -410,9 +520,10 @@ function shouldShowLocationLabel(location: MapLocation) {
 
 function getLocationLabelConfig(location: MapLocation) {
   const h = location.editorProps?.height || 24;
+  const { x, y } = transformPoint(Number(location.x ?? 0), Number(location.y ?? 0));
   return {
-    x: location.x,
-    y: location.y + h / 2 + 4,
+    x,
+    y: y + h / 2 + 4,
     text: location.name || '',
     fontSize: 11,
     fontFamily: 'Arial, sans-serif',

@@ -38,54 +38,32 @@
         >
           <!-- 地图层：随视图平移+缩放，被 canvas overflow:hidden 裁切 -->
           <div class="canvas-map-layer" :style="mapLayerStyle">
-            <!-- 地图元素（编辑模式下隐藏，只展示坐标轴） -->
+            <!-- 预览模式：底图与元素可叠加显示 -->
             <div v-if="!isEditingOrigin && activeMap?.rasterUrl" class="map-layer-image">
               <img class="canvas-img" :src="activeMap.rasterUrl" alt="地图底图" />
             </div>
-            <svg v-else-if="!isEditingOrigin && activeMap && (mapElements.points.length > 0 || mapElements.paths.length > 0)"
-              class="map-layer-svg"
+            <!-- 预览模式：使用 MapRenderer 渲染 -->
+            <div v-if="!isEditingOrigin && activeMap && (mapElements.points.length > 0 || mapElements.paths.length > 0 || mapElements.locations.length > 0)"
+              class="map-renderer-wrapper"
+              :style="mapRendererContainerStyle"
             >
-              <g v-for="path in processedPaths" :key="path.id">
-                <line
-                  v-if="path.startPoint && path.endPoint"
-                  :x1="path.startPoint.x * SCALE"
-                  :y1="-path.startPoint.y * SCALE"
-                  :x2="path.endPoint.x * SCALE"
-                  :y2="-path.endPoint.y * SCALE"
-                  stroke="#409eff"
-                  stroke-width="2"
-                />
-              </g>
-              <g v-for="point in mapElements.points" :key="point.id">
-                <circle
-                  :cx="point.x * SCALE"
-                  :cy="-point.y * SCALE"
-                  :r="point.editorProps?.radius || 8"
-                  :fill="point.editorProps?.color || '#409eff'"
-                  stroke="#fff"
-                  stroke-width="2"
-                />
-                <text
-                  v-if="point.editorProps?.labelVisible && point.name"
-                  :x="point.x * SCALE"
-                  :y="-point.y * SCALE - 12"
-                  fill="#666"
-                  font-size="10"
-                  text-anchor="middle"
-                >{{ point.name }}</text>
-              </g>
-              <g v-for="location in mapElements.locations" :key="location.id">
-                <rect
-                  :x="(location.x - (location.editorProps?.width || 20) / 2) * SCALE"
-                  :y="(-location.y - (location.editorProps?.height || 20) / 2) * SCALE"
-                  :width="(location.editorProps?.width || 20) * SCALE"
-                  :height="(location.editorProps?.height || 20) * SCALE"
-                  :fill="location.editorProps?.color || '#67c23a'"
-                  stroke="#fff"
-                  stroke-width="1"
-                />
-              </g>
-            </svg>
+              <MapRenderer
+                :points="mapRendererPoints"
+                :paths="mapRendererPaths"
+                :locations="mapRendererLocations"
+                :width="1920"
+                :height="1080"
+                :scale="canvasScale"
+                :offset-x="viewOffset.x"
+                :offset-y="viewOffset.y"
+                :flip-y="true"
+                :origin-x="previewOrigin.ox"
+                :origin-y="previewOrigin.oy"
+                :auto-center="true"
+                :readonly="true"
+                @scale-change="(s) => canvasScale = s"
+              />
+            </div>
 
             <!-- 普通模式：工厂坐标轴 O(0,0)（实线）+ 地图原点虚线 -->
             <template v-if="!isEditingOrigin">
@@ -303,10 +281,12 @@ import { listType } from '@/api/opentcs/vehicle/type';
 import type { TypeVO } from '@/api/opentcs/vehicle/type/types';
 import { loadMapEditorData } from '@/api/opentcs/map';
 import type { MapEditorResponse } from '@/api/opentcs/map/types';
+import { HttpStatus } from '@/enums/RespEnum';
 import { useMapEditorTabsStore } from '@/store/modules/mapEditorTabs';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormInstance } from 'element-plus';
 import { watch, onBeforeUnmount } from 'vue';
+import MapRenderer from '@/components/map/MapRenderer.vue';
 
 const router = useRouter();
 const mapEditorTabsStore = useMapEditorTabsStore();
@@ -328,6 +308,32 @@ const elementsLoading = ref(false);
 // 将 mm 坐标直接映射到屏幕像素：1mm -> 1px
 const SCALE = 1;
 
+/**
+ * 请求拦截器返回的是 AjaxResult：{ code, msg, data }。
+ * 不能依赖 data.mapId 判断，否则 data 无 mapId 时会把整包当 payload，导致 points 永远为空。
+ */
+function unwrapAjaxMapPayload(raw: unknown): Record<string, any> {
+  const r = raw as Record<string, any>;
+  if (!r || typeof r !== 'object') return {};
+  const inner = r.data;
+  if (
+    inner != null &&
+    typeof inner === 'object' &&
+    !Array.isArray(inner) &&
+    (r.code === HttpStatus.SUCCESS || r.code === 200)
+  ) {
+    return inner as Record<string, any>;
+  }
+  return r;
+}
+
+function pickElementsArray<T>(a: T[] | undefined | null, b: T[] | undefined | null): T[] {
+  if (Array.isArray(a) && a.length > 0) return a;
+  if (Array.isArray(b) && b.length > 0) return b;
+  if (Array.isArray(a)) return a;
+  if (Array.isArray(b)) return b;
+  return [];
+}
 
 const selectedFactoryId = ref<number | undefined>(undefined);
 const selectedMapId = ref<string>('');
@@ -639,7 +645,12 @@ const activeMap = computed(() => mapList.value.find(m => String(m.mapId) === sel
 const processedPaths = computed(() => {
   const pointsMap = new Map();
   mapElements.value.points?.forEach(p => {
-    pointsMap.set(String(p.id), p);
+    if (p?.id !== undefined && p?.id !== null) {
+      pointsMap.set(String(p.id), p);
+    }
+    if (p?.pointId !== undefined && p?.pointId !== null) {
+      pointsMap.set(String(p.pointId), p);
+    }
   });
 
   return (mapElements.value.paths || []).map(path => {
@@ -656,6 +667,269 @@ const processedPaths = computed(() => {
 
     return { ...path, startPoint, endPoint };
   });
+});
+
+/** 与 MapCanvas 一致：优先 geometry.controlPoints，否则 layoutControlPoints */
+function extractPathControlPoints(path: any): any[] | null {
+  const g = path.geometry?.controlPoints;
+  if (Array.isArray(g) && g.length >= 2) return g;
+  const l = path.layoutControlPoints;
+  if (Array.isArray(l) && l.length >= 2) return l;
+  return null;
+}
+
+/** 与 getPathConfig 中 path.type / geometry.pathType 判定一致 */
+function pathConnectionKind(path: any): 'curve' | 'orthogonal' | 'direct' {
+  const geoPt = (path.geometry?.pathType || '').toString().toLowerCase();
+  if (geoPt === 'curve') return 'curve';
+  const t = (path.type || path.connectionType || path.pathType || '').toString().toLowerCase();
+  if (t === 'curve' || t === 'bezier' || t === 'spline') return 'curve';
+  if (t === 'orthogonal' || t === 'right_angle' || t === 'rightangle') return 'orthogonal';
+  return 'direct';
+}
+
+type PathPreviewSpec =
+  | { mode: 'path'; d: string }
+  | { mode: 'polyline'; points: string }
+  | { mode: 'line'; x1: number; y1: number; x2: number; y2: number }
+  | { mode: 'none' };
+
+/** 中间控制点到弦线的距离平方（mm²），用于无 pathType 时识别“弓高”曲线控制点 */
+function pointToSegmentDistSq(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const abx = bx - ax;
+  const aby = by - ay;
+  const apx = px - ax;
+  const apy = py - ay;
+  const ab2 = abx * abx + aby * aby;
+  if (ab2 < 1e-12) return apx * apx + apy * apy;
+  let t = (apx * abx + apy * aby) / ab2;
+  t = Math.max(0, Math.min(1, t));
+  const qx = ax + t * abx;
+  const qy = ay + t * aby;
+  const dx = px - qx;
+  const dy = py - qy;
+  return dx * dx + dy * dy;
+}
+
+/** 当前选中地图原点（mm），预览层与多地图原点虚线一致 */
+const previewOrigin = computed(() => ({
+  ox: Number(activeMap.value?.originX ?? 0),
+  oy: Number(activeMap.value?.originY ?? 0)
+}));
+
+/**
+ * 预览路径：直线用 line；正交/多段用 polyline；
+ * 曲线（Konva tension）不能用折线连控制点，三点时用 SVG 二次贝塞尔 Q 近似。
+ */
+function buildPathPreviewSpec(path: any): PathPreviewSpec {
+  const { ox, oy } = previewOrigin.value;
+  const cps = extractPathControlPoints(path);
+  const kind = pathConnectionKind(path);
+
+  const fp = (cp: any) => ({
+    fx: Number(cp?.x ?? cp?.xPosition ?? 0) + ox,
+    fy: Number(cp?.y ?? cp?.yPosition ?? 0) + oy
+  });
+  const sv = (fx: number, fy: number) => {
+    if (!Number.isFinite(fx) || !Number.isFinite(fy)) return null;
+    return { x: fx * SCALE, y: -fy * SCALE };
+  };
+
+  const lineFromCp = (a: any, b: any): PathPreviewSpec => {
+    const pa = sv(fp(a).fx, fp(a).fy);
+    const pb = sv(fp(b).fx, fp(b).fy);
+    if (!pa || !pb) return { mode: 'none' };
+    return { mode: 'line', x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y };
+  };
+
+  if (!cps || cps.length < 2) {
+    if (path.startPoint && path.endPoint) {
+      const pa = sv(Number(path.startPoint.x) + ox, Number(path.startPoint.y) + oy);
+      const pb = sv(Number(path.endPoint.x) + ox, Number(path.endPoint.y) + oy);
+      if (pa && pb) return { mode: 'line', x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y };
+    }
+    return { mode: 'none' };
+  }
+
+  if (cps.length === 2) {
+    return lineFromCp(cps[0], cps[1]);
+  }
+
+  if (cps.length === 3) {
+    const f0 = fp(cps[0]);
+    const f1 = fp(cps[1]);
+    const f2 = fp(cps[2]);
+    const midOffSq = pointToSegmentDistSq(f1.fx, f1.fy, f0.fx, f0.fy, f2.fx, f2.fy);
+    // 弓高约 >3mm：按曲线画 Q；与编辑器「三点 + 中间为法向偏移」一致，避免折线穿过端点
+    const useQuad = kind === 'curve' || midOffSq > 9;
+    if (useQuad) {
+      const p0 = sv(f0.fx, f0.fy);
+      const p1 = sv(f1.fx, f1.fy);
+      const p2 = sv(f2.fx, f2.fy);
+      if (p0 && p1 && p2) {
+        return {
+          mode: 'path',
+          d: `M ${p0.x},${p0.y} Q ${p1.x},${p1.y} ${p2.x},${p2.y}`
+        };
+      }
+      return { mode: 'none' };
+    }
+  }
+
+  const parts: string[] = [];
+  for (const cp of cps) {
+    const p = sv(fp(cp).fx, fp(cp).fy);
+    if (p) parts.push(`${p.x},${p.y}`);
+  }
+  if (parts.length < 2) return { mode: 'none' };
+  return { mode: 'polyline', points: parts.join(' ') };
+}
+
+const pathsForPreview = computed(() =>
+  processedPaths.value.map(p => ({
+    ...p,
+    preview: buildPathPreviewSpec(p)
+  }))
+);
+
+/** 根据全部元素计算工厂坐标系包围盒，用于把拓扑平移到视口附近 */
+const previewContentBounds = computed(() => {
+  const { ox, oy } = previewOrigin.value;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  const expand = (fx: number, fy: number) => {
+    if (!Number.isFinite(fx) || !Number.isFinite(fy)) return;
+    minX = Math.min(minX, fx);
+    maxX = Math.max(maxX, fx);
+    minY = Math.min(minY, fy);
+    maxY = Math.max(maxY, fy);
+  };
+
+  for (const p of mapElements.value.points || []) {
+    expand(Number(p.x ?? p.xPosition ?? 0) + ox, Number(p.y ?? p.yPosition ?? 0) + oy);
+  }
+
+  for (const l of mapElements.value.locations || []) {
+    const x = Number(l.x ?? l.xPosition ?? 0);
+    const y = Number(l.y ?? l.yPosition ?? 0);
+    const hw = Number(l.editorProps?.width ?? 20) / 2;
+    const hh = Number(l.editorProps?.height ?? 20) / 2;
+    expand(x - hw + ox, y - hh + oy);
+    expand(x + hw + ox, y + hh + oy);
+  }
+
+  for (const path of processedPaths.value) {
+    const cps = extractPathControlPoints(path);
+    if (cps) {
+      for (const cp of cps) {
+        expand(Number(cp.x ?? cp.xPosition ?? 0) + ox, Number(cp.y ?? cp.yPosition ?? 0) + oy);
+      }
+    } else if (path.startPoint && path.endPoint) {
+      expand(Number(path.startPoint.x) + ox, Number(path.startPoint.y) + oy);
+      expand(Number(path.endPoint.x) + ox, Number(path.endPoint.y) + oy);
+    }
+  }
+
+  if (!Number.isFinite(minX)) return null;
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    cx: (minX + maxX) / 2,
+    cy: (minY + maxY) / 2
+  };
+});
+
+const previewSvgCenterTransform = computed(() => {
+  const b = previewContentBounds.value;
+  if (!b) return 'translate(0,0)';
+  return `translate(${-b.cx * SCALE},${b.cy * SCALE})`;
+});
+
+/**
+ * 抵消 .canvas-map-layer 上 `scale(..., -1)` 对字形的纵向翻转，
+ * 与坐标轴文案 `.axis-origin` / `.axis-x::after` 使用的 `scaleY(-1)` 同理。
+ * SVG 变换从右到左复合，故用「平移到锚点 → 竖直翻转 → 平移回」。
+ */
+function svgTextUnflipAt(cx: number, cy: number): string {
+  return `translate(${cx},${cy}) scale(1,-1) translate(${-cx},${-cy})`;
+}
+
+// ==================== MapRenderer 数据转换 ====================
+// 为 MapRenderer 转换点位数据
+const mapRendererPoints = computed(() => {
+  return mapElements.value.points.map(p => ({
+    id: String(p.id ?? p.pointId ?? Math.random()),
+    pointId: p.pointId ?? p.id,
+    layerId: 'default',
+    name: p.name || '',
+    x: Number(p.x ?? p.xPosition ?? 0),
+    y: Number(p.y ?? p.yPosition ?? 0),
+    type: p.type || 'Halt point',
+    status: 'ACTIVE',
+    editorProps: {
+      radius: p.editorProps?.radius ?? 10,
+      color: p.editorProps?.color || '#409eff',
+      labelVisible: p.editorProps?.labelVisible ?? true
+    }
+  }));
+});
+
+// 为 MapRenderer 转换路径数据
+const mapRendererPaths = computed(() => {
+  return mapElements.value.paths.map(p => ({
+    id: String(p.id ?? Math.random()),
+    layerId: 'default',
+    name: p.name || '',
+    startPointId: p.startPointId,
+    endPointId: p.endPointId,
+    status: 'ACTIVE',
+    geometry: {
+      controlPoints: (p.layoutControlPoints || p.geometry?.controlPoints || []).map((cp: any, i: number) => ({
+        id: cp.id || `cp_${i}`,
+        x: Number(cp.x ?? cp.xPosition ?? 0),
+        y: Number(cp.y ?? cp.yPosition ?? 0)
+      })),
+      pathType: p.type === 'curve' ? 'curve' : 'line'
+    },
+    editorProps: {
+      strokeColor: '#409eff',
+      strokeWidth: 12,
+      lineStyle: 'solid',
+      arrowVisible: true
+    }
+  }));
+});
+
+// 为 MapRenderer 转换位置数据
+const mapRendererLocations = computed(() => {
+  return mapElements.value.locations.map(l => ({
+    id: String(l.id ?? Math.random()),
+    layerId: 'default',
+    name: l.name || '',
+    x: Number(l.x ?? l.xPosition ?? 0),
+    y: Number(l.y ?? l.yPosition ?? 0),
+    type: l.type || 'default',
+    status: 'ACTIVE',
+    editorProps: {
+      width: l.editorProps?.width ?? 24,
+      height: l.editorProps?.height ?? 24,
+      color: l.editorProps?.color || '#67c23a',
+      labelVisible: l.editorProps?.labelVisible ?? true
+    }
+  }));
+});
+
+// MapRenderer 容器尺寸
+const mapRendererContainerStyle = computed(() => {
+  const { h } = getCanvasRect();
+  return {
+    width: '100%',
+    height: h + 'px'
+  };
 });
 
 const filteredMaps = computed(() => {
@@ -706,11 +980,21 @@ const loadMaps = async () => {
     mapList.value = Array.isArray(data) ? data : [];
     if (mapList.value.length > 0 && !selectedMapId.value) {
       selectedMapId.value = String(mapList.value[0].mapId);
-      // 自动加载第一个地图的元素
-      loadMapElements(mapList.value[0].mapId);
+    }
+    // URL 或缓存的 mapId 若不在当前工厂列表中，回退到第一张
+    if (
+      selectedMapId.value
+      && mapList.value.length > 0
+      && !mapList.value.some(m => String(m.mapId) === selectedMapId.value)
+    ) {
+      selectedMapId.value = String(mapList.value[0].mapId);
     }
   } finally {
     loading.value = false;
+  }
+  // 无论当前选中来自列表默认还是 URL，统一拉取元素（避免仅因 mapId 判断错误导致空白）
+  if (selectedMapId.value) {
+    await loadMapElements(selectedMapId.value);
   }
 };
 
@@ -793,28 +1077,37 @@ const handleEdit = (row: NavigationMapVO) => {
   });
 };
 
-// 加载地图元素数据
+// 加载地图元素数据（兼容 AjaxResult、elements 嵌套、与编辑器一致的字段名）
 const loadMapElements = async (mapId: string | number) => {
   elementsLoading.value = true;
   try {
     const res = await loadMapEditorData(mapId);
-    const data = res as unknown as MapEditorResponse;
+    const payload = unwrapAjaxMapPayload(res) as MapEditorResponse & Record<string, any>;
+    const nested =
+      payload.elements && typeof payload.elements === 'object' && !Array.isArray(payload.elements)
+        ? (payload.elements as Record<string, any>)
+        : null;
+
+    const pointsRaw = pickElementsArray(payload.points, nested?.points);
+    const pathsRaw = pickElementsArray(payload.paths, nested?.paths);
+    const locationsRaw = pickElementsArray(payload.locations, nested?.locations);
 
     // 转换点位数据：后端返回 xPosition/yPosition，前端期望 x/y
     const normalizePoints = (points: any[]) => {
       return (points || []).map(p => ({
         ...p,
+        pointId: p.pointId ?? p.id,
         x: p.x ?? p.xPosition ?? 0,
         y: p.y ?? p.yPosition ?? 0
       }));
     };
 
-    // 转换路径数据
+    // 转换路径数据（保留 geometry / layoutControlPoints 供折线预览）
     const normalizePaths = (paths: any[]) => {
       return (paths || []).map(p => ({
         ...p,
-        startPointId: p.startPointId ?? p.sourcePointId,
-        endPointId: p.endPointId ?? p.destPointId
+        startPointId: p.startPointId ?? p.sourcePointId ?? p.sourcePoint?.id ?? p.startPoint?.id,
+        endPointId: p.endPointId ?? p.destPointId ?? p.destPoint?.id ?? p.endPoint?.id
       }));
     };
 
@@ -828,9 +1121,9 @@ const loadMapElements = async (mapId: string | number) => {
     };
 
     mapElements.value = {
-      points: normalizePoints(data.points),
-      paths: normalizePaths(data.paths),
-      locations: normalizeLocations(data.locations)
+      points: normalizePoints(pointsRaw),
+      paths: normalizePaths(pathsRaw),
+      locations: normalizeLocations(locationsRaw)
     };
   } catch (error) {
     console.error('加载地图元素失败:', error);
@@ -927,16 +1220,7 @@ onMounted(() => {
   if (!Number.isNaN(factoryIdFromQuery) && factoryIdFromQuery > 0) {
     selectedFactoryId.value = factoryIdFromQuery;
     if (mapIdFromQuery) selectedMapId.value = mapIdFromQuery;
-    loadMaps().then(() => {
-      // 若 query 里的 mapId 在当前工厂不存在，则回退到第一张
-      if (selectedMapId.value && !mapList.value.some(m => String(m.mapId) === selectedMapId.value)) {
-        selectedMapId.value = mapList.value.length > 0 ? String(mapList.value[0].mapId) : '';
-      }
-      // 加载地图元素
-      if (selectedMapId.value) {
-        loadMapElements(selectedMapId.value);
-      }
-    });
+    void loadMaps();
   }
   // 如果 URL 没有 factoryId，getFactoryList 会自动选择第一个工厂
 });
@@ -1052,10 +1336,10 @@ onBeforeUnmount(() => {
 
 .map-layer-svg {
   position: absolute;
-  width: 100000px;
-  height: 100000px;
-  left: -50000px;
-  top: -50000px;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
   overflow: visible;
 }
 
