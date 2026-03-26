@@ -4,6 +4,9 @@
  */
 <template>
   <div class="map-renderer-container" ref="containerRef">
+    <div style="position:absolute;top:0;left:0;z-index:9999;background:red;color:white;padding:4px;">
+      points:{{ visiblePoints.length }} paths:{{ visiblePaths.length }} locations:{{ visibleLocations.length }}
+    </div>
     <v-stage
       :config="stageConfig"
       @wheel="handleWheel"
