@@ -1687,17 +1687,12 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   };
 
   /**
-   * 初始化编辑器状态：默认漫游模式 + 自动选中第一个点
+   * 初始化编辑器状态：默认漫游模式，不自动选中元素
    */
   const initEditorState = () => {
     // 设置为漫游模式（平移）
     currentTool.value = ToolModeEnum.PAN;
-
-    // 自动选中第一个点（如果有）
-    if (points.value.length > 0) {
-      const firstPoint = points.value[0];
-      selectElement(firstPoint.id, 'point');
-    }
+    clearSelection();
   };
 
   return {

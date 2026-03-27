@@ -138,6 +138,43 @@ const PATH_RIBBON_STROKE_WIDTH = 18;
 const DASHED_LINK_STROKE_WIDTH = 4;
 const DASHED_LINK_DASH_PATTERN = [12, 8];
 const PATH_DEFAULT_STROKE = 'rgba(186, 206, 245, 0.95)';
+const PATH_DIRECTION_ARROW_FILL = '#2563EB';
+
+function isColorEffectivelyInvisible(color?: string): boolean {
+  if (!color) return true;
+  const s = String(color).trim().toLowerCase();
+  if (s === 'transparent' || s === 'none') return true;
+  const rgba = s.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/);
+  if (rgba) {
+    const a = rgba[4] == null ? 1 : parseFloat(rgba[4]);
+    return !Number.isFinite(a) || a < 0.06;
+  }
+  if (s.startsWith('#') && s.length === 9) {
+    return parseInt(s.slice(7, 9), 16) / 255 < 0.06;
+  }
+  return false;
+}
+
+function getPathArrowFillColor(strokeFromLine: string): string {
+  if (isColorEffectivelyInvisible(strokeFromLine)) return PATH_DIRECTION_ARROW_FILL;
+  const s = String(strokeFromLine).trim().toLowerCase();
+  const rgba = s.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/);
+  if (rgba) {
+    const r = parseFloat(rgba[1]);
+    const g = parseFloat(rgba[2]);
+    const b = parseFloat(rgba[3]);
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    if (lum > 0.72) return PATH_DIRECTION_ARROW_FILL;
+  }
+  if (s.startsWith('#') && (s.length === 7 || s.length === 9)) {
+    const r = parseInt(s.slice(1, 3), 16);
+    const g = parseInt(s.slice(3, 5), 16);
+    const b = parseInt(s.slice(5, 7), 16);
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    if (lum > 0.82) return PATH_DIRECTION_ARROW_FILL;
+  }
+  return strokeFromLine;
+}
 
 // ==================== Refs ====================
 const containerRef = ref<HTMLElement | null>(null);
@@ -398,15 +435,49 @@ function shouldShowPathArrow(path: MapPath) {
   return path.editorProps?.lineStyle !== 'dashed';
 }
 
+function buildChevronConfig(
+  cx: number,
+  cy: number,
+  angle: number,
+  opts: { arrowColor: string; len: number; w: number; opacity: number }
+) {
+  const { arrowColor, len, w, opacity } = opts;
+  const localPoints: [number, number][] = [
+    [len / 2, 0],
+    [-len / 2, w / 2],
+    [-len / 2, 0],
+    [-len / 2, -w / 2]
+  ];
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const points: number[] = [];
+  for (const [lx, ly] of localPoints) {
+    points.push(cx + lx * cos - ly * sin, cy + lx * sin + ly * cos);
+  }
+  return {
+    points,
+    closed: true,
+    fill: arrowColor,
+    stroke: undefined,
+    lineCap: 'round',
+    lineJoin: 'round',
+    opacity,
+    listening: false
+  };
+}
+
 function getPathArrowConfigs(path: MapPath) {
   const cps = path.geometry?.controlPoints;
   if (!cps || cps.length < 2) return [];
 
-  // 与编辑器一致：每段在内部绘制 chevron，避免被端点圆圈遮挡
+  // 与编辑器一致：每段在内部绘制 chevron
   const transformedCps = cps.map((cp: any) => transformPoint(Number(cp.x ?? 0), Number(cp.y ?? 0)));
-  const arrowSize = 12;
-  const arrowWidth = 8;
-  const color = '#4a6fb3';
+  const lineStroke = path.editorProps?.strokeColor || PATH_DEFAULT_STROKE;
+  const arrowColor = getPathArrowFillColor(lineStroke);
+  const opacity = 0.92;
+  const len = Math.max(10, PATH_RIBBON_STROKE_WIDTH * 0.52);
+  const w = Math.max(4, PATH_RIBBON_STROKE_WIDTH * 0.26);
+  const laneMode = path.editorProps?.laneMode ?? 'one-way';
   const configs: any[] = [];
 
   for (let i = 0; i < transformedCps.length - 1; i++) {
@@ -415,35 +486,31 @@ function getPathArrowConfigs(path: MapPath) {
     if (!a || !b) continue;
     const dx = b.x - a.x;
     const dy = b.y - a.y;
-    const len = Math.hypot(dx, dy);
-    if (!Number.isFinite(len) || len < 1) continue;
-    const ux = dx / len;
-    const uy = dy / len;
-
-    // 位置->点位通常是短虚线，箭头放在线段中部更不易被端点图形遮挡
-    const isDashed = path.editorProps?.lineStyle === 'dashed';
-    const t = isDashed ? 0.5 : 0.72;
-    const cx = a.x + dx * t;
-    const cy = a.y + dy * t;
-    const baseX = cx - ux * (arrowSize / 2);
-    const baseY = cy - uy * (arrowSize / 2);
-    const tipX = cx + ux * (arrowSize / 2);
-    const tipY = cy + uy * (arrowSize / 2);
-
-    const leftX = baseX - uy * (arrowWidth / 2);
-    const leftY = baseY + ux * (arrowWidth / 2);
-    const rightX = baseX + uy * (arrowWidth / 2);
-    const rightY = baseY - ux * (arrowWidth / 2);
-
-    configs.push({
-      points: [leftX, leftY, tipX, tipY, rightX, rightY],
-      stroke: isDashed ? '#6b7280' : color,
-      strokeWidth: 1,
-      fill: isDashed ? '#6b7280' : color,
-      closed: true,
-      opacity: isDashed ? 1 : 0.95,
-      listening: false
-    });
+    const segLen = Math.hypot(dx, dy) || 1;
+    const angleForward = Math.atan2(dy, dx);
+    if (laneMode === 'two-way') {
+      const tBack = segLen < 40 ? 0.44 : 0.38;
+      const tFwd = segLen < 40 ? 0.56 : 0.62;
+      configs.push(
+        buildChevronConfig(a.x + dx * tBack, a.y + dy * tBack, angleForward + Math.PI, {
+          arrowColor,
+          len,
+          w,
+          opacity
+        })
+      );
+      configs.push(
+        buildChevronConfig(a.x + dx * tFwd, a.y + dy * tFwd, angleForward, {
+          arrowColor,
+          len,
+          w,
+          opacity
+        })
+      );
+    } else {
+      const t = 0.72;
+      configs.push(buildChevronConfig(a.x + dx * t, a.y + dy * t, angleForward, { arrowColor, len, w, opacity }));
+    }
   }
 
   return configs;

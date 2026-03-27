@@ -1113,10 +1113,6 @@ const formatMapId = (mapId?: string) => {
 
 const noop = () => {};
 
-function hasAnyElements(points: any[], paths: any[], locations: any[]) {
-  return points.length > 0 || paths.length > 0 || locations.length > 0;
-}
-
 const loadMaps = async () => {
   if (!selectedFactoryId.value) {
     mapList.value = [];
@@ -1311,22 +1307,9 @@ const loadMapElements = async (mapIdOrMap: string | number | NavigationMapVO) =>
       });
     };
     const mapId = typeof mapIdOrMap === 'object' ? mapIdOrMap.mapId : mapIdOrMap;
-    const mapPk = typeof mapIdOrMap === 'object' ? mapIdOrMap.id : undefined;
 
-    // 主请求：按业务 mapId 拉取（与编辑器一致）
     const primaryRes = await loadMapEditorData(mapId);
-    let { pointsRaw, pathsRaw, locationsRaw } = normalizePayload(primaryRes);
-
-    // 兜底：如果空数据，尝试用数据库主键 id 再拉一次（部分环境后端按主键查）
-    if (!hasAnyElements(pointsRaw, pathsRaw, locationsRaw) && mapPk !== undefined && String(mapPk) !== String(mapId)) {
-      const fallbackRes = await loadMapEditorData(mapPk);
-      const fallback = normalizePayload(fallbackRes);
-      if (hasAnyElements(fallback.pointsRaw, fallback.pathsRaw, fallback.locationsRaw)) {
-        pointsRaw = fallback.pointsRaw;
-        pathsRaw = fallback.pathsRaw;
-        locationsRaw = fallback.locationsRaw;
-      }
-    }
+    const { pointsRaw, pathsRaw, locationsRaw } = normalizePayload(primaryRes);
 
     mapElements.value = {
       points: normalizePoints(pointsRaw),
