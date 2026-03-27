@@ -40,7 +40,11 @@
           <div class="canvas-map-layer" :style="mapLayerStyle">
             <!-- 预览模式：底图与元素可叠加显示 -->
             <div
-              v-if="!isEditingOrigin && activeMap?.rasterUrl"
+              v-if="
+                !isEditingOrigin &&
+                activeMap?.rasterUrl &&
+                layerVisibility.raster
+              "
               class="map-layer-image"
             >
               <img
@@ -54,9 +58,7 @@
                 previewUseRenderer &&
                 !isEditingOrigin &&
                 activeMap &&
-                (mapElements.points.length > 0 ||
-                  mapElements.paths.length > 0 ||
-                  mapElements.locations.length > 0)
+                hasRenderableElements
               "
               class="preview-konva-layer"
               :style="{
@@ -65,9 +67,9 @@
                 left: `${-rendererClipCompensation.x}px`,
                 top: `${-rendererClipCompensation.y}px`,
               }"
-              :points="rendererPoints"
-              :paths="rendererPaths"
-              :locations="rendererLocations"
+              :points="rendererPointsVisible"
+              :paths="rendererPathsVisible"
+              :locations="rendererLocationsVisible"
               :width="previewCanvasSize.w"
               :height="previewCanvasSize.h"
               :scale="1"
@@ -77,18 +79,15 @@
               :auto-center="false"
             />
             <svg
-              v-else-if="
-                !isEditingOrigin &&
-                activeMap &&
-                (mapElements.points.length > 0 ||
-                  mapElements.paths.length > 0 ||
-                  mapElements.locations.length > 0)
-              "
+              v-else-if="!isEditingOrigin && activeMap && hasRenderableElements"
               class="map-layer-svg"
             >
               <!-- 与工厂原点对齐：点位为地图坐标时需加 origin；并将内容平移到视口附近（避免固定 -50000 偏移把小坐标画到屏外） -->
               <g :transform="previewSvgCenterTransform">
-                <g v-for="path in pathsForPreview" :key="'path-' + path.id">
+                <g
+                  v-for="path in pathsForPreviewVisible"
+                  :key="'path-' + path.id"
+                >
                   <path
                     v-if="path.preview.mode === 'path'"
                     :d="path.preview.d"
@@ -118,7 +117,10 @@
                     stroke-linecap="round"
                   />
                 </g>
-                <g v-for="point in mapElements.points" :key="'pt-' + point.id">
+                <g
+                  v-for="point in pointsForPreviewVisible"
+                  :key="'pt-' + point.id"
+                >
                   <circle
                     :cx="(point.x + previewOrigin.ox) * SCALE"
                     :cy="-(point.y + previewOrigin.oy) * SCALE"
@@ -147,7 +149,7 @@
                   </text>
                 </g>
                 <g
-                  v-for="location in mapElements.locations"
+                  v-for="location in locationsForPreviewVisible"
                   :key="'loc-' + location.id"
                 >
                   <rect
@@ -246,6 +248,52 @@
             <span class="zoom-indicator" @click="resetView">
               {{ Math.round(canvasScale * 100) }}%
             </span>
+          </div>
+
+          <div class="canvas-floating-controls" v-if="!isEditingOrigin">
+            <div class="floating-slot">
+              <el-popover placement="left" trigger="click" :width="200">
+                <template #reference>
+                  <el-button
+                    class="floating-btn floating-btn--layer"
+                    :class="{ 'is-active': !layerAllVisible }"
+                    size="small"
+                  >
+                    <img
+                      class="floating-layer-icon"
+                      :src="layerIconUrl"
+                      alt=""
+                    />
+                  </el-button>
+                </template>
+                <ul class="layer-visibility-menu" @click.stop>
+                  <li
+                    v-for="item in layerMenuItems"
+                    :key="item.key"
+                    class="layer-visibility-menu__item"
+                    :class="{ 'is-off': !layerVisibility[item.key] }"
+                    @click="toggleLayerKey(item.key)"
+                  >
+                    <el-icon class="layer-visibility-menu__icon">
+                      <View v-if="layerVisibility[item.key]" />
+                      <Hide v-else />
+                    </el-icon>
+                    <span class="layer-visibility-menu__text">{{
+                      item.label
+                    }}</span>
+                  </li>
+                </ul>
+              </el-popover>
+            </div>
+            <div class="floating-slot">
+              <el-button
+                class="floating-btn mono-btn"
+                size="small"
+                @click="resetView"
+              >
+                1:1
+              </el-button>
+            </div>
           </div>
 
           <div class="stage2-actions" v-if="!isEditingOrigin">
@@ -490,10 +538,14 @@ import { loadMapEditorData } from "@/api/opentcs/map";
 import type { MapEditorResponse } from "@/api/opentcs/map/types";
 import { HttpStatus } from "@/enums/RespEnum";
 import MapRenderer from "@/components/map/MapRenderer.vue";
+import type { MapLayerVisibility } from "@/types/mapEditor";
+import { defaultMapLayerVisibility } from "@/types/mapEditor";
+import layerIconUrl from "@/assets/icons/svg/图层.svg?url";
 import { getDefaultPointRadiusForType } from "@/utils/mapEditor/mapVisualTokens";
 import { useMapEditorTabsStore } from "@/store/modules/mapEditorTabs";
 import { ElMessage, ElMessageBox } from "element-plus";
 import type { FormInstance } from "element-plus";
+import { View, Hide } from "@element-plus/icons-vue";
 import { watch, onBeforeUnmount } from "vue";
 
 const router = useRouter();
@@ -510,6 +562,22 @@ const mapElements = ref<{
   paths: any[];
   locations: any[];
 }>({ points: [], paths: [], locations: [] });
+const layerVisibility = reactive<MapLayerVisibility>(
+  defaultMapLayerVisibility(),
+);
+const layerMenuItems: { key: keyof MapLayerVisibility; label: string }[] = [
+  { key: "station", label: "站点显隐" },
+  { key: "pathDirection", label: "方向显隐" },
+  { key: "raster", label: "底图显隐" },
+];
+function toggleLayerKey(key: keyof MapLayerVisibility) {
+  layerVisibility[key] = !layerVisibility[key];
+}
+const layerAllVisible = computed(() =>
+  (Object.keys(layerVisibility) as (keyof MapLayerVisibility)[]).every(
+    (k) => layerVisibility[k],
+  ),
+);
 const elementsLoading = ref(false);
 
 // 画布缩放比例（1px = 1mm）
@@ -1047,6 +1115,10 @@ const rendererPoints = computed(() => {
   }));
 });
 
+const rendererPointsVisible = computed(() =>
+  layerVisibility.station ? rendererPoints.value : [],
+);
+
 const rendererPaths = computed(() => {
   const { ox, oy } = previewOrigin.value;
   const { x: sx, y: sy } = rendererClipCompensation.value;
@@ -1102,6 +1174,16 @@ const rendererPaths = computed(() => {
   });
 });
 
+const rendererPathsVisible = computed(() =>
+  rendererPaths.value.map((p: any) => ({
+    ...p,
+    editorProps: {
+      ...(p.editorProps ?? {}),
+      arrowVisible: layerVisibility.pathDirection,
+    },
+  })),
+);
+
 const rendererLocations = computed(() => {
   const { ox, oy } = previewOrigin.value;
   const { x: sx, y: sy } = rendererClipCompensation.value;
@@ -1129,6 +1211,24 @@ const rendererLocations = computed(() => {
     },
   }));
 });
+
+const rendererLocationsVisible = computed(() =>
+  layerVisibility.station ? rendererLocations.value : [],
+);
+
+const pointsForPreviewVisible = computed(() =>
+  layerVisibility.station ? mapElements.value.points : [],
+);
+const pathsForPreviewVisible = computed(() => pathsForPreview.value);
+const locationsForPreviewVisible = computed(() =>
+  layerVisibility.station ? mapElements.value.locations : [],
+);
+const hasRenderableElements = computed(
+  () =>
+    pointsForPreviewVisible.value.length > 0 ||
+    pathsForPreviewVisible.value.length > 0 ||
+    locationsForPreviewVisible.value.length > 0,
+);
 
 /**
  * 预览路径：直线用 line；正交/多段用 polyline；
@@ -1894,6 +1994,110 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   font-size: 12px;
+}
+
+.canvas-floating-controls {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 11;
+
+  .floating-slot {
+    width: 36px;
+    display: flex;
+    justify-content: center;
+  }
+
+  .floating-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid #dcdfe6;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+    &.is-active {
+      border-color: #3388ff;
+      color: #3388ff;
+    }
+
+    &.floating-btn--layer {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+  }
+
+  .floating-layer-icon {
+    width: 18px;
+    height: 18px;
+    display: block;
+    object-fit: contain;
+  }
+
+  .mono-btn {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+  }
+}
+
+.layer-visibility-menu {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  min-width: 200px;
+}
+
+.layer-visibility-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: #f5f7fa;
+  }
+
+  .layer-visibility-menu__icon {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .layer-visibility-menu__text {
+    line-height: 1.35;
+  }
+
+  &:not(.is-off) {
+    .layer-visibility-menu__icon,
+    .layer-visibility-menu__text {
+      color: #3388ff;
+    }
+  }
+
+  &.is-off {
+    .layer-visibility-menu__icon,
+    .layer-visibility-menu__text {
+      color: #a0a0a0;
+    }
+
+    .layer-visibility-menu__text {
+      text-decoration: line-through;
+    }
+  }
 }
 
 .footer-sep {
