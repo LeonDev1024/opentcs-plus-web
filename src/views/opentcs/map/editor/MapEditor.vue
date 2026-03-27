@@ -3,8 +3,23 @@
     <!-- 工具栏 -->
     <div class="toolbar">
       <div class="toolbar-left toolbar-left-cluster">
-        <!-- 漫游 -->
+        <!-- 选择 + 漫游 -->
         <el-button-group class="creation-tool-group">
+          <el-tooltip content="选择模式" :show-after="50" placement="bottom">
+            <el-button
+              class="map-toolbar-btn"
+              :type="currentTool === 'select' ? 'primary' : 'default'"
+              size="small"
+              @click="setTool(ToolMode.SELECT)"
+            >
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <SvgIcon icon-class="选择指针" class="select-pointer-icon" />
+                </span>
+                <span class="map-toolbar-btn__label">选择</span>
+              </span>
+            </el-button>
+          </el-tooltip>
           <el-tooltip
             content="空白处拖移画布；悬停点/线/位置可选中拖动；"
             :show-after="50"
@@ -29,7 +44,7 @@
         <!-- 地图元素：绘制点、绘制位置、路网连线、虚线链接、规则区域 -->
         <el-button-group class="creation-tool-group">
           <el-tooltip
-              content="点击画布添加点位"
+            content="点击画布添加点位"
             :show-after="50"
             placement="bottom"
           >
@@ -66,85 +81,70 @@
               </span>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="拖拽连接两点创建直线" :show-after="50" placement="bottom">
-            <el-button
-              class="map-toolbar-btn toolbar-tool-path toolbar-tool-path-direct"
-              :type="
-                currentTool === 'path' &&
-                mapEditorStore.pathConnectionType === 'direct'
-                  ? 'primary'
-                  : 'default'
-              "
-              size="small"
-              @click="handlePathToolClick('direct')"
-            >
-              <span class="map-toolbar-btn__inner">
-                <span class="map-toolbar-btn__icon">
-                  <PathTypeIcon
-                    type="direct"
-                    :active="
-                      currentTool === 'path' &&
-                      mapEditorStore.pathConnectionType === 'direct'
-                    "
-                  />
-                </span>
-                <span class="map-toolbar-btn__label">直线</span>
-              </span>
-            </el-button>
-          </el-tooltip>
           <el-tooltip
-            content="拖拽连接两点创建直角路径"
+            content="路径工具（直线/直角线/贝塞尔）"
             :show-after="50"
             placement="bottom"
           >
-            <el-button
-              class="map-toolbar-btn toolbar-tool-path toolbar-tool-path-orthogonal"
-              :type="
-                currentTool === 'path' &&
-                mapEditorStore.pathConnectionType === 'orthogonal'
-                  ? 'primary'
-                  : 'default'
-              "
-              size="small"
-              @click="handlePathToolClick('orthogonal')"
+            <el-dropdown
+              trigger="click"
+              @command="handlePathTypeCommand"
+              popper-class="path-type-dropdown-menu"
             >
-              <span class="map-toolbar-btn__inner">
-                <span class="map-toolbar-btn__icon">
-                  <PathTypeIcon
-                    type="orthogonal"
-                    :active="
-                      currentTool === 'path' &&
-                      mapEditorStore.pathConnectionType === 'orthogonal'
-                    "
-                  />
+              <el-button
+                class="map-toolbar-btn map-toolbar-btn--path-dropdown"
+                :type="currentTool === 'path' ? 'primary' : 'default'"
+                size="small"
+                @click="setTool(ToolMode.PATH)"
+              >
+                <span class="map-toolbar-btn__inner">
+                  <span class="map-toolbar-btn__icon">
+                    <PathTypeIcon
+                      :type="currentPathConnectionType"
+                      :active="currentTool === 'path'"
+                    />
+                  </span>
+                  <span class="map-toolbar-btn__label">路径</span>
                 </span>
-                <span class="map-toolbar-btn__label">直角连线</span>
-              </span>
-            </el-button>
-          </el-tooltip>
-          <el-tooltip
-            content="拖拽连接两点创建贝塞尔曲线"
-            :show-after="50"
-            placement="bottom"
-          >
-            <el-button
-              class="map-toolbar-btn toolbar-tool-path toolbar-tool-path-curve"
-              :type="
-                currentTool === 'path' &&
-                mapEditorStore.pathConnectionType === 'curve'
-                  ? 'primary'
-                  : 'default'
-              "
-              size="small"
-              @click="handlePathToolClick('curve')"
-            >
-              <span class="map-toolbar-btn__inner">
-                <span class="map-toolbar-btn__icon">
-                  <SvgIcon icon-class="bezier2" class="path-bezier-icon" />
-                </span>
-                <span class="map-toolbar-btn__label">贝塞尔</span>
-              </span>
-            </el-button>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    command="direct"
+                    class="path-type-dropdown-item"
+                  >
+                    <span class="path-type-menu-item">
+                      <span class="path-type-menu-item__icon">
+                        <PathTypeIcon type="direct" :active="false" />
+                      </span>
+                      <span class="path-type-menu-item__text">直线</span>
+                    </span>
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="orthogonal"
+                    class="path-type-dropdown-item"
+                  >
+                    <span class="path-type-menu-item">
+                      <span class="path-type-menu-item__icon">
+                        <PathTypeIcon type="orthogonal" :active="false" />
+                      </span>
+                      <span class="path-type-menu-item__text">直角线</span>
+                    </span>
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="curve"
+                    class="path-type-dropdown-item"
+                  >
+                    <span class="path-type-menu-item">
+                      <span class="path-type-menu-item__icon">
+                        <PathTypeIcon type="curve" :active="false" />
+                      </span>
+                      <span class="path-type-menu-item__text">贝塞尔曲线</span>
+                    </span>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </el-tooltip>
           <el-tooltip
             content="在位置中心按下并拖到路网点释放，创建虚线 Link（连接业务位置与拓扑点）"
@@ -159,7 +159,10 @@
             >
               <span class="map-toolbar-btn__inner">
                 <span class="map-toolbar-btn__icon">
-                  <SvgIcon icon-class="dashed-link" class="dashed-link-toolbar-icon" />
+                  <SvgIcon
+                    icon-class="dashed-link"
+                    class="dashed-link-toolbar-icon"
+                  />
                 </span>
                 <span class="map-toolbar-btn__label">虚线链接</span>
               </span>
@@ -179,7 +182,7 @@
             >
               <span class="map-toolbar-btn__inner">
                 <span class="map-toolbar-btn__icon">
-                  <svg-icon icon-class="rule-region" style="font-size: 18px" />
+                  <svg-icon icon-class="block" class="block-toolbar-icon" />
                 </span>
                 <span class="map-toolbar-btn__label">规则区域</span>
               </span>
@@ -224,48 +227,6 @@
                   <el-icon :size="20"><RefreshRight /></el-icon>
                 </span>
                 <span class="map-toolbar-btn__label">重做</span>
-              </span>
-            </el-button>
-          </el-tooltip>
-        </el-button-group>
-        <el-divider direction="vertical" class="toolbar-cluster-divider" />
-        <!-- 标签 / Block -->
-        <el-button-group class="creation-tool-group">
-          <el-tooltip
-            content="显示/隐藏标签"
-            :show-after="50"
-            placement="bottom"
-          >
-            <el-button
-              class="map-toolbar-btn"
-              :type="showLabels ? 'primary' : 'default'"
-              size="small"
-              @click="toggleLabels"
-            >
-              <span class="map-toolbar-btn__inner">
-                <span class="map-toolbar-btn__icon">
-                  <el-icon :size="20"><PriceTag /></el-icon>
-                </span>
-                <span class="map-toolbar-btn__label">标签</span>
-              </span>
-            </el-button>
-          </el-tooltip>
-          <el-tooltip
-            content="显示/隐藏Block"
-            :show-after="50"
-            placement="bottom"
-          >
-            <el-button
-              class="map-toolbar-btn"
-              :type="showBlocks ? 'primary' : 'default'"
-              size="small"
-              @click="toggleBlocks"
-            >
-              <span class="map-toolbar-btn__inner">
-                <span class="map-toolbar-btn__icon">
-                  <el-icon :size="20"><Box /></el-icon>
-                </span>
-                <span class="map-toolbar-btn__label">Block</span>
               </span>
             </el-button>
           </el-tooltip>
@@ -369,27 +330,50 @@
         <div class="canvas-wrapper">
           <MapCanvas
             ref="mapCanvasRef"
+            :layer-visibility="layerVisibility"
             @point-double-click="handlePointDoubleClick"
           />
         </div>
         <!-- 坐标轴已移至 MapCanvas，与 Stage offset 同步，随漫游移动 -->
-        <!-- 底部信息 -->
-        <div class="canvas-footer">
-          <span class="mode-info">编辑模式</span>
-          <span class="footer-sep">·</span>
-          <span class="muted">地图ID：</span>
-          <span class="mono">{{ mapId || "-" }}</span>
-          <span class="footer-sep">·</span>
-          <el-tag
-            :type="mapEditorStore.mapData?.mapInfo?.status === '1' ? 'success' : 'warning'"
-            size="small"
-            class="version-tag"
-          >
-            v{{ mapEditorStore.mapData?.mapInfo?.mapVersion || '1.0' }}
-          </el-tag>
-          <span class="footer-sep">·</span>
-          <span class="muted">缩放：</span>
-          <span class="zoom-percent" @click="resetZoom">{{ zoomPercent }}%</span>
+        <div class="canvas-floating-controls">
+          <div class="floating-slot">
+            <el-popover placement="left" trigger="click" :width="200">
+              <template #reference>
+                <el-button
+                  class="floating-btn floating-btn--layer"
+                  :class="{ 'is-active': !layerAllVisible }"
+                  size="small"
+                >
+                  <img class="floating-layer-icon" :src="layerIconUrl" alt="" />
+                </el-button>
+              </template>
+              <ul class="layer-visibility-menu" @click.stop>
+                <li
+                  v-for="item in layerMenuItems"
+                  :key="item.key"
+                  class="layer-visibility-menu__item"
+                  :class="{ 'is-off': !layerVisibility[item.key] }"
+                  @click="toggleLayerKey(item.key)"
+                >
+                  <el-icon class="layer-visibility-menu__icon">
+                    <View v-if="layerVisibility[item.key]" />
+                    <Hide v-else />
+                  </el-icon>
+                  <span class="layer-visibility-menu__text">{{
+                    item.label
+                  }}</span>
+                </li>
+              </ul>
+            </el-popover>
+          </div>
+          <div class="floating-slot">
+            <el-button
+              class="floating-btn mono-btn"
+              size="small"
+              @click="resetZoom"
+              >1:1</el-button
+            >
+          </div>
         </div>
       </div>
     </div>
@@ -991,6 +975,9 @@ import {
 } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
+import type { MapLayerVisibility } from "@/types/mapEditor";
+import { defaultMapLayerVisibility } from "@/types/mapEditor";
+import layerIconUrl from "@/assets/icons/svg/图层.svg?url";
 import MapCanvas from "./components/MapCanvas.vue";
 import LayerPanel from "./components/LayerPanel.vue";
 import ComponentsPanel from "./components/ComponentsPanel.vue";
@@ -1017,8 +1004,8 @@ import {
   Picture,
   Location,
   Clock,
-  PriceTag,
-  Box,
+  View,
+  Hide,
 } from "@element-plus/icons-vue";
 import { parsePgmToDataUrl } from "@/utils/mapEditor/pgmParser";
 import type { RasterBackground } from "@/types/mapEditor";
@@ -1042,13 +1029,29 @@ const mapEditorStore = useMapEditorStore();
 const mapEditorTabsStore = useMapEditorTabsStore();
 const mapCanvasRef = ref<InstanceType<typeof MapCanvas>>();
 
-// 网格显示状态
+// 图层显隐（与画布 props 同步）
+const layerVisibility = reactive<MapLayerVisibility>(
+  defaultMapLayerVisibility(),
+);
 
-// 标签显示状态
-const showLabels = ref(true);
+const layerMenuItems: { key: keyof MapLayerVisibility; label: string }[] = [
+  { key: "station", label: "站点显隐" },
+  { key: "pathDirection", label: "方向显隐" },
+  { key: "raster", label: "底图显隐" },
+];
 
-// Block显示状态
-const showBlocks = ref(true);
+function toggleLayerKey(key: keyof MapLayerVisibility) {
+  layerVisibility[key] = !layerVisibility[key];
+  const stateText = layerVisibility[key] ? "显示" : "隐藏";
+  const labelText = layerMenuItems.find((m) => m.key === key)?.label || "图层";
+  ElMessage.info(`${labelText.replace("显隐", "")}已${stateText}`);
+}
+
+const layerAllVisible = computed(() =>
+  (Object.keys(layerVisibility) as (keyof MapLayerVisibility)[]).every(
+    (k) => layerVisibility[k],
+  ),
+);
 
 // 鼠标位置（从画布组件获取）
 const mousePosition = ref({ x: 0, y: 0 });
@@ -1197,7 +1200,14 @@ const startSimulation = () => {
 
 // 运行地图验证检测
 const runMapValidation = () => {
-  const issues: MapIssue[] = [];
+  const issues: Array<{
+    id: string;
+    type: "disconnected" | "intersection" | "radius" | "overlap";
+    severity: "warning" | "error";
+    message: string;
+    elementIds: string[];
+    position?: { x: number; y: number };
+  }> = [];
   const points = mapEditorStore.points;
   const paths = mapEditorStore.paths;
   const locations = mapEditorStore.locations;
@@ -1388,7 +1398,12 @@ const canvasScale = computed(() => {
 // 缩放百分比（以初始 origin 展示 scale 为基准，确保初始时为 100%）
 const zoomPercent = computed(() => {
   const base = mapEditorStore.mapData?.mapInfo?.scale ?? 1;
-  const baseScale = typeof base === 'number' ? base : base != null ? parseFloat(String(base)) : 1;
+  const baseScale =
+    typeof base === "number"
+      ? base
+      : base != null
+        ? parseFloat(String(base))
+        : 1;
   const denom = Number.isFinite(baseScale) && baseScale !== 0 ? baseScale : 1;
   return Math.round((canvasScale.value / denom) * 100);
 });
@@ -1410,9 +1425,27 @@ const hasSelection = computed(() => {
 
 type PathConnectionType = "direct" | "orthogonal" | "curve";
 
-// 工具切换（不弹 Toast，工具栏已有图标+文字状态）
+const currentPathConnectionType = computed<PathConnectionType>(() => {
+  const t = mapEditorStore.pathConnectionType as PathConnectionType;
+  return t === "direct" || t === "orthogonal" || t === "curve" ? t : "direct";
+});
+
+const TOOL_TOAST_LABEL: Record<ToolMode, string> = {
+  [ToolMode.SELECT]: "选择模式",
+  [ToolMode.POINT]: "绘制点模式",
+  [ToolMode.PATH]: "路径绘制模式",
+  [ToolMode.LOCATION]: "位置绘制模式",
+  [ToolMode.PAN]: "漫游模式",
+  [ToolMode.ZOOM]: "缩放模式",
+  [ToolMode.DASHED_LINK]: "虚线链接模式",
+  [ToolMode.RULE_REGION]: "规则区域模式",
+};
+
+// 工具切换（改为 toast 提醒）
 const setTool = (tool: ToolMode) => {
+  if (currentTool.value === tool) return;
   mapEditorStore.setTool(tool);
+  ElMessage.info(`已切换到${TOOL_TOAST_LABEL[tool] || "编辑模式"}`);
 };
 
 const getPointTypeIconClass = (type: string) => {
@@ -1437,6 +1470,13 @@ const handlePointTypeChange = (type: string) => {
 const handlePathToolClick = (type: PathConnectionType) => {
   mapEditorStore.setPathConnectionType(type);
   setTool(ToolMode.PATH);
+};
+
+const handlePathTypeCommand = (command: string | number | object) => {
+  const t = String(command) as PathConnectionType;
+  if (t === "direct" || t === "orthogonal" || t === "curve") {
+    handlePathToolClick(t);
+  }
 };
 
 // 点位类型下拉菜单显示状态
@@ -1605,50 +1645,7 @@ const resetZoom = () => {
     offsetX: 0,
     offsetY: 0,
   });
-};
-
-// 切换网格显示
-// 切换标签显示
-const toggleLabels = () => {
-  showLabels.value = !showLabels.value;
-  // 更新所有元素的标签可见性
-  if (mapCanvasRef.value) {
-    (mapCanvasRef.value as any).setLabelsVisible?.(showLabels.value);
-  }
-  // 更新store中所有元素的labelVisible
-  mapEditorStore.points.forEach((point) => {
-    mapEditorStore.updatePoint(point.id, {
-      editorProps: {
-        ...point.editorProps,
-        labelVisible: showLabels.value,
-      },
-    });
-  });
-  mapEditorStore.paths.forEach((path) => {
-    mapEditorStore.updatePath(path.id, {
-      editorProps: {
-        ...path.editorProps,
-        labelVisible: showLabels.value,
-      },
-    });
-  });
-  mapEditorStore.locations.forEach((location) => {
-    mapEditorStore.updateLocation(location.id, {
-      editorProps: {
-        ...location.editorProps,
-        labelVisible: showLabels.value,
-      },
-    });
-  });
-};
-
-// 切换Block显示
-const toggleBlocks = () => {
-  showBlocks.value = !showBlocks.value;
-  // 通过 ref 调用子组件的方法
-  if (mapCanvasRef.value) {
-    (mapCanvasRef.value as any).setBlocksVisible?.(showBlocks.value);
-  }
+  ElMessage.success("已重置为 1:1");
 };
 
 // 监听画布的鼠标位置变化
@@ -1842,11 +1839,15 @@ const handlePublish = async () => {
       ElMessage.error("地图ID不存在");
       return;
     }
-    await ElMessageBox.confirm("发布后该地图将生效，确定要发布吗？", "发布确认", {
-      confirmButtonText: "确定发布",
-      cancelButtonText: "取消",
-      type: "warning",
-    });
+    await ElMessageBox.confirm(
+      "发布后该地图将生效，确定要发布吗？",
+      "发布确认",
+      {
+        confirmButtonText: "确定发布",
+        cancelButtonText: "取消",
+        type: "warning",
+      },
+    );
 
     publishLoading.value = true;
     await publishMap(mapId);
@@ -1858,7 +1859,7 @@ const handlePublish = async () => {
 
     ElMessage.success("发布成功");
   } catch (error: any) {
-    if (error !== 'cancel') {
+    if (error !== "cancel") {
       const errorMessage =
         error?.response?.data?.msg || error?.message || "发布失败";
       ElMessage.error("发布失败：" + errorMessage);
@@ -3177,15 +3178,15 @@ onUnmounted(() => {
 
   // 工具栏
   .toolbar {
-    height: auto;
-    min-height: 58px;
+    height: 48px;
+    min-height: 48px;
     flex-shrink: 0;
     background: linear-gradient(0deg, #fafbfc 0%, #fff 100%);
     border-bottom: 1px solid #e4e7ed;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 24px;
+    padding: 4px 16px;
     z-index: 100;
 
     .toolbar-left {
@@ -3208,9 +3209,15 @@ onUnmounted(() => {
         display: block;
       }
 
+      .select-pointer-icon {
+        width: 1em;
+        height: 1em;
+        display: block;
+      }
+
       :deep(.el-divider--vertical) {
-        height: 44px;
-        margin: 0 6px;
+        height: 30px;
+        margin: 0 4px;
         align-self: center;
         border-left-color: #e0e3eb;
       }
@@ -3218,7 +3225,7 @@ onUnmounted(() => {
       .el-button-group.creation-tool-group {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 4px;
       }
 
       .export-import-group {
@@ -3290,11 +3297,11 @@ onUnmounted(() => {
 
       /* 图标在上、文字在下（参考深色工具条布局，配色仍用浅色主题） */
       .map-toolbar-btn {
-        width: auto !important;
-        min-width: 52px;
-        height: auto !important;
-        min-height: 52px;
-        padding: 6px 8px 4px !important;
+        width: 36px !important;
+        min-width: 36px;
+        height: 36px !important;
+        min-height: 36px;
+        padding: 0 !important;
         border: none;
         border-radius: 6px;
         background: transparent;
@@ -3322,10 +3329,10 @@ onUnmounted(() => {
 
         .map-toolbar-btn__inner {
           display: flex;
-          flex-direction: column;
+          flex-direction: row;
           align-items: center;
           justify-content: center;
-          gap: 3px;
+          gap: 0;
         }
 
         .map-toolbar-btn__icon {
@@ -3346,13 +3353,24 @@ onUnmounted(() => {
         }
 
         .map-toolbar-btn__label {
-          font-size: 11px;
-          line-height: 1.15;
-          font-weight: 500;
-          color: inherit;
-          max-width: 64px;
-          text-align: center;
-          white-space: nowrap;
+          display: none;
+        }
+
+        &.map-toolbar-btn--path-dropdown {
+          position: relative;
+
+          &::after {
+            content: "";
+            position: absolute;
+            right: 4px;
+            bottom: 4px;
+            width: 0;
+            height: 0;
+            border-left: 3px solid transparent;
+            border-right: 3px solid transparent;
+            border-top: 4px solid currentColor;
+            opacity: 0.8;
+          }
         }
       }
 
@@ -3407,6 +3425,12 @@ onUnmounted(() => {
         }
 
         .point-type-svg-icon {
+          font-size: 22px;
+          width: 22px;
+          height: 22px;
+        }
+
+        .block-toolbar-icon {
           font-size: 22px;
           width: 22px;
           height: 22px;
@@ -3639,46 +3663,59 @@ onUnmounted(() => {
         }
       }
 
-      // 底部信息
-      .canvas-footer {
+      .canvas-floating-controls {
         position: absolute;
-        left: 16px;
-        bottom: 10px;
+        right: 14px;
+        bottom: 14px;
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 6px;
-        font-size: 12px;
-        z-index: 10;
+        gap: 8px;
+        z-index: 11;
 
-        .mode-info {
-          color: #f56c6c;
-          font-weight: 500;
+        .floating-slot {
+          width: 36px;
+          display: flex;
+          justify-content: center;
         }
 
-        .footer-sep {
-          color: #9ca3af;
-        }
+        .floating-btn {
+          width: 36px;
+          height: 36px;
+          min-width: 36px;
+          padding: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 6px;
+          background: rgba(255, 255, 255, 0.95);
+          border: 1px solid #dcdfe6;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 
-        .muted {
-          color: #909399;
-        }
-
-        .mono {
-          font-family: monospace;
-        }
-
-        .zoom-percent {
-          color: #409eff;
-          font-weight: 600;
-          cursor: pointer;
-          user-select: none;
-          padding: 2px 8px;
-          border-radius: 4px;
-          background: #f5f7fa;
-
-          &:hover {
-            text-decoration: underline;
+          &.is-active {
+            border-color: #3388ff;
+            color: #3388ff;
           }
+
+          &.floating-btn--layer {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+          }
+        }
+
+        .floating-layer-icon {
+          width: 18px;
+          height: 18px;
+          display: block;
+          object-fit: contain;
+        }
+
+        .mono-btn {
+          font-size: 12px;
+          font-weight: 600;
+          line-height: 1;
+          letter-spacing: 0;
         }
       }
     }
@@ -3750,6 +3787,112 @@ onUnmounted(() => {
       }
     }
   }
+}
+
+.layer-toolbar-svg {
+  width: 20px;
+  height: 20px;
+  display: block;
+  object-fit: contain;
+}
+
+.layer-visibility-menu {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  min-width: 200px;
+}
+
+.layer-visibility-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: #f5f7fa;
+  }
+
+  .layer-visibility-menu__icon {
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  .layer-visibility-menu__text {
+    line-height: 1.35;
+  }
+
+  &:not(.is-off) {
+    .layer-visibility-menu__icon,
+    .layer-visibility-menu__text {
+      color: #3388ff;
+    }
+  }
+
+  &.is-off {
+    .layer-visibility-menu__icon,
+    .layer-visibility-menu__text {
+      color: #a0a0a0;
+    }
+
+    .layer-visibility-menu__text {
+      text-decoration: line-through;
+    }
+  }
+}
+
+:deep(.path-type-dropdown-menu .el-dropdown-menu__item),
+:deep(.path-type-dropdown-menu .path-type-dropdown-item) {
+  min-width: 190px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  white-space: nowrap !important;
+  line-height: 28px !important;
+}
+
+:deep(.path-type-dropdown-menu .path-type-menu-item) {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+  white-space: nowrap;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+}
+
+:deep(.path-type-dropdown-menu .path-type-menu-item__text) {
+  display: inline-flex !important;
+  align-items: center;
+  white-space: nowrap;
+  word-break: keep-all;
+  flex-shrink: 0;
+}
+
+:deep(.path-type-dropdown-menu .path-type-menu-item__icon) {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+:deep(.path-type-dropdown-menu .path-type-menu-item__icon > *) {
+  display: block !important;
+  width: 14px !important;
+  height: 14px !important;
+}
+
+:deep(.path-type-dropdown-menu .el-dropdown-menu) {
+  min-width: 196px !important;
 }
 
 // 批量编辑对话框样式

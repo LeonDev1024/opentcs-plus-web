@@ -1,13 +1,8 @@
-/**
- * 统一地图渲染组件
- * 用于地图管理预览模式和地图编辑器模式，确保渲染效果一致
- */
+/** * 统一地图渲染组件 * 用于地图管理预览模式和地图编辑器模式，确保渲染效果一致
+*/
 <template>
   <div class="map-renderer-container" ref="containerRef">
-    <v-stage
-      :config="stageConfig"
-      @wheel="handleWheel"
-    >
+    <v-stage :config="stageConfig" @wheel="handleWheel">
       <!-- 路径层 -->
       <v-layer>
         <template v-for="path in visiblePaths" :key="`path-${path.id}`">
@@ -27,20 +22,22 @@
 
       <!-- 位置层 -->
       <v-layer>
-        <template v-for="location in visibleLocations" :key="`loc-${location.id}`">
+        <template
+          v-for="location in visibleLocations"
+          :key="`loc-${location.id}`"
+        >
           <!-- 业务位置：矩形 -->
           <v-rect
             v-if="!isRuleRegionLocation(location)"
             :config="getLocationRectConfig(location)"
           />
           <!-- 规则区域：多边形 -->
-          <v-line
-            v-else
-            :config="getLocationConfig(location)"
-          />
+          <v-line v-else :config="getLocationConfig(location)" />
           <!-- 位置图标 -->
           <v-image
-            v-if="!isRuleRegionLocation(location) && getLocationIconConfig(location)"
+            v-if="
+              !isRuleRegionLocation(location) && getLocationIconConfig(location)
+            "
             :key="`${location.id}-icon`"
             :config="getLocationIconConfig(location)"
           />
@@ -90,10 +87,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, shallowRef, onMounted } from 'vue';
-import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
-import { getLocationTypeListForSelect } from '@/api/opentcs/map/location';
-import type { LocationVO } from '@/api/opentcs/map/location/types';
+import { ref, computed, shallowRef, onMounted } from "vue";
+import type { MapPoint, MapPath, MapLocation } from "@/types/mapEditor";
+import {
+  getPointVisualMeta,
+  resolvePointBullseyeStyleReadonly,
+} from "@/utils/mapEditor/pointStyle";
+import { getLocationTypeListForSelect } from "@/api/opentcs/map/location";
+import type { LocationVO } from "@/api/opentcs/map/location/types";
 
 // ==================== Props ====================
 interface Props {
@@ -125,40 +126,44 @@ const props = withDefaults(defineProps<Props>(), {
   flipY: false,
   originX: 0,
   originY: 0,
-  autoCenter: false
+  autoCenter: false,
 });
 
 const emit = defineEmits<{
-  (e: 'scaleChange', scale: number): void;
+  (e: "scaleChange", scale: number): void;
 }>();
 
 // ==================== 常量 ====================
-const DEFAULT_POINT_RADIUS = 10;
 const PATH_RIBBON_STROKE_WIDTH = 18;
 const DASHED_LINK_STROKE_WIDTH = 4;
 const DASHED_LINK_DASH_PATTERN = [12, 8];
-const PATH_DEFAULT_STROKE = 'rgba(186, 206, 245, 0.95)';
-const PATH_DIRECTION_ARROW_FILL = '#2563EB';
+const PATH_DEFAULT_STROKE = "rgba(186, 206, 245, 0.95)";
+const PATH_DIRECTION_ARROW_FILL = "#2563EB";
 
 function isColorEffectivelyInvisible(color?: string): boolean {
   if (!color) return true;
   const s = String(color).trim().toLowerCase();
-  if (s === 'transparent' || s === 'none') return true;
-  const rgba = s.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/);
+  if (s === "transparent" || s === "none") return true;
+  const rgba = s.match(
+    /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/,
+  );
   if (rgba) {
     const a = rgba[4] == null ? 1 : parseFloat(rgba[4]);
     return !Number.isFinite(a) || a < 0.06;
   }
-  if (s.startsWith('#') && s.length === 9) {
+  if (s.startsWith("#") && s.length === 9) {
     return parseInt(s.slice(7, 9), 16) / 255 < 0.06;
   }
   return false;
 }
 
 function getPathArrowFillColor(strokeFromLine: string): string {
-  if (isColorEffectivelyInvisible(strokeFromLine)) return PATH_DIRECTION_ARROW_FILL;
+  if (isColorEffectivelyInvisible(strokeFromLine))
+    return PATH_DIRECTION_ARROW_FILL;
   const s = String(strokeFromLine).trim().toLowerCase();
-  const rgba = s.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/);
+  const rgba = s.match(
+    /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/,
+  );
   if (rgba) {
     const r = parseFloat(rgba[1]);
     const g = parseFloat(rgba[2]);
@@ -166,7 +171,7 @@ function getPathArrowFillColor(strokeFromLine: string): string {
     const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     if (lum > 0.72) return PATH_DIRECTION_ARROW_FILL;
   }
-  if (s.startsWith('#') && (s.length === 7 || s.length === 9)) {
+  if (s.startsWith("#") && (s.length === 7 || s.length === 9)) {
     const r = parseInt(s.slice(1, 3), 16);
     const g = parseInt(s.slice(3, 5), 16);
     const b = parseInt(s.slice(5, 7), 16);
@@ -185,12 +190,15 @@ const containerRef = ref<HTMLElement | null>(null);
 function transformPoint(x: number, y: number): { x: number; y: number } {
   return {
     x: x,
-    y: y
+    y: y,
   };
 }
 // 计算内容包围盒，用于自动居中
 const contentBounds = computed(() => {
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
+    maxY = -Infinity;
 
   for (const p of props.points || []) {
     const x = Number(p.x ?? 0);
@@ -223,7 +231,14 @@ const contentBounds = computed(() => {
   }
 
   if (!Number.isFinite(minX)) return null;
-  return { minX, maxX, minY, maxY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    cx: (minX + maxX) / 2,
+    cy: (minY + maxY) / 2,
+  };
 });
 
 // ==================== 计算属性 ====================
@@ -232,8 +247,8 @@ const stageConfig = computed(() => {
 
   let stageX = props.offsetX;
   let stageY = props.offsetY;
-  let scaleX = props.scale;
-  let scaleY = props.scale;
+  const scaleX = props.scale;
+  const scaleY = props.scale;
 
   // 自动居中
   if (bounds && props.autoCenter) {
@@ -250,7 +265,7 @@ const stageConfig = computed(() => {
     scaleY,
     x: stageX,
     y: stageY,
-    draggable: !props.readonly
+    draggable: !props.readonly,
   };
 });
 
@@ -271,54 +286,31 @@ function getLocationCentroid(location: MapLocation): { x: number; y: number } {
   }
   return {
     x: Number((location as any).x ?? 0),
-    y: Number((location as any).y ?? 0)
+    y: Number((location as any).y ?? 0),
   };
 }
 
-// ==================== 点位渲染配置 ====================
-const POINT_TYPE_COLORS: Record<string, string> = {
-  'Halt point': '#409eff',
-  'Station': '#67c23a',
-  'Lock': '#e6a23c',
-  'Parking': '#909399',
-  'Charging': '#f56c6c'
-};
-
-function getPointVisualMeta(point: MapPoint) {
-  const radius = point.editorProps?.radius ?? DEFAULT_POINT_RADIUS;
-  return { radius };
-}
-
-function resolvePointBullseyeStyle(point: MapPoint) {
-  const typeColor = point.editorProps?.color || POINT_TYPE_COLORS[point.type || ''] || '#409eff';
-  return {
-    outerStroke: typeColor,
-    outerStrokeWidth: 2,
-    coreFill: typeColor,
-    coreStroke: typeColor,
-    coreStrokeWidth: 0,
-    shadow: {}
-  };
-}
-
+// ==================== 点位渲染配置（与 MapCanvas 靶心样式一致）====================
 function getPointBullseyeOuterConfig(point: MapPoint) {
   const visual = getPointVisualMeta(point);
-  const st = resolvePointBullseyeStyle(point);
+  const st = resolvePointBullseyeStyleReadonly(point, props.paths || []);
   const pos = transformPoint(Number(point.x ?? 0), Number(point.y ?? 0));
   return {
     x: pos.x,
     y: pos.y,
     radius: visual.radius,
-    fill: '#ffffff',
+    fill: "#ffffff",
     stroke: st.outerStroke,
     strokeWidth: st.outerStrokeWidth,
-    listening: false
+    listening: false,
+    perfectDrawEnabled: true,
+    ...st.shadow,
   };
 }
 
 function getPointBullseyeCoreConfig(point: MapPoint) {
   const visual = getPointVisualMeta(point);
-  const st = resolvePointBullseyeStyle(point);
+  const st = resolvePointBullseyeStyleReadonly(point, props.paths || []);
   const pos = transformPoint(Number(point.x ?? 0), Number(point.y ?? 0));
   return {
     x: pos.x,
@@ -327,7 +319,8 @@ function getPointBullseyeCoreConfig(point: MapPoint) {
     fill: st.coreFill,
     stroke: st.coreStroke,
     strokeWidth: st.coreStrokeWidth,
-    listening: false
+    listening: false,
+    perfectDrawEnabled: true,
   };
 }
 
@@ -342,60 +335,62 @@ function getPointBullseyeDotConfig(point: MapPoint) {
     x: pos.x,
     y: pos.y,
     radius: Math.max(1.2, visual.radius * 0.22),
-    fill: '#ffffff',
-    listening: false
+    fill: "#ffffff",
+    listening: false,
   };
 }
 
 function shouldShowPointLabel(point: MapPoint) {
-  return point.editorProps?.labelVisible !== false && point.name;
+  const labelVisible = point.editorProps?.labelVisible !== false;
+  return labelVisible && !!(point.name || point.id);
 }
 
 function getPointLabelConfig(point: MapPoint) {
-  const radius = point.editorProps?.radius ?? DEFAULT_POINT_RADIUS;
+  const visual = getPointVisualMeta(point);
   const pos = transformPoint(Number(point.x ?? 0), Number(point.y ?? 0));
+  const labelText = point.name || point.id;
   return {
     x: pos.x,
-    y: pos.y - radius - 12,
-    text: point.name || '',
+    y: pos.y + visual.radius + 8,
+    text: String(labelText ?? ""),
     fontSize: 12,
-    fontFamily: 'Arial, sans-serif',
-    fill: '#4b5563',
-    // 预览容器会做 Y 轴翻转，这里反向一次保证文字正向可读
+    fontFamily: "Arial, sans-serif",
+    fill: "#303133",
+    align: "center",
+    verticalAlign: "top",
+    padding: 2,
+    // 预览层 scaleY(-1)，反向保证文字正向可读
     scaleY: -1,
-    listening: false
+    listening: false,
+    perfectDrawEnabled: false,
   };
 }
 
-const POINT_GLYPH_MAP: Record<string, string> = {
-  'Halt point': '',
-  'Station': '',
-  'P': 'P',
-  'S': 'S'
-};
-
 function shouldRenderPointGlyph(point: MapPoint) {
-  const type = point.type || '';
-  const glyph = POINT_GLYPH_MAP[type];
-  return !!glyph;
+  return Boolean(getPointVisualMeta(point).glyph);
 }
 
 function getPointGlyphConfig(point: MapPoint) {
   const visual = getPointVisualMeta(point);
+  if (!visual.glyph) {
+    return {};
+  }
   const pos = transformPoint(Number(point.x ?? 0), Number(point.y ?? 0));
   return {
     x: pos.x,
     y: pos.y,
-    text: POINT_GLYPH_MAP[point.type || ''] || '',
-    fontSize: visual.radius * 1.1,
-    fontFamily: 'Arial, sans-serif',
-    fontStyle: 'bold',
-    fill: '#ffffff',
-    offsetX: 4,
-    offsetY: 5,
-    // 抵消预览层的 Y 翻转
+    text: visual.glyph,
+    fontSize: Math.max(10, visual.radius * 1.8),
+    fontStyle: "bold",
+    fill: visual.glyphColor,
+    align: "center",
+    verticalAlign: "middle",
+    width: visual.radius * 2,
+    height: visual.radius * 2,
+    offsetX: visual.radius,
+    offsetY: visual.radius,
     scaleY: -1,
-    listening: false
+    listening: false,
   };
 }
 
@@ -407,14 +402,22 @@ function getPathConfig(path: MapPath) {
     points.push(pos.x, pos.y);
   });
 
-  const connectionType = path.type as 'direct' | 'orthogonal' | 'curve' | undefined;
-  const isCurve = path.geometry?.pathType === 'curve' || connectionType === 'curve';
-  const isOrthogonal = connectionType === 'orthogonal';
+  const connectionType = path.type as
+    | "direct"
+    | "orthogonal"
+    | "curve"
+    | undefined;
+  const isCurve =
+    path.geometry?.pathType === "curve" || connectionType === "curve";
+  const isOrthogonal = connectionType === "orthogonal";
 
   const stroke = path.editorProps?.strokeColor || PATH_DEFAULT_STROKE;
-  const strokeWidth = path.editorProps?.strokeWidth ||
-    (path.editorProps?.lineStyle === 'dashed' ? DASHED_LINK_STROKE_WIDTH : PATH_RIBBON_STROKE_WIDTH);
-  const isDashedLine = path.editorProps?.lineStyle === 'dashed';
+  const strokeWidth =
+    path.editorProps?.strokeWidth ||
+    (path.editorProps?.lineStyle === "dashed"
+      ? DASHED_LINK_STROKE_WIDTH
+      : PATH_RIBBON_STROKE_WIDTH);
+  const isDashedLine = path.editorProps?.lineStyle === "dashed";
 
   return {
     id: path.id,
@@ -422,31 +425,31 @@ function getPathConfig(path: MapPath) {
     stroke,
     strokeWidth,
     opacity: 0.86,
-    lineCap: 'round',
-    lineJoin: isOrthogonal ? 'miter' : 'round',
+    lineCap: "round",
+    lineJoin: isOrthogonal ? "miter" : "round",
     tension: isCurve ? 0.5 : 0,
     dash: isDashedLine ? DASHED_LINK_DASH_PATTERN : undefined,
-    listening: false
+    listening: false,
   };
 }
 
 function shouldShowPathArrow(path: MapPath) {
   // 位置到点的虚线连接不显示箭头；普通路径显示箭头
-  return path.editorProps?.lineStyle !== 'dashed';
+  return path.editorProps?.lineStyle !== "dashed";
 }
 
 function buildChevronConfig(
   cx: number,
   cy: number,
   angle: number,
-  opts: { arrowColor: string; len: number; w: number; opacity: number }
+  opts: { arrowColor: string; len: number; w: number; opacity: number },
 ) {
   const { arrowColor, len, w, opacity } = opts;
   const localPoints: [number, number][] = [
     [len / 2, 0],
     [-len / 2, w / 2],
     [-len / 2, 0],
-    [-len / 2, -w / 2]
+    [-len / 2, -w / 2],
   ];
   const cos = Math.cos(angle);
   const sin = Math.sin(angle);
@@ -459,10 +462,10 @@ function buildChevronConfig(
     closed: true,
     fill: arrowColor,
     stroke: undefined,
-    lineCap: 'round',
-    lineJoin: 'round',
+    lineCap: "round",
+    lineJoin: "round",
     opacity,
-    listening: false
+    listening: false,
   };
 }
 
@@ -471,13 +474,15 @@ function getPathArrowConfigs(path: MapPath) {
   if (!cps || cps.length < 2) return [];
 
   // 与编辑器一致：每段在内部绘制 chevron
-  const transformedCps = cps.map((cp: any) => transformPoint(Number(cp.x ?? 0), Number(cp.y ?? 0)));
+  const transformedCps = cps.map((cp: any) =>
+    transformPoint(Number(cp.x ?? 0), Number(cp.y ?? 0)),
+  );
   const lineStroke = path.editorProps?.strokeColor || PATH_DEFAULT_STROKE;
   const arrowColor = getPathArrowFillColor(lineStroke);
   const opacity = 0.92;
   const len = Math.max(10, PATH_RIBBON_STROKE_WIDTH * 0.52);
   const w = Math.max(4, PATH_RIBBON_STROKE_WIDTH * 0.26);
-  const laneMode = path.editorProps?.laneMode ?? 'one-way';
+  const laneMode = path.editorProps?.laneMode ?? "one-way";
   const configs: any[] = [];
 
   for (let i = 0; i < transformedCps.length - 1; i++) {
@@ -488,28 +493,40 @@ function getPathArrowConfigs(path: MapPath) {
     const dy = b.y - a.y;
     const segLen = Math.hypot(dx, dy) || 1;
     const angleForward = Math.atan2(dy, dx);
-    if (laneMode === 'two-way') {
+    if (laneMode === "two-way") {
       const tBack = segLen < 40 ? 0.44 : 0.38;
       const tFwd = segLen < 40 ? 0.56 : 0.62;
       configs.push(
-        buildChevronConfig(a.x + dx * tBack, a.y + dy * tBack, angleForward + Math.PI, {
-          arrowColor,
-          len,
-          w,
-          opacity
-        })
+        buildChevronConfig(
+          a.x + dx * tBack,
+          a.y + dy * tBack,
+          angleForward + Math.PI,
+          {
+            arrowColor,
+            len,
+            w,
+            opacity,
+          },
+        ),
       );
       configs.push(
         buildChevronConfig(a.x + dx * tFwd, a.y + dy * tFwd, angleForward, {
           arrowColor,
           len,
           w,
-          opacity
-        })
+          opacity,
+        }),
       );
     } else {
       const t = 0.72;
-      configs.push(buildChevronConfig(a.x + dx * t, a.y + dy * t, angleForward, { arrowColor, len, w, opacity }));
+      configs.push(
+        buildChevronConfig(a.x + dx * t, a.y + dy * t, angleForward, {
+          arrowColor,
+          len,
+          w,
+          opacity,
+        }),
+      );
     }
   }
 
@@ -518,19 +535,19 @@ function getPathArrowConfigs(path: MapPath) {
 
 // ==================== 位置渲染配置 ====================
 const LOCATION_TYPE_COLORS: Record<string, string> = {
-  'default': '#67c23a',
-  'load': '#409eff',
-  'unload': '#e6a23c'
+  default: "#67c23a",
+  load: "#409eff",
+  unload: "#e6a23c",
 };
 
 function isRuleRegionLocation(location: MapLocation) {
-  return location.editorProps?.shapeType === 'polygon';
+  return location.editorProps?.shapeType === "polygon";
 }
 
 function getLocationRectConfig(location: MapLocation) {
   const w = 28;
   const h = 28;
-  const strokeColor = '#2f88ff';
+  const strokeColor = "#2f88ff";
   const c = getLocationCentroid(location);
   const pos = transformPoint(c.x, c.y);
 
@@ -539,11 +556,11 @@ function getLocationRectConfig(location: MapLocation) {
     y: pos.y - h / 2,
     width: w,
     height: h,
-    fill: '#ffffff',
+    fill: "#ffffff",
     stroke: strokeColor,
     strokeWidth: 2,
     cornerRadius: 0,
-    listening: false
+    listening: false,
   };
 }
 
@@ -555,15 +572,18 @@ function getLocationConfig(location: MapLocation) {
     points.push(pos.x, pos.y);
   });
 
-  const color = location.editorProps?.color || LOCATION_TYPE_COLORS[location.type || ''] || LOCATION_TYPE_COLORS.default;
+  const color =
+    location.editorProps?.color ||
+    LOCATION_TYPE_COLORS[location.type || ""] ||
+    LOCATION_TYPE_COLORS.default;
 
   return {
     points,
-    fill: color + '33',
+    fill: color + "33",
     stroke: color,
     strokeWidth: 2,
     closed: true,
-    listening: false
+    listening: false,
   };
 }
 
@@ -571,21 +591,26 @@ const locationTypeList = ref<LocationVO[]>([]);
 const locationIconUrlMap: Record<string, string> = {};
 const iconCache = shallowRef<Record<string, HTMLImageElement>>({});
 
-const getSymbolForLocationTypeId = (locationTypeId: string | number | undefined): string => {
-  if (locationTypeId === undefined || locationTypeId === null) return '';
+const getSymbolForLocationTypeId = (
+  locationTypeId: string | number | undefined,
+): string => {
+  if (locationTypeId === undefined || locationTypeId === null) return "";
   const id = String(locationTypeId);
   const type = locationTypeList.value.find((t) => String(t.id) === id);
-  if (!type?.properties) return '';
+  if (!type?.properties) return "";
   try {
-    const arr = typeof type.properties === 'string' ? JSON.parse(type.properties) : type.properties;
+    const arr =
+      typeof type.properties === "string"
+        ? JSON.parse(type.properties)
+        : type.properties;
     if (Array.isArray(arr)) {
-      const item = arr.find((p: any) => p?.name === 'symbol');
-      return String(item?.value ?? '');
+      const item = arr.find((p: any) => p?.name === "symbol");
+      return String(item?.value ?? "");
     }
   } catch {
-    return '';
+    return "";
   }
-  return '';
+  return "";
 };
 
 function ensureIconLoaded(symbol: string) {
@@ -605,18 +630,23 @@ onMounted(async () => {
   } catch {
     locationTypeList.value = [];
   }
-  const modules = import.meta.glob('@/assets/location/*.svg', { eager: true, as: 'url' }) as Record<string, string | { default: string }>;
+  const modules = import.meta.glob("@/assets/location/*.svg", {
+    eager: true,
+    as: "url",
+  }) as Record<string, string | { default: string }>;
   Object.keys(modules).forEach((path) => {
     const match = path.match(/location[\/\\]([^\/\\]+)\.svg$/);
     if (!match) return;
     const v = modules[path];
-    const url = typeof v === 'string' ? v : v?.default;
+    const url = typeof v === "string" ? v : v?.default;
     if (url) locationIconUrlMap[match[1]] = url;
   });
 });
 
 function getLocationIconConfig(location: MapLocation) {
-  const symbol = getSymbolForLocationTypeId((location as any).locationTypeId) || String(location.editorProps?.icon || '');
+  const symbol =
+    getSymbolForLocationTypeId((location as any).locationTypeId) ||
+    String(location.editorProps?.icon || "");
   if (!symbol) return null;
   ensureIconLoaded(symbol);
   const iconImg = iconCache.value[symbol];
@@ -635,7 +665,7 @@ function getLocationIconConfig(location: MapLocation) {
     offsetY: size / 2,
     // 抵消预览层的 Y 翻转，保证图标方向与编辑器一致
     scaleY: -1,
-    listening: false
+    listening: false,
   };
 }
 
@@ -645,36 +675,41 @@ function getLocationSymbolConfig(location: MapLocation) {
   return {
     x: pos.x,
     y: pos.y,
-    text: location.editorProps?.label || '',
+    text: location.editorProps?.label || "",
     fontSize: 10,
-    fontFamily: 'Arial, sans-serif',
-    fill: '#ffffff',
+    fontFamily: "Arial, sans-serif",
+    fill: "#ffffff",
     offsetX: 3,
     offsetY: 4,
     scaleY: -1,
-    listening: false
+    listening: false,
   };
 }
 
 function shouldShowLocationLabel(location: MapLocation) {
-  return location.editorProps?.labelVisible !== false && location.name;
+  const labelVisible = location.editorProps?.labelVisible !== false;
+  return labelVisible && !!(location.name || location.id);
 }
 
+/** 与 MapCanvas getLocationLabelConfig 一致：名称在业务位置中心下方，避免与点标签错位重叠 */
 function getLocationLabelConfig(location: MapLocation) {
-  const h = 28;
   const c = getLocationCentroid(location);
   const pos = transformPoint(c.x, c.y);
-  // 文本使用了 scaleY:-1 抵消画布翻转，锚点需取“上方偏移”才能视觉落在方框下方
-  const offsetY = 16;
+  const labelText = location.name || location.id;
+  const offsetY = isRuleRegionLocation(location) ? 15 : 16;
   return {
     x: pos.x,
-    y: pos.y - (h / 2 + offsetY),
-    text: location.name || '',
-    fontSize: 11,
-    fontFamily: 'Arial, sans-serif',
-    fill: '#333333',
+    y: pos.y + offsetY,
+    text: String(labelText ?? ""),
+    fontSize: 12,
+    fontFamily: "Arial, sans-serif",
+    fill: "#303133",
+    align: "center",
+    verticalAlign: "top",
+    padding: 2,
     scaleY: -1,
-    listening: false
+    listening: false,
+    perfectDrawEnabled: false,
   };
 }
 
@@ -687,7 +722,7 @@ function handleWheel(e: any) {
     const direction = e.evt.deltaY > 0 ? -1 : 1;
     const newScale = direction > 0 ? oldScale * scaleBy : oldScale / scaleBy;
     const clampedScale = Math.max(0.1, Math.min(5, newScale));
-    emit('scaleChange', clampedScale);
+    emit("scaleChange", clampedScale);
   }
 }
 </script>

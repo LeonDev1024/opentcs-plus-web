@@ -1,0 +1,69 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="block icon">
+  <defs>
+    <linearGradient id="r-top" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff8a80" />
+      <stop offset="1" stop-color="#e53935" />
+    </linearGradient>
+    <linearGradient id="r-left" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d32f2f" />
+      <stop offset="1" stop-color="#b71c1c" />
+    </linearGradient>
+    <linearGradient id="r-right" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ef5350" />
+      <stop offset="1" stop-color="#c62828" />
+    </linearGradient>
+
+    <linearGradient id="y-top" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff59d" />
+      <stop offset="1" stop-color="#fbc02d" />
+    </linearGradient>
+    <linearGradient id="y-left" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f9a825" />
+      <stop offset="1" stop-color="#f57f17" />
+    </linearGradient>
+    <linearGradient id="y-right" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd54f" />
+      <stop offset="1" stop-color="#fbc02d" />
+    </linearGradient>
+
+    <linearGradient id="g-top" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b9f6ca" />
+      <stop offset="1" stop-color="#43a047" />
+    </linearGradient>
+    <linearGradient id="g-left" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#388e3c" />
+      <stop offset="1" stop-color="#1b5e20" />
+    </linearGradient>
+    <linearGradient id="g-right" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#66bb6a" />
+      <stop offset="1" stop-color="#2e7d32" />
+    </linearGradient>
+
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.6" flood-color="#000000" flood-opacity="0.2" />
+    </filter>
+  </defs>
+
+  <g transform="translate(64 72) scale(1.55) translate(-64 -64)">
+    <!-- yellow (top center) -->
+    <g filter="url(#shadow)">
+      <polygon points="64,20 82,30 64,40 46,30" fill="url(#y-top)" />
+      <polygon points="46,30 64,40 64,58 46,48" fill="url(#y-left)" />
+      <polygon points="82,30 64,40 64,58 82,48" fill="url(#y-right)" />
+    </g>
+
+    <!-- red (bottom left) -->
+    <g filter="url(#shadow)">
+      <polygon points="42,42 60,52 42,62 24,52" fill="url(#r-top)" />
+      <polygon points="24,52 42,62 42,80 24,70" fill="url(#r-left)" />
+      <polygon points="60,52 42,62 42,80 60,70" fill="url(#r-right)" />
+    </g>
+
+    <!-- green (bottom right) -->
+    <g filter="url(#shadow)">
+      <polygon points="86,42 104,52 86,62 68,52" fill="url(#g-top)" />
+      <polygon points="68,52 86,62 86,80 68,70" fill="url(#g-left)" />
+      <polygon points="104,52 86,62 86,80 104,70" fill="url(#g-right)" />
+    </g>
+  </g>
+</svg>

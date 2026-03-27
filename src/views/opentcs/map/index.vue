@@ -24,7 +24,7 @@
             :disabled="!selectedFactoryId || filteredMaps.length === 0"
             @click="toggleOriginEditing"
           >
-            {{ isEditingOrigin ? '退出原点编辑' : '原点编辑' }}
+            {{ isEditingOrigin ? "退出原点编辑" : "原点编辑" }}
           </el-button>
         </div>
       </div>
@@ -39,17 +39,31 @@
           <!-- 地图层：随视图平移+缩放，被 canvas overflow:hidden 裁切 -->
           <div class="canvas-map-layer" :style="mapLayerStyle">
             <!-- 预览模式：底图与元素可叠加显示 -->
-            <div v-if="!isEditingOrigin && activeMap?.rasterUrl" class="map-layer-image">
-              <img class="canvas-img" :src="activeMap.rasterUrl" alt="地图底图" />
+            <div
+              v-if="!isEditingOrigin && activeMap?.rasterUrl"
+              class="map-layer-image"
+            >
+              <img
+                class="canvas-img"
+                :src="activeMap.rasterUrl"
+                alt="地图底图"
+              />
             </div>
             <MapRenderer
-              v-if="previewUseRenderer && !isEditingOrigin && activeMap && (mapElements.points.length > 0 || mapElements.paths.length > 0 || mapElements.locations.length > 0)"
+              v-if="
+                previewUseRenderer &&
+                !isEditingOrigin &&
+                activeMap &&
+                (mapElements.points.length > 0 ||
+                  mapElements.paths.length > 0 ||
+                  mapElements.locations.length > 0)
+              "
               class="preview-konva-layer"
               :style="{
                 width: `${previewCanvasSize.w}px`,
                 height: `${previewCanvasSize.h}px`,
                 left: `${-rendererClipCompensation.x}px`,
-                top: `${-rendererClipCompensation.y}px`
+                top: `${-rendererClipCompensation.y}px`,
               }"
               :points="rendererPoints"
               :paths="rendererPaths"
@@ -62,7 +76,14 @@
               :readonly="true"
               :auto-center="false"
             />
-            <svg v-else-if="!isEditingOrigin && activeMap && (mapElements.points.length > 0 || mapElements.paths.length > 0 || mapElements.locations.length > 0)"
+            <svg
+              v-else-if="
+                !isEditingOrigin &&
+                activeMap &&
+                (mapElements.points.length > 0 ||
+                  mapElements.paths.length > 0 ||
+                  mapElements.locations.length > 0)
+              "
               class="map-layer-svg"
             >
               <!-- 与工厂原点对齐：点位为地图坐标时需加 origin；并将内容平移到视口附近（避免固定 -50000 偏移把小坐标画到屏外） -->
@@ -107,19 +128,42 @@
                     stroke-width="2"
                   />
                   <text
-                    v-if="point.editorProps?.labelVisible !== false && point.name"
+                    v-if="
+                      point.editorProps?.labelVisible !== false && point.name
+                    "
                     :x="(point.x + previewOrigin.ox) * SCALE"
                     :y="-(point.y + previewOrigin.oy) * SCALE - 12"
-                    :transform="svgTextUnflipAt((point.x + previewOrigin.ox) * SCALE, -(point.y + previewOrigin.oy) * SCALE - 12)"
+                    :transform="
+                      svgTextUnflipAt(
+                        (point.x + previewOrigin.ox) * SCALE,
+                        -(point.y + previewOrigin.oy) * SCALE - 12,
+                      )
+                    "
                     fill="#666"
                     font-size="10"
                     text-anchor="middle"
-                  >{{ point.name }}</text>
+                  >
+                    {{ point.name }}
+                  </text>
                 </g>
-                <g v-for="location in mapElements.locations" :key="'loc-' + location.id">
+                <g
+                  v-for="location in mapElements.locations"
+                  :key="'loc-' + location.id"
+                >
                   <rect
-                    :x="(location.x + previewOrigin.ox - (location.editorProps?.width || 20) / 2) * SCALE"
-                    :y="-(location.y + previewOrigin.oy + (location.editorProps?.height || 20) / 2) * SCALE"
+                    :x="
+                      (location.x +
+                        previewOrigin.ox -
+                        (location.editorProps?.width || 20) / 2) *
+                      SCALE
+                    "
+                    :y="
+                      -(
+                        location.y +
+                        previewOrigin.oy +
+                        (location.editorProps?.height || 20) / 2
+                      ) * SCALE
+                    "
                     :width="(location.editorProps?.width || 20) * SCALE"
                     :height="(location.editorProps?.height || 20) * SCALE"
                     :fill="location.editorProps?.color || '#67c23a'"
@@ -181,12 +225,14 @@
           <!-- 空状态提示（在地图层外，不缩放） -->
           <div v-if="!activeMap" class="canvas-empty">
             <div v-if="!selectedFactoryId" class="muted">请选择工厂</div>
-            <div v-else-if="filteredMaps.length === 0" class="muted">当前工厂暂无地图，请先新建地图</div>
+            <div v-else-if="filteredMaps.length === 0" class="muted">
+              当前工厂暂无地图，请先新建地图
+            </div>
             <div v-else class="muted">请选择左侧一张地图</div>
           </div>
           <div class="canvas-footer">
             <template v-if="isEditingOrigin">
-              <span class="muted" style="color: #e6a23c;">拓扑原点编辑模式</span>
+              <span class="muted" style="color: #e6a23c">拓扑原点编辑模式</span>
               <span class="footer-sep">·</span>
               <span class="muted">共 {{ filteredMaps.length }} 张地图</span>
             </template>
@@ -194,7 +240,7 @@
               <span class="muted">预览模式</span>
               <span class="footer-sep">，</span>
               <span class="muted">地图ID：</span>
-              <span class="mono">{{ activeMap?.mapId || '-' }}</span>
+              <span class="mono">{{ activeMap?.mapId || "-" }}</span>
             </template>
             <span class="footer-sep">·</span>
             <span class="zoom-indicator" @click="resetView">
@@ -203,17 +249,33 @@
           </div>
 
           <div class="stage2-actions" v-if="!isEditingOrigin">
-            <el-button type="primary" icon="Plus" :disabled="!selectedFactoryId" @click="handleAdd">
+            <el-button
+              type="primary"
+              icon="Plus"
+              :disabled="!selectedFactoryId"
+              @click="handleAdd"
+            >
               新建地图
             </el-button>
-            <el-button type="primary" plain icon="EditPen" :disabled="!activeMap" @click="activeMap && handleEdit(activeMap)">
+            <el-button
+              type="primary"
+              plain
+              icon="EditPen"
+              :disabled="!activeMap"
+              @click="activeMap && handleEdit(activeMap)"
+            >
               地图编辑
             </el-button>
           </div>
 
           <!-- 原点编辑模式：右上角显示选中地图的坐标编辑面板 -->
-          <div v-if="isEditingOrigin && originEditingMapId" class="origin-edit-panel">
-            <div class="origin-edit-title">{{ originEditingMapName }} 原点坐标 (mm)</div>
+          <div
+            v-if="isEditingOrigin && originEditingMapId"
+            class="origin-edit-panel"
+          >
+            <div class="origin-edit-title">
+              {{ originEditingMapName }} 原点坐标 (mm)
+            </div>
             <div class="origin-edit-row">
               <label>X</label>
               <el-input-number
@@ -236,9 +298,17 @@
                 @change="onOriginInputChange"
               />
             </div>
-            <div class="origin-edit-hint">拖拽画布中该地图的橙色圆圈可移动原点</div>
+            <div class="origin-edit-hint">
+              拖拽画布中该地图的橙色圆圈可移动原点
+            </div>
             <div class="origin-edit-actions">
-              <el-button type="primary" size="small" :loading="originSaving" @click="saveAllOrigins">全部保存</el-button>
+              <el-button
+                type="primary"
+                size="small"
+                :loading="originSaving"
+                @click="saveAllOrigins"
+                >全部保存</el-button
+              >
             </div>
           </div>
         </div>
@@ -254,16 +324,26 @@
                 :class="{
                   active: isEditingOrigin
                     ? originEditingMapId === String(m.mapId)
-                    : String(m.mapId) === selectedMapId
+                    : String(m.mapId) === selectedMapId,
                 }"
-                @click="isEditingOrigin ? selectOriginMap(String(m.mapId)) : selectMap(m)"
+                @click="
+                  isEditingOrigin
+                    ? selectOriginMap(String(m.mapId))
+                    : selectMap(m)
+                "
                 @dblclick="!isEditingOrigin && handleEdit(m)"
               >
                 <span class="scene-icon" />
                 <span class="scene-name">{{ m.name }}</span>
               </button>
 
-              <button v-if="!isEditingOrigin" type="button" class="scene-item add" :disabled="!selectedFactoryId" @click="handleAdd">
+              <button
+                v-if="!isEditingOrigin"
+                type="button"
+                class="scene-item add"
+                :disabled="!selectedFactoryId"
+                @click="handleAdd"
+              >
                 <span class="scene-plus" />
                 <span class="scene-name">添加地图</span>
               </button>
@@ -278,20 +358,44 @@
     </div>
 
     <!-- 新建/编辑地图（P0：沿用现有弹窗能力） -->
-    <el-dialog v-model="dialog.visible" :title="dialog.title" width="700px" append-to-body>
+    <el-dialog
+      v-model="dialog.visible"
+      :title="dialog.title"
+      width="700px"
+      append-to-body
+    >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
         <el-form-item label="地图ID" prop="mapId">
-          <el-input v-model="form.mapId" placeholder="请输入地图ID，如：map_001" />
+          <el-input
+            v-model="form.mapId"
+            placeholder="请输入地图ID，如：map_001"
+          />
         </el-form-item>
         <el-form-item label="地图名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入地图名称，如：一楼车间" />
+          <el-input
+            v-model="form.name"
+            placeholder="请输入地图名称，如：一楼车间"
+          />
         </el-form-item>
         <el-form-item label="所属楼层" prop="floorNumber">
-          <el-input-number v-model="form.floorNumber" :placeholder="'-1表示地下楼层，0表示1楼'" style="width: 100%;" />
+          <el-input-number
+            v-model="form.floorNumber"
+            :placeholder="'-1表示地下楼层，0表示1楼'"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="车辆类型" prop="vehicleTypeId">
-          <el-select v-model="form.vehicleTypeId" placeholder="请选择车辆类型" style="width: 100%;">
-            <el-option v-for="type in amrTypeList" :key="type.id" :label="type.name" :value="type.id" />
+          <el-select
+            v-model="form.vehicleTypeId"
+            placeholder="请选择车辆类型"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="type in amrTypeList"
+              :key="type.id"
+              :label="type.name"
+              :value="type.id"
+            />
           </el-select>
         </el-form-item>
 
@@ -299,11 +403,23 @@
           <div class="map-position-inputs">
             <div class="position-item">
               <span class="label">X坐标(mm)</span>
-              <el-input-number v-model="form.originX" :step="100" :precision="0" controls-position="right" style="width: 120px;" />
+              <el-input-number
+                v-model="form.originX"
+                :step="100"
+                :precision="0"
+                controls-position="right"
+                style="width: 120px"
+              />
             </div>
             <div class="position-item">
               <span class="label">Y坐标(mm)</span>
-              <el-input-number v-model="form.originY" :step="100" :precision="0" controls-position="right" style="width: 120px;" />
+              <el-input-number
+                v-model="form.originY"
+                :step="100"
+                :precision="0"
+                controls-position="right"
+                style="width: 120px"
+              />
             </div>
           </div>
         </el-form-item>
@@ -312,13 +428,25 @@
           <div class="map-position-inputs">
             <div class="position-item">
               <span class="label">旋转角度(°)</span>
-              <el-input-number v-model="form.rotation" :step="1" :min="-180" :max="180" controls-position="right" style="width: 120px;" />
+              <el-input-number
+                v-model="form.rotation"
+                :step="1"
+                :min="-180"
+                :max="180"
+                controls-position="right"
+                style="width: 120px"
+              />
             </div>
           </div>
         </el-form-item>
 
         <el-form-item label="描述" prop="description">
-          <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" />
+          <el-input
+            v-model="form.description"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入描述"
+          />
         </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="form.status">
@@ -329,7 +457,12 @@
       </el-form>
       <template #footer>
         <div class="dialog-footer">
-          <el-button type="primary" :loading="dialog.loading" @click="submitForm">确 定</el-button>
+          <el-button
+            type="primary"
+            :loading="dialog.loading"
+            @click="submitForm"
+            >确 定</el-button
+          >
           <el-button @click="cancel">取 消</el-button>
         </div>
       </template>
@@ -338,20 +471,30 @@
 </template>
 
 <script setup lang="ts">
-import { listMapsByFactory, addNavigationMap, updateNavigationMap, delNavigationMap } from '@/api/opentcs/factory/map';
-import type { NavigationMapVO, NavigationMapForm, NavigationMapQuery } from '@/api/opentcs/factory/map/types';
-import { listFactoryModel } from '@/api/opentcs/factory/model';
-import type { FactoryModelVO } from '@/api/opentcs/factory/model/types';
-import { listType } from '@/api/opentcs/vehicle/type';
-import type { TypeVO } from '@/api/opentcs/vehicle/type/types';
-import { loadMapEditorData } from '@/api/opentcs/map';
-import type { MapEditorResponse } from '@/api/opentcs/map/types';
-import { HttpStatus } from '@/enums/RespEnum';
-import MapRenderer from '@/components/map/MapRenderer.vue';
-import { useMapEditorTabsStore } from '@/store/modules/mapEditorTabs';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import type { FormInstance } from 'element-plus';
-import { watch, onBeforeUnmount } from 'vue';
+import {
+  listMapsByFactory,
+  addNavigationMap,
+  updateNavigationMap,
+  delNavigationMap,
+} from "@/api/opentcs/factory/map";
+import type {
+  NavigationMapVO,
+  NavigationMapForm,
+  NavigationMapQuery,
+} from "@/api/opentcs/factory/map/types";
+import { listFactoryModel } from "@/api/opentcs/factory/model";
+import type { FactoryModelVO } from "@/api/opentcs/factory/model/types";
+import { listType } from "@/api/opentcs/vehicle/type";
+import type { TypeVO } from "@/api/opentcs/vehicle/type/types";
+import { loadMapEditorData } from "@/api/opentcs/map";
+import type { MapEditorResponse } from "@/api/opentcs/map/types";
+import { HttpStatus } from "@/enums/RespEnum";
+import MapRenderer from "@/components/map/MapRenderer.vue";
+import { getDefaultPointRadiusForType } from "@/utils/mapEditor/mapVisualTokens";
+import { useMapEditorTabsStore } from "@/store/modules/mapEditorTabs";
+import { ElMessage, ElMessageBox } from "element-plus";
+import type { FormInstance } from "element-plus";
+import { watch, onBeforeUnmount } from "vue";
 
 const router = useRouter();
 const mapEditorTabsStore = useMapEditorTabsStore();
@@ -379,31 +522,30 @@ const SCALE = 1;
  */
 function unwrapAjaxMapPayload(raw: unknown): Record<string, any> {
   const r = raw as Record<string, any>;
-  if (!r || typeof r !== 'object') return {};
+  if (!r || typeof r !== "object") return {};
   const inner = r.data;
   const shouldUseInner =
-    inner != null
-    && typeof inner === 'object'
-    && !Array.isArray(inner)
-    && (
-      r.code === HttpStatus.SUCCESS
-      || r.code === 200
-      || (
-        r.code === undefined
-        && ((inner as Record<string, any>).points !== undefined
-          || (inner as Record<string, any>).paths !== undefined
-          || (inner as Record<string, any>).locations !== undefined
-          || (inner as Record<string, any>).elements !== undefined
-          || (inner as Record<string, any>).mapInfo !== undefined)
-      )
-    );
+    inner != null &&
+    typeof inner === "object" &&
+    !Array.isArray(inner) &&
+    (r.code === HttpStatus.SUCCESS ||
+      r.code === 200 ||
+      (r.code === undefined &&
+        ((inner as Record<string, any>).points !== undefined ||
+          (inner as Record<string, any>).paths !== undefined ||
+          (inner as Record<string, any>).locations !== undefined ||
+          (inner as Record<string, any>).elements !== undefined ||
+          (inner as Record<string, any>).mapInfo !== undefined)));
   if (shouldUseInner) {
     return inner as Record<string, any>;
   }
   return r;
 }
 
-function pickElementsArray<T>(a: T[] | undefined | null, b: T[] | undefined | null): T[] {
+function pickElementsArray<T>(
+  a: T[] | undefined | null,
+  b: T[] | undefined | null,
+): T[] {
   if (Array.isArray(a) && a.length > 0) return a;
   if (Array.isArray(b) && b.length > 0) return b;
   if (Array.isArray(a)) return a;
@@ -413,11 +555,11 @@ function pickElementsArray<T>(a: T[] | undefined | null, b: T[] | undefined | nu
 
 function parsePropertiesPayload(raw: any): Record<string, any> {
   if (!raw) return {};
-  if (typeof raw === 'object') return raw;
-  if (typeof raw === 'string') {
+  if (typeof raw === "object") return raw;
+  if (typeof raw === "string") {
     try {
       const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === 'object' ? parsed : {};
+      return parsed && typeof parsed === "object" ? parsed : {};
     } catch {
       return {};
     }
@@ -426,7 +568,7 @@ function parsePropertiesPayload(raw: any): Record<string, any> {
 }
 
 const selectedFactoryId = ref<number | undefined>(undefined);
-const selectedMapId = ref<string>('');
+const selectedMapId = ref<string>("");
 
 // ═══════ 画布视图状态（像素坐标系，参照 Konva 编辑器） ════════════════════════
 // viewOffset: 工厂原点 O(0,0) 在画布内容区的屏幕像素位置（左下角参考系）
@@ -454,7 +596,7 @@ function getCanvasRect() {
 const mapLayerStyle = computed(() => {
   const { h } = getCanvasRect();
   return {
-    transform: `translate(${viewOffset.x}px, ${h - viewOffset.y}px) scale(${canvasScale.value}, ${-canvasScale.value})`
+    transform: `translate(${viewOffset.x}px, ${h - viewOffset.y}px) scale(${canvasScale.value}, ${-canvasScale.value})`,
   };
 });
 
@@ -465,14 +607,17 @@ const mapLayerStyle = computed(() => {
  */
 function mapOriginOffset(ox: number, oy: number) {
   return {
-    left: ox * SCALE + 'px',
-    top: oy * SCALE + 'px'
+    left: ox * SCALE + "px",
+    top: oy * SCALE + "px",
   };
 }
 
 const mapOriginLayerStyle = computed(() => {
   if (!activeMap.value) return {};
-  return mapOriginOffset(activeMap.value.originX ?? 0, activeMap.value.originY ?? 0);
+  return mapOriginOffset(
+    activeMap.value.originX ?? 0,
+    activeMap.value.originY ?? 0,
+  );
 });
 
 // 滚轮缩放（指针锚点）
@@ -503,15 +648,15 @@ function resetView() {
 // 画布拖拽平移（document 级别监听，避免与手柄拖拽冲突）
 function startPan(e: MouseEvent) {
   if (isDraggingMapOrigin.value) return;
-  if ((e.target as HTMLElement).closest('.origin-drag-handle')) return;
+  if ((e.target as HTMLElement).closest(".origin-drag-handle")) return;
   isDragging.value = true;
   dragStart.x = e.clientX;
   dragStart.y = e.clientY;
   viewStart.x = viewOffset.x;
   viewStart.y = viewOffset.y;
-  document.body.style.cursor = 'grabbing';
-  document.addEventListener('mousemove', onPan);
-  document.addEventListener('mouseup', endPan);
+  document.body.style.cursor = "grabbing";
+  document.addEventListener("mousemove", onPan);
+  document.addEventListener("mouseup", endPan);
 }
 
 function onPan(e: MouseEvent) {
@@ -523,34 +668,40 @@ function onPan(e: MouseEvent) {
 function endPan() {
   if (isDragging.value) {
     isDragging.value = false;
-    document.body.style.cursor = '';
+    document.body.style.cursor = "";
   }
-  document.removeEventListener('mousemove', onPan);
-  document.removeEventListener('mouseup', endPan);
+  document.removeEventListener("mousemove", onPan);
+  document.removeEventListener("mouseup", endPan);
 }
 
 // ═══════ 地图原点编辑（工厂级拓扑视图） ══════════════════════════════════════
 const isEditingOrigin = ref(false);
 const originSaving = ref(false);
 /** 当前选中编辑的地图 mapId */
-const originEditingMapId = ref<string>('');
+const originEditingMapId = ref<string>("");
 const editOriginX = ref(0);
 const editOriginY = ref(0);
 
 /** 编辑模式下每张地图的临时原点数据 */
-const originDrafts = ref<Map<string, { originX: number; originY: number }>>(new Map());
+const originDrafts = ref<Map<string, { originX: number; originY: number }>>(
+  new Map(),
+);
 
 const originEditingMapName = computed(() => {
-  const m = filteredMaps.value.find(m => String(m.mapId) === originEditingMapId.value);
-  return m?.name ?? '';
+  const m = filteredMaps.value.find(
+    (m) => String(m.mapId) === originEditingMapId.value,
+  );
+  return m?.name ?? "";
 });
 
 /** 普通模式：当前选中地图的原点是否与工厂原点重合 */
 const isMapOriginAtFactory = computed(() => {
   if (!activeMap.value) return true;
-  return Number(activeMap.value.originX || 0) === 0 && Number(activeMap.value.originY || 0) === 0;
+  return (
+    Number(activeMap.value.originX || 0) === 0 &&
+    Number(activeMap.value.originY || 0) === 0
+  );
 });
-
 
 function getMapLayerOffset(m: NavigationMapVO) {
   const draft = originDrafts.value.get(String(m.mapId));
@@ -568,23 +719,26 @@ function getHandleScreenStyle(m: NavigationMapVO) {
   const ox = draft?.originX ?? m.originX ?? 0;
   const oy = draft?.originY ?? m.originY ?? 0;
   return {
-    left: (170 + viewOffset.x + ox * SCALE * canvasScale.value) + 'px',
-    bottom: (viewOffset.y + oy * SCALE * canvasScale.value) + 'px'
+    left: 170 + viewOffset.x + ox * SCALE * canvasScale.value + "px",
+    bottom: viewOffset.y + oy * SCALE * canvasScale.value + "px",
   };
 }
 
 function toggleOriginEditing() {
   if (isEditingOrigin.value) {
     isEditingOrigin.value = false;
-    originEditingMapId.value = '';
+    originEditingMapId.value = "";
     originDrafts.value.clear();
     return;
   }
   if (!selectedFactoryId.value || filteredMaps.value.length === 0) return;
   // 初始化每张地图的草稿
   const drafts = new Map<string, { originX: number; originY: number }>();
-  filteredMaps.value.forEach(m => {
-    drafts.set(String(m.mapId), { originX: m.originX ?? 0, originY: m.originY ?? 0 });
+  filteredMaps.value.forEach((m) => {
+    drafts.set(String(m.mapId), {
+      originX: m.originX ?? 0,
+      originY: m.originY ?? 0,
+    });
   });
   originDrafts.value = drafts;
   // 默认选中第一张
@@ -604,7 +758,7 @@ function onOriginInputChange() {
   if (!originEditingMapId.value) return;
   originDrafts.value.set(originEditingMapId.value, {
     originX: editOriginX.value,
-    originY: editOriginY.value
+    originY: editOriginY.value,
   });
 }
 
@@ -618,9 +772,13 @@ async function saveAllOrigins() {
   try {
     const promises: Promise<any>[] = [];
     originDrafts.value.forEach((draft, mapId) => {
-      const m = filteredMaps.value.find(m => String(m.mapId) === mapId);
+      const m = filteredMaps.value.find((m) => String(m.mapId) === mapId);
       if (!m) return;
-      if (draft.originX === (m.originX ?? 0) && draft.originY === (m.originY ?? 0)) return;
+      if (
+        draft.originX === (m.originX ?? 0) &&
+        draft.originY === (m.originY ?? 0)
+      )
+        return;
       promises.push(
         updateNavigationMap({
           id: m.id,
@@ -628,11 +786,11 @@ async function saveAllOrigins() {
           mapId: m.mapId,
           name: m.name,
           originX: draft.originX,
-          originY: draft.originY
-        })
+          originY: draft.originY,
+        }),
       );
       // 同步本地数据
-      const idx = mapList.value.findIndex(ml => ml.id === m.id);
+      const idx = mapList.value.findIndex((ml) => ml.id === m.id);
       if (idx >= 0) {
         mapList.value[idx].originX = draft.originX;
         mapList.value[idx].originY = draft.originY;
@@ -642,10 +800,10 @@ async function saveAllOrigins() {
       await Promise.all(promises);
       ElMessage.success(`已保存 ${promises.length} 张地图原点`);
     } else {
-      ElMessage.info('无修改需要保存');
+      ElMessage.info("无修改需要保存");
     }
   } catch (e) {
-    ElMessage.error('保存失败');
+    ElMessage.error("保存失败");
   } finally {
     originSaving.value = false;
   }
@@ -653,7 +811,7 @@ async function saveAllOrigins() {
 
 // ═══════ 画布拖拽：场景原点 + 地图原点 ══════════════════════════════════════
 const isDraggingMapOrigin = ref(false);
-const draggingMapId = ref('');
+const draggingMapId = ref("");
 const mapOriginDragStart = reactive({ x: 0, y: 0 });
 const mapOriginEditStart = reactive({ x: 0, y: 0 });
 
@@ -666,9 +824,9 @@ function startDragMapOriginById(m: NavigationMapVO, e: MouseEvent) {
   mapOriginDragStart.y = e.clientY;
   mapOriginEditStart.x = editOriginX.value;
   mapOriginEditStart.y = editOriginY.value;
-  document.body.style.cursor = 'move';
-  document.addEventListener('mousemove', onDragMapOrigin);
-  document.addEventListener('mouseup', endDragMapOrigin);
+  document.body.style.cursor = "move";
+  document.addEventListener("mousemove", onDragMapOrigin);
+  document.addEventListener("mouseup", endDragMapOrigin);
   e.preventDefault();
   e.stopPropagation();
 }
@@ -682,18 +840,18 @@ function onDragMapOrigin(e: MouseEvent) {
   editOriginY.value = Math.round(mapOriginEditStart.y - deltaYPx / pxPerMm);
   originDrafts.value.set(draggingMapId.value, {
     originX: editOriginX.value,
-    originY: editOriginY.value
+    originY: editOriginY.value,
   });
 }
 
 function endDragMapOrigin() {
   if (isDraggingMapOrigin.value) {
     isDraggingMapOrigin.value = false;
-    draggingMapId.value = '';
-    document.body.style.cursor = '';
+    draggingMapId.value = "";
+    document.body.style.cursor = "";
   }
-  document.removeEventListener('mousemove', onDragMapOrigin);
-  document.removeEventListener('mouseup', endDragMapOrigin);
+  document.removeEventListener("mousemove", onDragMapOrigin);
+  document.removeEventListener("mouseup", endDragMapOrigin);
 }
 
 // 保留 query 类型，便于后续扩展筛选/分页（P0 暂不使用）
@@ -701,40 +859,42 @@ const _queryParams = reactive<NavigationMapQuery>({});
 
 const dialog = reactive({
   visible: false,
-  title: '',
-  loading: false
+  title: "",
+  loading: false,
 });
 
 const form = reactive<NavigationMapForm>({
   id: undefined,
   factoryModelId: undefined as number | undefined,
-  mapId: '',
-  name: '',
+  mapId: "",
+  name: "",
   floorNumber: 0,
   vehicleTypeId: undefined,
   originX: 0,
   originY: 0,
   rotation: 0,
-  description: '',
-  status: '0'
+  description: "",
+  status: "0",
 });
 
 const rules = {
-  mapId: [{ required: true, message: '地图ID不能为空', trigger: 'blur' }],
-  name: [{ required: true, message: '地图名称不能为空', trigger: 'blur' }],
-  vehicleTypeId: [{ required: true, message: '请选择车辆类型', trigger: 'change' }]
+  mapId: [{ required: true, message: "地图ID不能为空", trigger: "blur" }],
+  name: [{ required: true, message: "地图名称不能为空", trigger: "blur" }],
+  vehicleTypeId: [
+    { required: true, message: "请选择车辆类型", trigger: "change" },
+  ],
 };
 
 const formRef = ref<FormInstance>();
 
-const activeMap = computed(() => mapList.value.find(m => String(m.mapId) === selectedMapId.value));
-
-
+const activeMap = computed(() =>
+  mapList.value.find((m) => String(m.mapId) === selectedMapId.value),
+);
 
 // 处理路径数据，添加端点坐标
 const processedPaths = computed(() => {
   const pointsMap = new Map();
-  mapElements.value.points?.forEach(p => {
+  mapElements.value.points?.forEach((p) => {
     if (p?.id !== undefined && p?.id !== null) {
       pointsMap.set(String(p.id), p);
     }
@@ -743,7 +903,7 @@ const processedPaths = computed(() => {
     }
   });
 
-  return (mapElements.value.paths || []).map(path => {
+  return (mapElements.value.paths || []).map((path) => {
     let startPoint = path.startPoint;
     let endPoint = path.endPoint;
 
@@ -769,23 +929,33 @@ function extractPathControlPoints(path: any): any[] | null {
 }
 
 /** 与 getPathConfig 中 path.type / geometry.pathType 判定一致 */
-function pathConnectionKind(path: any): 'curve' | 'orthogonal' | 'direct' {
-  const geoPt = (path.geometry?.pathType || '').toString().toLowerCase();
-  if (geoPt === 'curve') return 'curve';
-  const t = (path.type || path.connectionType || path.pathType || '').toString().toLowerCase();
-  if (t === 'curve' || t === 'bezier' || t === 'spline') return 'curve';
-  if (t === 'orthogonal' || t === 'right_angle' || t === 'rightangle') return 'orthogonal';
-  return 'direct';
+function pathConnectionKind(path: any): "curve" | "orthogonal" | "direct" {
+  const geoPt = (path.geometry?.pathType || "").toString().toLowerCase();
+  if (geoPt === "curve") return "curve";
+  const t = (path.type || path.connectionType || path.pathType || "")
+    .toString()
+    .toLowerCase();
+  if (t === "curve" || t === "bezier" || t === "spline") return "curve";
+  if (t === "orthogonal" || t === "right_angle" || t === "rightangle")
+    return "orthogonal";
+  return "direct";
 }
 
 type PathPreviewSpec =
-  | { mode: 'path'; d: string }
-  | { mode: 'polyline'; points: string }
-  | { mode: 'line'; x1: number; y1: number; x2: number; y2: number }
-  | { mode: 'none' };
+  | { mode: "path"; d: string }
+  | { mode: "polyline"; points: string }
+  | { mode: "line"; x1: number; y1: number; x2: number; y2: number }
+  | { mode: "none" };
 
 /** 中间控制点到弦线的距离平方（mm²），用于无 pathType 时识别“弓高”曲线控制点 */
-function pointToSegmentDistSq(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+function pointToSegmentDistSq(
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number {
   const abx = bx - ax;
   const aby = by - ay;
   const apx = px - ax;
@@ -804,7 +974,7 @@ function pointToSegmentDistSq(px: number, py: number, ax: number, ay: number, bx
 /** 当前选中地图原点（mm），预览层与多地图原点虚线一致 */
 const previewOrigin = computed(() => ({
   ox: Number(activeMap.value?.originX ?? 0),
-  oy: Number(activeMap.value?.originY ?? 0)
+  oy: Number(activeMap.value?.originY ?? 0),
 }));
 
 const previewUseRenderer = true;
@@ -824,7 +994,10 @@ const rendererClipCompensation = computed(() => {
   };
 
   for (const p of mapElements.value.points || []) {
-    push(Number(p.x ?? p.xPosition ?? 0) + previewOrigin.value.ox, -(Number(p.y ?? p.yPosition ?? 0) + previewOrigin.value.oy));
+    push(
+      Number(p.x ?? p.xPosition ?? 0) + previewOrigin.value.ox,
+      -(Number(p.y ?? p.yPosition ?? 0) + previewOrigin.value.oy),
+    );
   }
   for (const l of mapElements.value.locations || []) {
     const lx = Number(l.x ?? l.xPosition ?? 0) + previewOrigin.value.ox;
@@ -832,7 +1005,10 @@ const rendererClipCompensation = computed(() => {
     push(lx, ly);
     if (Array.isArray(l.geometry?.vertices)) {
       for (const v of l.geometry.vertices) {
-        push(Number(v.x ?? v.xPosition ?? 0) + previewOrigin.value.ox, -(Number(v.y ?? v.yPosition ?? 0) + previewOrigin.value.oy));
+        push(
+          Number(v.x ?? v.xPosition ?? 0) + previewOrigin.value.ox,
+          -(Number(v.y ?? v.yPosition ?? 0) + previewOrigin.value.oy),
+        );
       }
     }
   }
@@ -840,14 +1016,17 @@ const rendererClipCompensation = computed(() => {
     const cps = extractPathControlPoints(path);
     if (Array.isArray(cps)) {
       for (const cp of cps) {
-        push(Number(cp.x ?? cp.xPosition ?? 0) + previewOrigin.value.ox, -(Number(cp.y ?? cp.yPosition ?? 0) + previewOrigin.value.oy));
+        push(
+          Number(cp.x ?? cp.xPosition ?? 0) + previewOrigin.value.ox,
+          -(Number(cp.y ?? cp.yPosition ?? 0) + previewOrigin.value.oy),
+        );
       }
     }
   }
 
   return {
     x: minX < 0 ? Math.ceil(-minX) + 8 : 0,
-    y: minY < 0 ? Math.ceil(-minY) + 8 : 0
+    y: minY < 0 ? Math.ceil(-minY) + 8 : 0,
   };
 });
 
@@ -861,10 +1040,10 @@ const rendererPoints = computed(() => {
     y: -(Number(p.y ?? p.yPosition ?? 0) + oy) + sy,
     editorProps: {
       ...p.editorProps,
-      radius: p.editorProps?.radius ?? 10,
-      color: p.editorProps?.color ?? '#409eff',
-      labelVisible: p.editorProps?.labelVisible ?? true
-    }
+      radius: p.editorProps?.radius ?? getDefaultPointRadiusForType(p.type),
+      color: p.editorProps?.color,
+      labelVisible: p.editorProps?.labelVisible ?? true,
+    },
   }));
 });
 
@@ -875,23 +1054,31 @@ const rendererPaths = computed(() => {
     const cps = extractPathControlPoints(path);
     let controlPoints = Array.isArray(cps)
       ? cps.map((cp: any) => ({
-        ...cp,
-        x: Number(cp.x ?? cp.xPosition ?? 0) + ox + sx,
-        y: -(Number(cp.y ?? cp.yPosition ?? 0) + oy) + sy
-      }))
+          ...cp,
+          x: Number(cp.x ?? cp.xPosition ?? 0) + ox + sx,
+          y: -(Number(cp.y ?? cp.yPosition ?? 0) + oy) + sy,
+        }))
       : [];
     if (controlPoints.length < 2 && path.startPoint && path.endPoint) {
       controlPoints = [
         {
           id: `cp_${path.id}_0`,
-          x: Number(path.startPoint.x ?? path.startPoint.xPosition ?? 0) + ox + sx,
-          y: -(Number(path.startPoint.y ?? path.startPoint.yPosition ?? 0) + oy) + sy
+          x:
+            Number(path.startPoint.x ?? path.startPoint.xPosition ?? 0) +
+            ox +
+            sx,
+          y:
+            -(
+              Number(path.startPoint.y ?? path.startPoint.yPosition ?? 0) + oy
+            ) + sy,
         },
         {
           id: `cp_${path.id}_1`,
           x: Number(path.endPoint.x ?? path.endPoint.xPosition ?? 0) + ox + sx,
-          y: -(Number(path.endPoint.y ?? path.endPoint.yPosition ?? 0) + oy) + sy
-        }
+          y:
+            -(Number(path.endPoint.y ?? path.endPoint.yPosition ?? 0) + oy) +
+            sy,
+        },
       ];
     }
     return {
@@ -899,15 +1086,18 @@ const rendererPaths = computed(() => {
       geometry: {
         ...(path.geometry || {}),
         controlPoints,
-        pathType: path.geometry?.pathType || pathConnectionKind(path)
+        pathType: path.geometry?.pathType || pathConnectionKind(path),
       },
       editorProps: {
         ...path.editorProps,
-        strokeColor: path.editorProps?.strokeColor ?? 'rgba(186, 206, 245, 0.95)',
-        strokeWidth: path.editorProps?.strokeWidth ?? (path.editorProps?.lineStyle === 'dashed' ? 4 : 18),
-        lineStyle: path.editorProps?.lineStyle ?? 'solid',
-        arrowVisible: path.editorProps?.arrowVisible ?? true
-      }
+        strokeColor:
+          path.editorProps?.strokeColor ?? "rgba(186, 206, 245, 0.95)",
+        strokeWidth:
+          path.editorProps?.strokeWidth ??
+          (path.editorProps?.lineStyle === "dashed" ? 4 : 18),
+        lineStyle: path.editorProps?.lineStyle ?? "solid",
+        arrowVisible: path.editorProps?.arrowVisible ?? true,
+      },
     };
   });
 });
@@ -919,23 +1109,24 @@ const rendererLocations = computed(() => {
     ...l,
     x: Number(l.x ?? l.xPosition ?? 0) + ox + sx,
     y: -(Number(l.y ?? l.yPosition ?? 0) + oy) + sy,
-    geometry: l.geometry && Array.isArray(l.geometry.vertices)
-      ? {
-        ...l.geometry,
-        vertices: l.geometry.vertices.map((v: any) => ({
-          ...v,
-          x: Number(v.x ?? v.xPosition ?? 0) + ox + sx,
-          y: -(Number(v.y ?? v.yPosition ?? 0) + oy) + sy
-        }))
-      }
-      : l.geometry,
+    geometry:
+      l.geometry && Array.isArray(l.geometry.vertices)
+        ? {
+            ...l.geometry,
+            vertices: l.geometry.vertices.map((v: any) => ({
+              ...v,
+              x: Number(v.x ?? v.xPosition ?? 0) + ox + sx,
+              y: -(Number(v.y ?? v.yPosition ?? 0) + oy) + sy,
+            })),
+          }
+        : l.geometry,
     editorProps: {
       ...l.editorProps,
       width: l.editorProps?.width ?? 24,
       height: l.editorProps?.height ?? 24,
-      color: l.editorProps?.color ?? '#67c23a',
-      labelVisible: l.editorProps?.labelVisible ?? true
-    }
+      color: l.editorProps?.color ?? "#67c23a",
+      labelVisible: l.editorProps?.labelVisible ?? true,
+    },
   }));
 });
 
@@ -950,7 +1141,7 @@ function buildPathPreviewSpec(path: any): PathPreviewSpec {
 
   const fp = (cp: any) => ({
     fx: Number(cp?.x ?? cp?.xPosition ?? 0) + ox,
-    fy: Number(cp?.y ?? cp?.yPosition ?? 0) + oy
+    fy: Number(cp?.y ?? cp?.yPosition ?? 0) + oy,
   });
   const sv = (fx: number, fy: number) => {
     if (!Number.isFinite(fx) || !Number.isFinite(fy)) return null;
@@ -960,17 +1151,21 @@ function buildPathPreviewSpec(path: any): PathPreviewSpec {
   const lineFromCp = (a: any, b: any): PathPreviewSpec => {
     const pa = sv(fp(a).fx, fp(a).fy);
     const pb = sv(fp(b).fx, fp(b).fy);
-    if (!pa || !pb) return { mode: 'none' };
-    return { mode: 'line', x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y };
+    if (!pa || !pb) return { mode: "none" };
+    return { mode: "line", x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y };
   };
 
   if (!cps || cps.length < 2) {
     if (path.startPoint && path.endPoint) {
-      const pa = sv(Number(path.startPoint.x) + ox, Number(path.startPoint.y) + oy);
+      const pa = sv(
+        Number(path.startPoint.x) + ox,
+        Number(path.startPoint.y) + oy,
+      );
       const pb = sv(Number(path.endPoint.x) + ox, Number(path.endPoint.y) + oy);
-      if (pa && pb) return { mode: 'line', x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y };
+      if (pa && pb)
+        return { mode: "line", x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y };
     }
-    return { mode: 'none' };
+    return { mode: "none" };
   }
 
   if (cps.length === 2) {
@@ -981,20 +1176,27 @@ function buildPathPreviewSpec(path: any): PathPreviewSpec {
     const f0 = fp(cps[0]);
     const f1 = fp(cps[1]);
     const f2 = fp(cps[2]);
-    const midOffSq = pointToSegmentDistSq(f1.fx, f1.fy, f0.fx, f0.fy, f2.fx, f2.fy);
+    const midOffSq = pointToSegmentDistSq(
+      f1.fx,
+      f1.fy,
+      f0.fx,
+      f0.fy,
+      f2.fx,
+      f2.fy,
+    );
     // 弓高约 >3mm：按曲线画 Q；与编辑器「三点 + 中间为法向偏移」一致，避免折线穿过端点
-    const useQuad = kind === 'curve' || midOffSq > 9;
+    const useQuad = kind === "curve" || midOffSq > 9;
     if (useQuad) {
       const p0 = sv(f0.fx, f0.fy);
       const p1 = sv(f1.fx, f1.fy);
       const p2 = sv(f2.fx, f2.fy);
       if (p0 && p1 && p2) {
         return {
-          mode: 'path',
-          d: `M ${p0.x},${p0.y} Q ${p1.x},${p1.y} ${p2.x},${p2.y}`
+          mode: "path",
+          d: `M ${p0.x},${p0.y} Q ${p1.x},${p1.y} ${p2.x},${p2.y}`,
         };
       }
-      return { mode: 'none' };
+      return { mode: "none" };
     }
   }
 
@@ -1003,15 +1205,15 @@ function buildPathPreviewSpec(path: any): PathPreviewSpec {
     const p = sv(fp(cp).fx, fp(cp).fy);
     if (p) parts.push(`${p.x},${p.y}`);
   }
-  if (parts.length < 2) return { mode: 'none' };
-  return { mode: 'polyline', points: parts.join(' ') };
+  if (parts.length < 2) return { mode: "none" };
+  return { mode: "polyline", points: parts.join(" ") };
 }
 
 const pathsForPreview = computed(() =>
-  processedPaths.value.map(p => ({
+  processedPaths.value.map((p) => ({
     ...p,
-    preview: buildPathPreviewSpec(p)
-  }))
+    preview: buildPathPreviewSpec(p),
+  })),
 );
 
 /** 根据全部元素计算工厂坐标系包围盒，用于把拓扑平移到视口附近 */
@@ -1030,7 +1232,10 @@ const previewContentBounds = computed(() => {
   };
 
   for (const p of mapElements.value.points || []) {
-    expand(Number(p.x ?? p.xPosition ?? 0) + ox, Number(p.y ?? p.yPosition ?? 0) + oy);
+    expand(
+      Number(p.x ?? p.xPosition ?? 0) + ox,
+      Number(p.y ?? p.yPosition ?? 0) + oy,
+    );
   }
 
   for (const l of mapElements.value.locations || []) {
@@ -1046,7 +1251,10 @@ const previewContentBounds = computed(() => {
     const cps = extractPathControlPoints(path);
     if (cps) {
       for (const cp of cps) {
-        expand(Number(cp.x ?? cp.xPosition ?? 0) + ox, Number(cp.y ?? cp.yPosition ?? 0) + oy);
+        expand(
+          Number(cp.x ?? cp.xPosition ?? 0) + ox,
+          Number(cp.y ?? cp.yPosition ?? 0) + oy,
+        );
       }
     } else if (path.startPoint && path.endPoint) {
       expand(Number(path.startPoint.x) + ox, Number(path.startPoint.y) + oy);
@@ -1061,13 +1269,13 @@ const previewContentBounds = computed(() => {
     minY,
     maxY,
     cx: (minX + maxX) / 2,
-    cy: (minY + maxY) / 2
+    cy: (minY + maxY) / 2,
   };
 });
 
 const previewSvgCenterTransform = computed(() => {
   const b = previewContentBounds.value;
-  if (!b) return 'translate(0,0)';
+  if (!b) return "translate(0,0)";
   return `translate(${-b.cx * SCALE},${b.cy * SCALE})`;
 });
 
@@ -1085,28 +1293,34 @@ const filteredMaps = computed(() => {
     const fa = a.floorNumber ?? 9999;
     const fb = b.floorNumber ?? 9999;
     if (fa !== fb) return fa - fb;
-    return (a.name || '').localeCompare(b.name || '');
+    return (a.name || "").localeCompare(b.name || "");
   });
 });
 
 const groupedMaps = computed(() => {
-  const groups = new Map<string, { key: string; label: string; items: NavigationMapVO[] }>();
+  const groups = new Map<
+    string,
+    { key: string; label: string; items: NavigationMapVO[] }
+  >();
   for (const m of filteredMaps.value) {
-    const floor = m.floorNumber !== null && m.floorNumber !== undefined ? m.floorNumber : null;
-    const key = floor === null ? 'unknown' : String(floor);
-    const label = floor === null ? '未设置楼层' : `${floor}楼`;
+    const floor =
+      m.floorNumber !== null && m.floorNumber !== undefined
+        ? m.floorNumber
+        : null;
+    const key = floor === null ? "unknown" : String(floor);
+    const label = floor === null ? "未设置楼层" : `${floor}楼`;
     if (!groups.has(key)) groups.set(key, { key, label, items: [] });
     groups.get(key)!.items.push(m);
   }
   return Array.from(groups.values()).sort((a, b) => {
-    if (a.key === 'unknown') return 1;
-    if (b.key === 'unknown') return -1;
+    if (a.key === "unknown") return 1;
+    if (b.key === "unknown") return -1;
     return Number(a.key) - Number(b.key);
   });
 });
 
 const formatMapId = (mapId?: string) => {
-  if (!mapId) return '-';
+  if (!mapId) return "-";
   if (mapId.length <= 14) return mapId;
   return `${mapId.slice(0, 6)}…${mapId.slice(-4)}`;
 };
@@ -1116,7 +1330,7 @@ const noop = () => {};
 const loadMaps = async () => {
   if (!selectedFactoryId.value) {
     mapList.value = [];
-    selectedMapId.value = '';
+    selectedMapId.value = "";
     mapElements.value = { points: [], paths: [], locations: [] };
     return;
   }
@@ -1131,9 +1345,9 @@ const loadMaps = async () => {
     }
     // URL 或缓存的 mapId 若不在当前工厂列表中，回退到第一张
     if (
-      selectedMapId.value
-      && mapList.value.length > 0
-      && !mapList.value.some(m => String(m.mapId) === selectedMapId.value)
+      selectedMapId.value &&
+      mapList.value.length > 0 &&
+      !mapList.value.some((m) => String(m.mapId) === selectedMapId.value)
     ) {
       selectedMapId.value = String(mapList.value[0].mapId);
     }
@@ -1142,7 +1356,9 @@ const loadMaps = async () => {
   }
   // 无论当前选中来自列表默认还是 URL，统一拉取元素（避免仅因 mapId 判断错误导致空白）
   if (selectedMapId.value) {
-    const selectedMap = mapList.value.find(m => String(m.mapId) === selectedMapId.value);
+    const selectedMap = mapList.value.find(
+      (m) => String(m.mapId) === selectedMapId.value,
+    );
     if (selectedMap) {
       await loadMapElements(selectedMap);
     } else {
@@ -1163,7 +1379,7 @@ const getFactoryList = async () => {
       loadMaps();
     }
   } catch (error) {
-    console.error('获取工厂列表失败:', error);
+    console.error("获取工厂列表失败:", error);
   }
 };
 
@@ -1173,18 +1389,20 @@ const getAmrTypeList = async () => {
     const res = await listType({ pageNum: 1, pageSize: 100 });
     amrTypeList.value = res.rows || [];
   } catch (error) {
-    console.error('获取AMR型号列表失败:', error);
+    console.error("获取AMR型号列表失败:", error);
   }
 };
 
 const handleFactoryChange = () => {
-  selectedMapId.value = '';
+  selectedMapId.value = "";
   router.replace({
     query: {
       ...router.currentRoute.value.query,
-      factoryId: selectedFactoryId.value ? String(selectedFactoryId.value) : undefined,
-      mapId: undefined
-    }
+      factoryId: selectedFactoryId.value
+        ? String(selectedFactoryId.value)
+        : undefined,
+      mapId: undefined,
+    },
   });
   loadMaps();
 };
@@ -1192,12 +1410,12 @@ const handleFactoryChange = () => {
 // 选择工厂
 const selectFactory = (factory: FactoryModelVO) => {
   selectedFactoryId.value = factory.id;
-  selectedMapId.value = '';
+  selectedMapId.value = "";
   viewOffset.x = 150;
   viewOffset.y = 150;
   canvasScale.value = 1;
   isEditingOrigin.value = false;
-  originEditingMapId.value = '';
+  originEditingMapId.value = "";
   originDrafts.value.clear();
   loadMaps();
 };
@@ -1205,12 +1423,12 @@ const selectFactory = (factory: FactoryModelVO) => {
 // 新增
 const handleAdd = () => {
   if (!selectedFactoryId.value) {
-    ElMessage.warning('请先选择工厂');
+    ElMessage.warning("请先选择工厂");
     return;
   }
   reset();
   dialog.visible = true;
-  dialog.title = '添加地图';
+  dialog.title = "添加地图";
   if (selectedFactoryId.value) {
     form.factoryModelId = selectedFactoryId.value;
   }
@@ -1221,34 +1439,42 @@ const handleEdit = (row: NavigationMapVO) => {
   // 使用标签页方式打开地图编辑器
   mapEditorTabsStore.addTab({
     id: String(row.mapId),
-    name: row.name
+    name: row.name,
   });
   // 跳转到地图编辑器页面（带查询参数）
   router.push({
-    path: '/opentcs/map/mapeditor',
-    query: { mapId: row.mapId }
+    path: "/opentcs/map/mapeditor",
+    query: { mapId: row.mapId },
   });
 };
 
 // 加载地图元素数据（兼容 AjaxResult、elements 嵌套、与编辑器一致的字段名）
-const loadMapElements = async (mapIdOrMap: string | number | NavigationMapVO) => {
+const loadMapElements = async (
+  mapIdOrMap: string | number | NavigationMapVO,
+) => {
   elementsLoading.value = true;
   try {
     const normalizePayload = (payloadRaw: unknown) => {
-      const payload = unwrapAjaxMapPayload(payloadRaw) as MapEditorResponse & Record<string, any>;
+      const payload = unwrapAjaxMapPayload(payloadRaw) as MapEditorResponse &
+        Record<string, any>;
       const nested =
-        payload.elements && typeof payload.elements === 'object' && !Array.isArray(payload.elements)
+        payload.elements &&
+        typeof payload.elements === "object" &&
+        !Array.isArray(payload.elements)
           ? (payload.elements as Record<string, any>)
           : null;
       const pointsRaw = pickElementsArray(payload.points, nested?.points);
       const pathsRaw = pickElementsArray(payload.paths, nested?.paths);
-      const locationsRaw = pickElementsArray(payload.locations, nested?.locations);
+      const locationsRaw = pickElementsArray(
+        payload.locations,
+        nested?.locations,
+      );
       return { pointsRaw, pathsRaw, locationsRaw };
     };
 
     // 转换点位数据：后端返回 xPosition/yPosition，前端期望 x/y
     const normalizePoints = (points: any[]) => {
-      return (points || []).map(p => ({
+      return (points || []).map((p) => ({
         ...(parsePropertiesPayload(p?.properties)?.point ?? {}),
         ...p,
         pointId: p.pointId ?? p.id,
@@ -1256,37 +1482,46 @@ const loadMapElements = async (mapIdOrMap: string | number | NavigationMapVO) =>
         y: p.y ?? p.yPosition ?? 0,
         editorProps: {
           ...(parsePropertiesPayload(p?.properties)?.editorProps ?? {}),
-          ...(p.editorProps ?? {})
-        }
+          ...(p.editorProps ?? {}),
+        },
       }));
     };
 
     // 转换路径数据（保留 geometry / layoutControlPoints 供折线预览）
     const normalizePaths = (paths: any[]) => {
-      return (paths || []).map(p => {
+      return (paths || []).map((p) => {
         const propsPayload = parsePropertiesPayload(p?.properties);
         const geometryFromProps = propsPayload?.geometry;
         const editorPropsFromProps = propsPayload?.editorProps;
         return {
           ...(propsPayload?.path ?? {}),
           ...p,
-          startPointId: p.startPointId ?? p.sourcePointId ?? p.sourcePoint?.id ?? p.startPoint?.id,
-          endPointId: p.endPointId ?? p.destPointId ?? p.destPoint?.id ?? p.endPoint?.id,
+          startPointId:
+            p.startPointId ??
+            p.sourcePointId ??
+            p.sourcePoint?.id ??
+            p.startPoint?.id,
+          endPointId:
+            p.endPointId ?? p.destPointId ?? p.destPoint?.id ?? p.endPoint?.id,
           geometry: {
-            ...(geometryFromProps && typeof geometryFromProps === 'object' ? geometryFromProps : {}),
-            ...(p.geometry && typeof p.geometry === 'object' ? p.geometry : {})
+            ...(geometryFromProps && typeof geometryFromProps === "object"
+              ? geometryFromProps
+              : {}),
+            ...(p.geometry && typeof p.geometry === "object" ? p.geometry : {}),
           },
           editorProps: {
-            ...(editorPropsFromProps && typeof editorPropsFromProps === 'object' ? editorPropsFromProps : {}),
-            ...(p.editorProps ?? {})
-          }
+            ...(editorPropsFromProps && typeof editorPropsFromProps === "object"
+              ? editorPropsFromProps
+              : {}),
+            ...(p.editorProps ?? {}),
+          },
         };
       });
     };
 
     // 转换位置数据
     const normalizeLocations = (locations: any[]) => {
-      return (locations || []).map(l => {
+      return (locations || []).map((l) => {
         const propsPayload = parsePropertiesPayload(l?.properties);
         const geometryFromProps = propsPayload?.geometry;
         const editorPropsFromProps = propsPayload?.editorProps;
@@ -1296,17 +1531,22 @@ const loadMapElements = async (mapIdOrMap: string | number | NavigationMapVO) =>
           x: l.x ?? l.xPosition ?? 0,
           y: l.y ?? l.yPosition ?? 0,
           geometry: {
-            ...(geometryFromProps && typeof geometryFromProps === 'object' ? geometryFromProps : {}),
-            ...(l.geometry && typeof l.geometry === 'object' ? l.geometry : {})
+            ...(geometryFromProps && typeof geometryFromProps === "object"
+              ? geometryFromProps
+              : {}),
+            ...(l.geometry && typeof l.geometry === "object" ? l.geometry : {}),
           },
           editorProps: {
-            ...(editorPropsFromProps && typeof editorPropsFromProps === 'object' ? editorPropsFromProps : {}),
-            ...(l.editorProps ?? {})
-          }
+            ...(editorPropsFromProps && typeof editorPropsFromProps === "object"
+              ? editorPropsFromProps
+              : {}),
+            ...(l.editorProps ?? {}),
+          },
         };
       });
     };
-    const mapId = typeof mapIdOrMap === 'object' ? mapIdOrMap.mapId : mapIdOrMap;
+    const mapId =
+      typeof mapIdOrMap === "object" ? mapIdOrMap.mapId : mapIdOrMap;
 
     const primaryRes = await loadMapEditorData(mapId);
     const { pointsRaw, pathsRaw, locationsRaw } = normalizePayload(primaryRes);
@@ -1314,16 +1554,15 @@ const loadMapElements = async (mapIdOrMap: string | number | NavigationMapVO) =>
     mapElements.value = {
       points: normalizePoints(pointsRaw),
       paths: normalizePaths(pathsRaw),
-      locations: normalizeLocations(locationsRaw)
+      locations: normalizeLocations(locationsRaw),
     };
   } catch (error) {
-    console.error('加载地图元素失败:', error);
+    console.error("加载地图元素失败:", error);
     mapElements.value = { points: [], paths: [], locations: [] };
   } finally {
     elementsLoading.value = false;
   }
 };
-
 
 const selectMap = (row: NavigationMapVO) => {
   selectedMapId.value = String(row.mapId);
@@ -1336,9 +1575,11 @@ const selectMap = (row: NavigationMapVO) => {
   router.replace({
     query: {
       ...router.currentRoute.value.query,
-      factoryId: selectedFactoryId.value ? String(selectedFactoryId.value) : undefined,
-      mapId: selectedMapId.value
-    }
+      factoryId: selectedFactoryId.value
+        ? String(selectedFactoryId.value)
+        : undefined,
+      mapId: selectedMapId.value,
+    },
   });
   // 加载地图元素
   loadMapElements(row);
@@ -1353,10 +1594,10 @@ const submitForm = async () => {
   try {
     if (form.id) {
       await updateNavigationMap(form);
-      ElMessage.success('修改成功');
+      ElMessage.success("修改成功");
     } else {
       await addNavigationMap(form);
-      ElMessage.success('新增成功');
+      ElMessage.success("新增成功");
     }
     dialog.visible = false;
     await loadMaps();
@@ -1377,24 +1618,26 @@ const cancel = () => {
 const reset = () => {
   form.id = undefined;
   form.factoryModelId = undefined;
-  form.mapId = '';
-  form.name = '';
+  form.mapId = "";
+  form.name = "";
   form.floorNumber = 0;
   form.vehicleTypeId = undefined;
   form.originX = 0;
   form.originY = 0;
   form.rotation = 0;
-  form.description = '';
-  form.status = '0';
+  form.description = "";
+  form.status = "0";
   formRef.value?.resetFields();
 };
 
 // 删除
 const handleDelete = async (row: NavigationMapVO) => {
   try {
-    await ElMessageBox.confirm('确认删除地图 "' + row.name + '" 吗？', '警告', { type: 'warning' });
+    await ElMessageBox.confirm('确认删除地图 "' + row.name + '" 吗？', "警告", {
+      type: "warning",
+    });
     await delNavigationMap(row.id);
-    ElMessage.success('删除成功');
+    ElMessage.success("删除成功");
     await loadMaps();
   } catch (error) {
     console.error(error);
@@ -1406,7 +1649,9 @@ onMounted(() => {
   getAmrTypeList();
 
   const factoryIdFromQuery = Number(router.currentRoute.value.query.factoryId);
-  const mapIdFromQuery = router.currentRoute.value.query.mapId ? String(router.currentRoute.value.query.mapId) : '';
+  const mapIdFromQuery = router.currentRoute.value.query.mapId
+    ? String(router.currentRoute.value.query.mapId)
+    : "";
 
   if (!Number.isNaN(factoryIdFromQuery) && factoryIdFromQuery > 0) {
     selectedFactoryId.value = factoryIdFromQuery;
@@ -1417,10 +1662,10 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
-  document.removeEventListener('mousemove', onDragMapOrigin);
-  document.removeEventListener('mouseup', endDragMapOrigin);
-  document.removeEventListener('mousemove', onPan);
-  document.removeEventListener('mouseup', endPan);
+  document.removeEventListener("mousemove", onDragMapOrigin);
+  document.removeEventListener("mouseup", endDragMapOrigin);
+  document.removeEventListener("mousemove", onPan);
+  document.removeEventListener("mouseup", endPan);
 });
 </script>
 
@@ -1497,7 +1742,9 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   padding-left: 170px;
-  background-image: linear-gradient(#eef0f4 1px, transparent 1px), linear-gradient(90deg, #eef0f4 1px, transparent 1px);
+  background-image:
+    linear-gradient(#eef0f4 1px, transparent 1px),
+    linear-gradient(90deg, #eef0f4 1px, transparent 1px);
   background-size: 18px 18px;
   overflow: hidden;
   cursor: grab;
@@ -1589,7 +1836,7 @@ onBeforeUnmount(() => {
 }
 
 .axis-x::before {
-  content: '';
+  content: "";
   position: absolute;
   right: -6px;
   top: 50%;
@@ -1600,7 +1847,7 @@ onBeforeUnmount(() => {
 }
 
 .axis-x::after {
-  content: 'X';
+  content: "X";
   position: absolute;
   right: 0;
   bottom: calc(100% + 2px);
@@ -1618,7 +1865,7 @@ onBeforeUnmount(() => {
 }
 
 .axis-y::before {
-  content: '';
+  content: "";
   position: absolute;
   bottom: -6px;
   left: 50%;
@@ -1629,7 +1876,7 @@ onBeforeUnmount(() => {
 }
 
 .axis-y::after {
-  content: 'Y';
+  content: "Y";
   position: absolute;
   left: 8px;
   bottom: 0;
@@ -1712,7 +1959,9 @@ onBeforeUnmount(() => {
   background: transparent;
   cursor: pointer;
   color: #2b2f36;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
 
   &:hover {
     background: rgba(64, 158, 255, 0.06);
@@ -1746,7 +1995,11 @@ onBeforeUnmount(() => {
   width: 14px;
   height: 14px;
   border-radius: 3px;
-  background: linear-gradient(135deg, rgba(64, 158, 255, 0.9), rgba(56, 189, 248, 0.9));
+  background: linear-gradient(
+    135deg,
+    rgba(64, 158, 255, 0.9),
+    rgba(56, 189, 248, 0.9)
+  );
   box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.18);
   flex: 0 0 auto;
   display: flex;
@@ -1754,7 +2007,7 @@ onBeforeUnmount(() => {
   justify-content: center;
 
   &::after {
-    content: '';
+    content: "";
     width: 6px;
     height: 5px;
     border: 1.5px solid white;
@@ -1774,7 +2027,7 @@ onBeforeUnmount(() => {
   justify-content: center;
 
   &::after {
-    content: '+';
+    content: "+";
     font-size: 12px;
     color: rgba(64, 158, 255, 0.9);
     font-weight: bold;
@@ -1810,7 +2063,9 @@ onBeforeUnmount(() => {
 }
 
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
 }
 
 .map-position-inputs {
@@ -1834,7 +2089,13 @@ onBeforeUnmount(() => {
 /* ═══════ 地图原点坐标轴（虚线，保持与实线相同的尺寸/定位，只替换背景为虚线渐变） ═══════ */
 .map-origin-axis {
   .axis-x {
-    background: repeating-linear-gradient(to right, #2563eb 0, #2563eb 5px, transparent 5px, transparent 10px);
+    background: repeating-linear-gradient(
+      to right,
+      #2563eb 0,
+      #2563eb 5px,
+      transparent 5px,
+      transparent 10px
+    );
   }
 
   .axis-x::before {
@@ -1842,7 +2103,13 @@ onBeforeUnmount(() => {
   }
 
   .axis-y {
-    background: repeating-linear-gradient(to bottom, #ef4444 0, #ef4444 5px, transparent 5px, transparent 10px);
+    background: repeating-linear-gradient(
+      to bottom,
+      #ef4444 0,
+      #ef4444 5px,
+      transparent 5px,
+      transparent 10px
+    );
   }
 
   .axis-y::before {
@@ -1861,7 +2128,9 @@ onBeforeUnmount(() => {
   cursor: move;
   transform: translate(-50%, 50%);
   z-index: 15;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 
   &.active {
     background: rgba(249, 115, 22, 0.55);
@@ -1951,7 +2220,9 @@ onBeforeUnmount(() => {
 /* 浮层过渡动画 */
 .origin-panel-enter-active,
 .origin-panel-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .origin-panel-enter-from,
