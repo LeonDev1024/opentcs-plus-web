@@ -21,7 +21,7 @@
             </el-button>
           </el-tooltip>
           <el-tooltip
-            content="空白处拖移画布；悬停点/线/位置可选中拖动；"
+            content="漫游模式"
             :show-after="50"
             placement="bottom"
           >
@@ -44,7 +44,7 @@
         <!-- 地图元素：绘制点、绘制位置、路网连线、虚线链接、规则区域 -->
         <el-button-group class="creation-tool-group">
           <el-tooltip
-            content="点击画布添加点位"
+            content="绘制导航点"
             :show-after="50"
             placement="bottom"
           >
@@ -63,7 +63,7 @@
             </el-button>
           </el-tooltip>
           <el-tooltip
-            content="点击画布创建业务位置（方形区域）"
+            content="绘制工作站点"
             :show-after="50"
             placement="bottom"
           >
@@ -82,7 +82,7 @@
             </el-button>
           </el-tooltip>
           <el-tooltip
-            content="路径工具（直线/直角线/贝塞尔）"
+            content="绘制路径"
             :show-after="50"
             placement="bottom"
           >
