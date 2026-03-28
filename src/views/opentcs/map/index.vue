@@ -543,6 +543,7 @@ import { defaultMapLayerVisibility } from "@/types/mapEditor";
 import layerIconUrl from "@/assets/icons/svg/图层.svg?url";
 import { getDefaultPointRadiusForType } from "@/utils/mapEditor/mapVisualTokens";
 import { useMapEditorTabsStore } from "@/store/modules/mapEditorTabs";
+import { useAppStore } from "@/store/modules/app";
 import { ElMessage, ElMessageBox } from "element-plus";
 import type { FormInstance } from "element-plus";
 import { View, Hide } from "@element-plus/icons-vue";
@@ -550,6 +551,7 @@ import { watch, onBeforeUnmount } from "vue";
 
 const router = useRouter();
 const mapEditorTabsStore = useMapEditorTabsStore();
+const appStore = useAppStore();
 
 const loading = ref(true);
 const mapList = ref<NavigationMapVO[]>([]);
@@ -1541,6 +1543,8 @@ const handleEdit = (row: NavigationMapVO) => {
     id: String(row.mapId),
     name: row.name,
   });
+  // 进入编辑器时收起左侧主导航，留出更多画布区域（状态会写入 sidebarStatus）
+  appStore.closeSideBar({ withoutAnimation: false });
   // 跳转到地图编辑器页面（带查询参数）
   router.push({
     path: "/opentcs/map/mapeditor",
