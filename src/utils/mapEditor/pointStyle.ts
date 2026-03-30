@@ -78,7 +78,25 @@ function resolvePointFill(
   return typeConfig?.fill || custom || "#409EFF";
 }
 
+// ==================== 视觉元数据缓存 ====================
+
+// 点位视觉元数据缓存
+const pointVisualMetaCache = new Map<string, PointVisualMeta>();
+
+/**
+ * 获取点位的视觉元数据（带缓存）
+ */
 export function getPointVisualMeta(point: MapPoint): PointVisualMeta {
+  const cacheKey = String(point.id);
+  const cached = pointVisualMetaCache.get(cacheKey);
+  if (cached) return cached;
+
+  const result = computePointVisualMeta(point);
+  pointVisualMetaCache.set(cacheKey, result);
+  return result;
+}
+
+function computePointVisualMeta(point: MapPoint): PointVisualMeta {
   const typeConfig = POINT_TYPE_CONFIG[point.type || ""];
 
   return {
@@ -94,6 +112,56 @@ export function getPointVisualMeta(point: MapPoint): PointVisualMeta {
       point.editorProps?.textColor || typeConfig?.glyphColor || "#606266",
   };
 }
+
+/**
+ * 清除点位视觉元数据缓存
+ */
+export function clearPointVisualMetaCache(): void {
+  pointVisualMetaCache.clear();
+}
+
+// ==================== 点位连接状态缓存 ====================
+
+// 连接了点位的 ID 集合
+let connectedPointIdsCache: Set<string> = new Set();
+
+/**
+ * 预计算连接了点位的 ID 集合
+ */
+export function updateConnectedPointIds(paths: MapPath[]): void {
+  const ids = new Set<string>();
+  paths.forEach((path) => {
+    if (path.startPointId) ids.add(String(path.startPointId));
+    if (path.endPointId) ids.add(String(path.endPointId));
+  });
+  connectedPointIdsCache = ids;
+}
+
+/**
+ * 判断点是否连接了路径
+ */
+export function isPointConnected(pointId: string): boolean {
+  return connectedPointIdsCache.has(String(pointId));
+}
+
+// ==================== 标签显示判断 ====================
+
+/**
+ * 判断是否应该显示点位标签
+ */
+export function shouldShowPointLabel(point: MapPoint): boolean {
+  const labelVisible = point.editorProps?.labelVisible !== false;
+  return labelVisible && !!(point.name || point.id);
+}
+
+/**
+ * 判断是否应该渲染点位字形
+ */
+export function shouldRenderPointGlyph(point: MapPoint): boolean {
+  return Boolean(getPointVisualMeta(point).glyph);
+}
+
+// ==================== Bullseye 样式 ====================
 
 export type PointBullseyeStyle = {
   outerStroke: string;
@@ -112,12 +180,8 @@ export function resolvePointBullseyeStyleReadonly(
   point: MapPoint,
   paths: MapPath[],
 ): PointBullseyeStyle {
-  const isConnected = paths.some((path) => {
-    const startId = String(path.startPointId || "");
-    const endId = String(path.endPointId || "");
-    const pointId = String(point.id);
-    return startId === pointId || endId === pointId;
-  });
+  // 使用缓存的连接状态，避免 O(n) 遍历
+  const isConnected = isPointConnected(String(point.id));
 
   const visual = getPointVisualMeta(point);
   const baseFill = "#2563EB";
