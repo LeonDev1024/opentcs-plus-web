@@ -623,16 +623,59 @@ function pickElementsArray<T>(
 
 function parsePropertiesPayload(raw: any): Record<string, any> {
   if (!raw) return {};
-  if (typeof raw === "object") return raw;
+  const normalizeNameValueArray = (arr: any[]): Record<string, any> => {
+    const out: Record<string, any> = {};
+    for (const item of arr) {
+      if (!item || typeof item !== "object") continue;
+      const key = item.name ?? item.key;
+      if (!key) continue;
+      out[String(key)] = item.value;
+    }
+    return out;
+  };
+  if (typeof raw === "object") {
+    if (Array.isArray(raw)) return normalizeNameValueArray(raw);
+    return raw;
+  }
   if (typeof raw === "string") {
     try {
       const parsed = JSON.parse(raw);
-      return parsed && typeof parsed === "object" ? parsed : {};
+      if (!parsed || typeof parsed !== "object") return {};
+      if (Array.isArray(parsed)) return normalizeNameValueArray(parsed);
+      return parsed;
     } catch {
       return {};
     }
   }
   return {};
+}
+
+function toFiniteNumber(raw: unknown): number | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : undefined;
+  const normalized = String(raw).trim().replace(",", ".");
+  if (normalized.length === 0) return undefined;
+  const n = Number(normalized);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function pickCoordinate(target: any, axis: "x" | "y"): number | undefined {
+  const upper = axis.toUpperCase();
+  const candidates = [
+    target?.[axis],
+    target?.[`${axis}Position`],
+    target?.[`${axis}position`],
+    target?.[`position${upper}`],
+    target?.position?.[axis],
+    target?.pose?.[axis],
+    target?.coordinate?.[axis],
+    target?.coords?.[axis],
+  ];
+  for (const c of candidates) {
+    const n = toFiniteNumber(c);
+    if (n !== undefined) return n;
+  }
+  return undefined;
 }
 
 const selectedFactoryId = ref<number | undefined>(undefined);
@@ -1574,17 +1617,21 @@ const loadMapElements = async (
 
     // 转换点位数据：后端返回 xPosition/yPosition，前端期望 x/y
     const normalizePoints = (points: any[]) => {
-      return (points || []).map((p) => ({
-        ...(parsePropertiesPayload(p?.properties)?.point ?? {}),
-        ...p,
-        pointId: p.pointId ?? p.id,
-        x: p.x ?? p.xPosition ?? 0,
-        y: p.y ?? p.yPosition ?? 0,
-        editorProps: {
-          ...(parsePropertiesPayload(p?.properties)?.editorProps ?? {}),
-          ...(p.editorProps ?? {}),
-        },
-      }));
+      return (points || []).map((p) => {
+        const propsPayload = parsePropertiesPayload(p?.properties);
+        const pointFromProps = propsPayload?.point ?? {};
+        return {
+          ...pointFromProps,
+          ...p,
+          pointId: p.pointId ?? p.id,
+          x: pickCoordinate(p, "x") ?? pickCoordinate(pointFromProps, "x") ?? 0,
+          y: pickCoordinate(p, "y") ?? pickCoordinate(pointFromProps, "y") ?? 0,
+          editorProps: {
+            ...(propsPayload?.editorProps ?? {}),
+            ...(p.editorProps ?? {}),
+          },
+        };
+      });
     };
 
     // 转换路径数据（保留 geometry / layoutControlPoints 供折线预览）
@@ -1625,11 +1672,12 @@ const loadMapElements = async (
         const propsPayload = parsePropertiesPayload(l?.properties);
         const geometryFromProps = propsPayload?.geometry;
         const editorPropsFromProps = propsPayload?.editorProps;
+        const locationFromProps = propsPayload?.location ?? {};
         return {
-          ...(propsPayload?.location ?? {}),
+          ...locationFromProps,
           ...l,
-          x: l.x ?? l.xPosition ?? 0,
-          y: l.y ?? l.yPosition ?? 0,
+          x: pickCoordinate(l, "x") ?? pickCoordinate(locationFromProps, "x") ?? 0,
+          y: pickCoordinate(l, "y") ?? pickCoordinate(locationFromProps, "y") ?? 0,
           geometry: {
             ...(geometryFromProps && typeof geometryFromProps === "object"
               ? geometryFromProps

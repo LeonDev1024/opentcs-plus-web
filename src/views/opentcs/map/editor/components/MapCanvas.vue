@@ -329,7 +329,6 @@ import {
   POINT_TYPE_RADIUS,
 } from "@/utils/mapEditor/mapVisualTokens";
 import { POINT_TYPE, getPointVisualMeta } from "@/utils/mapEditor/pointStyle";
-import { getLocationTypeListForSelect } from "@/api/opentcs/map/location";
 import type { LocationVO } from "@/api/opentcs/map/location/types";
 import LocationEditDialog from "./LocationEditDialog.vue";
 
@@ -352,7 +351,7 @@ const updateMousePosition = (x: number, y: number) => {
 const locationTypeList = ref<LocationVO[]>([]);
 const loadLocationTypes = async () => {
   try {
-    locationTypeList.value = await getLocationTypeListForSelect();
+    locationTypeList.value = await mapEditorStore.fetchLocationTypeList();
     preloadLocationIconImages();
   } catch (e) {
     console.error("加载位置类型列表失败", e);

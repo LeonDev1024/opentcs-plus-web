@@ -131,7 +131,6 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import type { MapLocation } from '@/types/mapEditor';
-import { getLocationTypeListForSelect } from '@/api/opentcs/map/location';
 import type { LocationVO } from '@/api/opentcs/map/location/types';
 
 const mapEditorStore = useMapEditorStore();
@@ -141,7 +140,7 @@ const locationTypeOptions = ref<LocationVO[]>([]);
 
 const loadLocationTypes = async () => {
   try {
-    locationTypeOptions.value = await getLocationTypeListForSelect();
+    locationTypeOptions.value = await mapEditorStore.fetchLocationTypeList();
   } catch (e) {
     console.error('加载位置类型列表失败', e);
   }
