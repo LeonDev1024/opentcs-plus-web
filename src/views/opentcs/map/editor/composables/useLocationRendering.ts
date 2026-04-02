@@ -155,9 +155,14 @@ export function useLocationRendering(
     const centroid = getLocationCentroid(location)
     const labelText = location.name || location.id
     const isSelected = mapEditorStore.selection.selectedIds.has(location.id)
-    const offsetY = isRuleRegionLocation(location) ? 15 : 16
+
+    // 标签偏移：默认在右上方 (x = -10, y = -20)，可自定义调整
+    const labelOffset = location.editorProps?.labelOffset ?? { x: -30, y: -30 }
+    const offsetX = labelOffset.x
+    const offsetY = labelOffset.y
+
     return {
-      x: centroid.x, y: centroid.y + offsetY,
+      x: centroid.x + offsetX, y: centroid.y + offsetY,
       text: labelText,
       fontSize: 12,
       fontFamily: 'Arial, sans-serif',

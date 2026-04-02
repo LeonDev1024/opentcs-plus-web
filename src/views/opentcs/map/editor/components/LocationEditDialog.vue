@@ -108,7 +108,23 @@
       <el-form-item label="标签可见" prop="labelVisible">
         <el-switch v-model="formData.labelVisible" />
       </el-form-item>
-      
+
+      <el-form-item label="标签X偏移" prop="labelOffsetX">
+        <el-input-number
+          v-model="formData.labelOffsetX"
+          :step="1"
+          style="width: 100%"
+        />
+      </el-form-item>
+
+      <el-form-item label="标签Y偏移" prop="labelOffsetY">
+        <el-input-number
+          v-model="formData.labelOffsetY"
+          :step="1"
+          style="width: 100%"
+        />
+      </el-form-item>
+
       <el-form-item label="描述" prop="description">
         <el-input 
           v-model="formData.description" 
@@ -187,6 +203,8 @@ const formData = ref({
   strokeWidth: 2,
   label: '',
   labelVisible: true,
+  labelOffsetX: -30,
+  labelOffsetY: -30,
   description: ''
 });
 
@@ -223,6 +241,8 @@ watch(location, (newLocation) => {
       strokeWidth: newLocation.editorProps.strokeWidth || 2,
       label: newLocation.editorProps.label || '',
       labelVisible: newLocation.editorProps.labelVisible !== false,
+      labelOffsetX: newLocation.editorProps?.labelOffset?.x ?? -10,
+      labelOffsetY: newLocation.editorProps?.labelOffset?.y ?? -20,
       description: newLocation.description || ''
     };
   }
@@ -258,7 +278,11 @@ const handleSave = async () => {
         strokeColor: formData.value.strokeColor,
         strokeWidth: formData.value.strokeWidth,
         label: formData.value.label,
-        labelVisible: formData.value.labelVisible
+        labelVisible: formData.value.labelVisible,
+        labelOffset: {
+          x: formData.value.labelOffsetX,
+          y: formData.value.labelOffsetY
+        }
       }
     };
     

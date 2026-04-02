@@ -76,7 +76,23 @@
       <el-form-item label="描边颜色" prop="strokeColor">
         <el-color-picker v-model="formData.strokeColor" />
       </el-form-item>
-      
+
+      <el-form-item label="标签X偏移" prop="labelOffsetX">
+        <el-input-number
+          v-model="formData.labelOffsetX"
+          :step="1"
+          style="width: 100%"
+        />
+      </el-form-item>
+
+      <el-form-item label="标签Y偏移" prop="labelOffsetY">
+        <el-input-number
+          v-model="formData.labelOffsetY"
+          :step="1"
+          style="width: 100%"
+        />
+      </el-form-item>
+
       <el-form-item label="描述" prop="description">
         <el-input 
           v-model="formData.description" 
@@ -131,6 +147,8 @@ const formData = ref({
   radius: DEFAULT_POINT_OUTER_RADIUS,
   color: '#1890ff',
   strokeColor: undefined as string | undefined,
+  labelOffsetX: -30,
+  labelOffsetY: -30,
   description: ''
 });
 
@@ -160,6 +178,8 @@ watch(() => props.point, (point) => {
       radius: point.editorProps.radius ?? DEFAULT_POINT_OUTER_RADIUS,
       color: point.editorProps.color || '#1890ff',
       strokeColor: point.editorProps.strokeColor,
+      labelOffsetX: point.editorProps?.labelOffset?.x ?? -10,
+      labelOffsetY: point.editorProps?.labelOffset?.y ?? -20,
       description: point.description || ''
     };
   }
@@ -193,7 +213,11 @@ const handleSave = async () => {
         ...props.point.editorProps,
         radius: formData.value.radius,
         color: formData.value.color,
-        strokeColor: formData.value.strokeColor || undefined
+        strokeColor: formData.value.strokeColor || undefined,
+        labelOffset: {
+          x: formData.value.labelOffsetX,
+          y: formData.value.labelOffsetY
+        }
       }
     });
     

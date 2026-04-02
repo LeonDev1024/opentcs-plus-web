@@ -1399,6 +1399,7 @@ const handleStageAreaMouseDown = (e: any) => {
         strokeColor: "#000000",
         strokeWidth: 2,
         labelVisible: true,
+        labelOffset: { x: -30, y: -30 },
       },
     });
 
@@ -2216,6 +2217,7 @@ const completeLocationDrawing = () => {
       strokeColor: polygonStyle.strokeColor,
       strokeWidth: polygonStyle.strokeWidth,
       labelVisible: true,
+      labelOffset: { x: -30, y: -30 },
     },
   });
 
@@ -2365,7 +2367,8 @@ const handlePointClick = (point: MapPoint, e: any) => {
     return;
   }
 
-  if (currentTool.value !== ToolMode.SELECT) {
+  // 选择：在 SELECT 下允许编辑拖拽；在 PAN 下仅允许选中（用于查看属性）
+  if (currentTool.value !== ToolMode.SELECT && currentTool.value !== ToolMode.PAN) {
     return;
   }
 
@@ -2478,7 +2481,8 @@ const handlePointDragEnd = (point: MapPoint) => {
 // 路径点击
 const handlePathClick = (path: MapPath, e: any) => {
   e.cancelBubble = true;
-  if (currentTool.value !== ToolMode.SELECT) return;
+  // 选择：在 SELECT 下允许编辑拖拽；在 PAN 下仅允许选中（用于查看属性）
+  if (currentTool.value !== ToolMode.SELECT && currentTool.value !== ToolMode.PAN) return;
   const multiSelect = e.evt.ctrlKey || e.evt.metaKey;
   const shiftSelect = e.evt.shiftKey;
   mapEditorStore.selectElement(path.id, "path", multiSelect, shiftSelect);
@@ -2512,7 +2516,8 @@ const handleLocationClick = (location: MapLocation, e: any) => {
     cancelPathDrag(e.target.getStage());
   }
 
-  if (currentTool.value === ToolMode.SELECT) {
+  // 选择：在 SELECT 下允许编辑拖拽；在 PAN 下仅允许选中（用于查看属性）
+  if (currentTool.value === ToolMode.SELECT || currentTool.value === ToolMode.PAN) {
     const multiSelect = e.evt.ctrlKey || e.evt.metaKey;
     const shiftSelect = e.evt.shiftKey;
     mapEditorStore.selectElement(

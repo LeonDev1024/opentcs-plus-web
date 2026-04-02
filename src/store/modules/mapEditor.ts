@@ -2,7 +2,7 @@
  * 地图编辑器 Store
  */
 import { defineStore } from 'pinia';
-import { ref, reactive, computed, toRaw } from 'vue';
+import { ref, reactive, computed, toRaw, triggerRef } from 'vue';
 import type {
   MapEditorData,
   MapLayer,
@@ -70,11 +70,25 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const paths = ref<MapPath[]>([]);
   const locations = ref<MapLocation[]>([]);
   
-  // 选择状态
-  const selection = reactive<SelectionState>({
-    selectedIds: new Set<string>(),
-    selectedType: null
-  });
+  // 选择状态 - 使用 ref 包装 Set 以确保响应式
+  const selectedIds = ref(new Set<string>());
+  const selectedType = ref<string | null>(null);
+
+  /**
+   * 触发 selection 的响应式更新。
+   *
+   * 注意：直接对 Set 做 add/delete/clear 属于“原地修改”，Vue 对 Set 的 ref 包装下
+   * 不一定会触发依赖更新（尤其是 selectedType 不变时）。
+   * 这里通过替换 Set 引用，确保依赖 computed/watch 能重新运行。
+   */
+  const touchSelection = () => {
+    selectedIds.value = new Set<string>(Array.from(selectedIds.value).map(String));
+  };
+
+  const selection = computed(() => ({
+    selectedIds: selectedIds.value,
+    selectedType: selectedType.value
+  }));
   
   // 命令管理器（撤销/重做）
   const commandManager = new CommandManager();
@@ -289,7 +303,21 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         textColor: parsedEditorProps?.textColor ?? parsedLayoutEditorProps?.textColor ?? p?.editorProps?.textColor,
         icon: parsedEditorProps?.icon ?? parsedLayoutEditorProps?.icon ?? p?.editorProps?.icon,
         label: parsedEditorProps?.label ?? parsedLayoutEditorProps?.label ?? p?.editorProps?.label ?? p?.label,
-        labelVisible: parsedEditorProps?.labelVisible ?? parsedLayoutEditorProps?.labelVisible ?? p?.editorProps?.labelVisible ?? p?.labelVisible ?? true
+        labelVisible: parsedEditorProps?.labelVisible ?? parsedLayoutEditorProps?.labelVisible ?? p?.editorProps?.labelVisible ?? p?.labelVisible ?? true,
+        labelOffset: {
+          x:
+            toFiniteNumber(parsedEditorProps?.labelOffset?.x) ??
+            toFiniteNumber(parsedLayoutEditorProps?.labelOffset?.x) ??
+            toFiniteNumber(p?.editorProps?.labelOffset?.x) ??
+            toFiniteNumber(p?.labelOffset?.x) ??
+            -30,
+          y:
+            toFiniteNumber(parsedEditorProps?.labelOffset?.y) ??
+            toFiniteNumber(parsedLayoutEditorProps?.labelOffset?.y) ??
+            toFiniteNumber(p?.editorProps?.labelOffset?.y) ??
+            toFiniteNumber(p?.labelOffset?.y) ??
+            -30,
+        },
       }
     };
   };
@@ -513,7 +541,21 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         fillOpacity: parsedEditorProps?.fillOpacity ?? parsedLayoutEditorProps?.fillOpacity ?? l?.editorProps?.fillOpacity ?? 0.3,
         strokeColor: parsedEditorProps?.strokeColor ?? parsedLayoutEditorProps?.strokeColor ?? l?.editorProps?.strokeColor ?? '#2196F3',
         strokeWidth: parsedEditorProps?.strokeWidth ?? parsedLayoutEditorProps?.strokeWidth ?? l?.editorProps?.strokeWidth ?? 1,
-        labelVisible: parsedEditorProps?.labelVisible ?? parsedLayoutEditorProps?.labelVisible ?? l?.editorProps?.labelVisible ?? true
+        labelVisible: parsedEditorProps?.labelVisible ?? parsedLayoutEditorProps?.labelVisible ?? l?.editorProps?.labelVisible ?? true,
+        labelOffset: {
+          x:
+            toFiniteNumber(parsedEditorProps?.labelOffset?.x) ??
+            toFiniteNumber(parsedLayoutEditorProps?.labelOffset?.x) ??
+            toFiniteNumber(l?.editorProps?.labelOffset?.x) ??
+            toFiniteNumber(l?.labelOffset?.x) ??
+            -30,
+          y:
+            toFiniteNumber(parsedEditorProps?.labelOffset?.y) ??
+            toFiniteNumber(parsedLayoutEditorProps?.labelOffset?.y) ??
+            toFiniteNumber(l?.editorProps?.labelOffset?.y) ??
+            toFiniteNumber(l?.labelOffset?.y) ??
+            -30,
+        },
       }
     };
   };
@@ -583,18 +625,18 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const selectedElements = computed(() => {
     const elements: Array<MapPoint | MapPath | MapLocation> = [];
 
-    if (selection.selectedType === 'point') {
-      selection.selectedIds.forEach(id => {
+    if (selectedType.value === 'point') {
+      selectedIds.value.forEach(id => {
         const point = pointsMap.value.get(id);
         if (point) elements.push(point);
       });
-    } else if (selection.selectedType === 'path') {
-      selection.selectedIds.forEach(id => {
+    } else if (selectedType.value === 'path') {
+      selectedIds.value.forEach(id => {
         const path = pathsMap.value.get(id);
         if (path) elements.push(path);
       });
-    } else if (selection.selectedType === 'location') {
-      selection.selectedIds.forEach(id => {
+    } else if (selectedType.value === 'location') {
+      selectedIds.value.forEach(id => {
         const location = locationsMap.value.get(id);
         if (location) elements.push(location);
       });
@@ -604,10 +646,10 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   });
 
   // 选中的元素数量
-  const selectedCount = computed(() => selection.selectedIds.size);
+  const selectedCount = computed(() => selectedIds.value.size);
 
   // 是否有选中元素
-  const hasSelection = computed(() => selection.selectedIds.size > 0);
+  const hasSelection = computed(() => selectedIds.value.size > 0);
 
   // 是否可以撤销
   const canUndo = computed(() => commandManager.canUndo());
@@ -1230,7 +1272,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       });
 
       // 从选择中移除
-      selection.selectedIds.delete(id);
+      selectedIds.value.delete(id);
+      touchSelection();
 
       isDirty.value = true;
     }
@@ -1422,18 +1465,18 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
    * 批量锁定选中的元素
    */
   const lockSelectedElements = (lock: boolean = true) => {
-    if (selection.selectedType === 'point') {
-      selection.selectedIds.forEach(id => {
+    if (selectedType.value === 'point') {
+      selectedIds.value.forEach(id => {
         const point = points.value.find(p => p.id === id);
         if (point) point.locked = lock;
       });
-    } else if (selection.selectedType === 'path') {
-      selection.selectedIds.forEach(id => {
+    } else if (selectedType.value === 'path') {
+      selectedIds.value.forEach(id => {
         const path = paths.value.find(p => p.id === id);
         if (path) path.locked = lock;
       });
-    } else if (selection.selectedType === 'location') {
-      selection.selectedIds.forEach(id => {
+    } else if (selectedType.value === 'location') {
+      selectedIds.value.forEach(id => {
         const location = locations.value.find(l => l.id === id);
         if (location) location.locked = lock;
       });
@@ -1465,17 +1508,18 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const selectElement = (id: string, type: 'point' | 'path' | 'location' | 'layout', multiSelect = false, shiftSelect = false) => {
     if (shiftSelect || multiSelect) {
       // 追加模式：不清除现有选择
-      if (selection.selectedIds.has(id)) {
+      if (selectedIds.value.has(id)) {
         // 如果已经选中，则取消选中
-        selection.selectedIds.delete(id);
+        selectedIds.value.delete(id);
       } else {
-        selection.selectedIds.add(id);
+        selectedIds.value.add(id);
       }
     } else {
-      selection.selectedIds.clear();
-      selection.selectedIds.add(id);
+      selectedIds.value.clear();
+      selectedIds.value.add(id);
     }
-    selection.selectedType = type;
+    selectedType.value = type;
+    touchSelection();
   };
 
   /**
@@ -1486,38 +1530,42 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
    */
   const selectElements = (ids: string[], type: 'point' | 'path' | 'location', append = false) => {
     if (!append) {
-      selection.selectedIds.clear();
+      selectedIds.value.clear();
     }
-    ids.forEach(id => selection.selectedIds.add(id));
-    selection.selectedType = type;
+    ids.forEach(id => selectedIds.value.add(id));
+    selectedType.value = type;
+    touchSelection();
   };
 
   /**
    * 全选所有元素
    */
   const selectAll = () => {
-    selection.selectedIds.clear();
-    points.value.forEach(p => selection.selectedIds.add(p.id));
-    paths.value.forEach(p => selection.selectedIds.add(p.id));
-    locations.value.forEach(l => selection.selectedIds.add(l.id));
+    selectedIds.value.clear();
+    points.value.forEach(p => selectedIds.value.add(p.id));
+    paths.value.forEach(p => selectedIds.value.add(p.id));
+    locations.value.forEach(l => selectedIds.value.add(l.id));
     // 选中多种类型时，selectedType 设为 null 表示多类型选择
-    selection.selectedType = null;
+    selectedType.value = null;
+    touchSelection();
   };
 
   /**
    * 取消选择
    */
   const clearSelection = () => {
-    selection.selectedIds.clear();
-    selection.selectedType = null;
+    selectedIds.value.clear();
+    selectedType.value = null;
+    touchSelection();
   };
 
   /**
    * 选择布局（清除元素选择）
    */
   const selectLayout = () => {
-    selection.selectedIds.clear();
-    selection.selectedType = 'layout';
+    selectedIds.value.clear();
+    selectedType.value = 'layout';
+    touchSelection();
   };
 
   /**
@@ -1528,7 +1576,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     const copiedPaths: MapPath[] = [];
     const copiedLocations: MapLocation[] = [];
 
-    selection.selectedIds.forEach(id => {
+    selectedIds.value.forEach(id => {
       const point = pointsMap.value.get(id);
       if (point) {
         copiedPoints.push({ ...point });
@@ -1925,6 +1973,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     paths,
     locations,
     selection,
+    selectedIds,
+    selectedType,
     loading,
     isDirty,
     rasterBackground,

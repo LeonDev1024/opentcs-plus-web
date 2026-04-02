@@ -24,7 +24,7 @@
       <v-layer>
         <template
           v-for="location in visibleLocations"
-          :key="`loc-${location.id}`"
+          :key="locationRenderKey(location)"
         >
           <!-- 业务位置：矩形 -->
           <v-rect
@@ -58,7 +58,7 @@
 
       <!-- 点位层 -->
       <v-layer>
-        <template v-for="point in visiblePoints" :key="`pt-${point.id}`">
+        <template v-for="point in visiblePoints" :key="pointRenderKey(point)">
           <!-- 靶心外圈 -->
           <v-circle :config="getPointBullseyeOuterConfig(point)" />
           <!-- 靶心内圈 -->
@@ -87,11 +87,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, shallowRef, onMounted } from "vue";
+import { ref, computed, shallowRef, onMounted, watch } from "vue";
 import type { MapPoint, MapPath, MapLocation } from "@/types/mapEditor";
 import {
   getPointVisualMeta,
   resolvePointBullseyeStyleReadonly,
+  updateConnectedPointIds,
 } from "@/utils/mapEditor/pointStyle";
 import { getLocationTypeListForSelect } from "@/api/opentcs/map/location";
 import type { LocationVO } from "@/api/opentcs/map/location/types";
@@ -132,6 +133,22 @@ const props = withDefaults(defineProps<Props>(), {
 const emit = defineEmits<{
   (e: "scaleChange", scale: number): void;
 }>();
+
+/** Vue/Konva 列表项 key：id 与 pointId 同时参与，避免 id 缺失或重复时只渲染一个点 */
+function pointRenderKey(point: MapPoint) {
+  return `pt-${String(point.id)}-${String((point as any).pointId ?? "")}`;
+}
+function locationRenderKey(location: MapLocation) {
+  return `loc-${String(location.id)}-${String((location as any).locationId ?? "")}`;
+}
+
+watch(
+  () => props.paths,
+  (paths) => {
+    updateConnectedPointIds(paths ?? []);
+  },
+  { immediate: true, deep: true },
+);
 
 // ==================== 常量 ====================
 const PATH_RIBBON_STROKE_WIDTH = 18;
@@ -258,7 +275,6 @@ const stageConfig = computed(() => {
     stageY = centerY - bounds.cy * props.scale;
   }
 
-  // 翻转 Y 轴以匹配父容器的 scaleY(-1)
   const scaleYFinal = props.flipY ? -props.scale : props.scale;
 
   return {
@@ -275,6 +291,9 @@ const stageConfig = computed(() => {
 const visiblePoints = computed(() => props.points || []);
 const visiblePaths = computed(() => props.paths || []);
 const visibleLocations = computed(() => props.locations || []);
+
+// 与地图编辑器 MapCanvas 一致：Stage 正缩放，标签不额外翻转
+const labelScaleY = 1;
 
 function getLocationCentroid(location: MapLocation): { x: number; y: number } {
   const vertices = (location as any)?.geometry?.vertices;
@@ -352,9 +371,15 @@ function getPointLabelConfig(point: MapPoint) {
   const visual = getPointVisualMeta(point);
   const pos = transformPoint(Number(point.x ?? 0), Number(point.y ?? 0));
   const labelText = point.name || point.id;
+
+  // 标签偏移：默认在右上方 (x = -10, y = -20)，可自定义调整
+  const labelOffset = point.editorProps?.labelOffset ?? { x: -30, y: -30 };
+  const offsetX = labelOffset.x;
+  const offsetY = labelOffset.y;
+
   return {
-    x: pos.x,
-    y: pos.y + visual.radius + 8,
+    x: pos.x + offsetX,
+    y: pos.y + offsetY,
     text: String(labelText ?? ""),
     fontSize: 12,
     fontFamily: "Arial, sans-serif",
@@ -362,8 +387,7 @@ function getPointLabelConfig(point: MapPoint) {
     align: "center",
     verticalAlign: "top",
     padding: 2,
-    // 预览层 scaleY(-1)，反向保证文字正向可读
-    scaleY: -1,
+    scaleY: labelScaleY,
     listening: false,
     perfectDrawEnabled: false,
   };
@@ -392,7 +416,7 @@ function getPointGlyphConfig(point: MapPoint) {
     height: visual.radius * 2,
     offsetX: visual.radius,
     offsetY: visual.radius,
-    scaleY: -1,
+    scaleY: labelScaleY,
     listening: false,
   };
 }
@@ -423,7 +447,7 @@ function getPathConfig(path: MapPath) {
   const isDashedLine = path.editorProps?.lineStyle === "dashed";
 
   return {
-    id: path.id,
+    id: String(path.id),
     points,
     stroke,
     strokeWidth,
@@ -666,8 +690,7 @@ function getLocationIconConfig(location: MapLocation) {
     height: size,
     offsetX: size / 2,
     offsetY: size / 2,
-    // 抵消预览层的 Y 翻转，保证图标方向与编辑器一致
-    scaleY: -1,
+    scaleY: labelScaleY,
     listening: false,
   };
 }
@@ -684,7 +707,7 @@ function getLocationSymbolConfig(location: MapLocation) {
     fill: "#ffffff",
     offsetX: 3,
     offsetY: 4,
-    scaleY: -1,
+    scaleY: labelScaleY,
     listening: false,
   };
 }
@@ -699,9 +722,14 @@ function getLocationLabelConfig(location: MapLocation) {
   const c = getLocationCentroid(location);
   const pos = transformPoint(c.x, c.y);
   const labelText = location.name || location.id;
-  const offsetY = isRuleRegionLocation(location) ? 15 : 16;
+
+  // 标签偏移：默认在右上方 (x = -10, y = -20)，可自定义调整
+  const labelOffset = location.editorProps?.labelOffset ?? { x: -30, y: -30 };
+  const offsetX = labelOffset.x;
+  const offsetY = labelOffset.y;
+
   return {
-    x: pos.x,
+    x: pos.x + offsetX,
     y: pos.y + offsetY,
     text: String(labelText ?? ""),
     fontSize: 12,
@@ -710,7 +738,7 @@ function getLocationLabelConfig(location: MapLocation) {
     align: "center",
     verticalAlign: "top",
     padding: 2,
-    scaleY: -1,
+    scaleY: labelScaleY,
     listening: false,
     perfectDrawEnabled: false,
   };
