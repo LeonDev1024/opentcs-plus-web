@@ -19,7 +19,9 @@ import type {
 import { ToolMode as ToolModeEnum, LayerType } from '@/types/mapEditor';
 import { CommandManager } from '@/utils/mapEditor/command';
 import { loadMapEditorData, saveMapEditorData, saveMap as saveMapApi } from '@/api/opentcs/map';
+import { getLocationTypeListForSelect } from '@/api/opentcs/map/location';
 import type { MapEditorResponse, VisualLayoutData } from '@/api/opentcs/map/types';
+import type { LocationVO } from '@/api/opentcs/map/location/types';
 
 export const useMapEditorStore = defineStore('mapEditor', () => {
   // ==================== 状态 ====================
@@ -27,8 +29,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   // 当前地图数据
   const mapData = ref<MapEditorData | null>(null);
   
-  // 当前地图模型ID
-  const currentMapModelId = ref<string | number | null>(null);
+  // 当前地图业务标识（mapId）
+  const currentMapId = ref<string | null>(null);
   
   // 当前工具模式
   const currentTool = ref<ToolMode>(ToolModeEnum.SELECT);
@@ -111,6 +113,10 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const versionHistory = ref<VersionSnapshot[]>([]);
   const maxVersionHistory = 20; // 最多保存20个版本
 
+  // 位置类型列表（缓存，避免重复请求）
+  const locationTypeList = ref<LocationVO[]>([]);
+  const locationTypeLoaded = ref(false);
+
   /** 创建默认图层组与图层（新地图无图层时使用） */
   const createDefaultLayerStructure = (): { layerGroups: LayerGroup[]; layers: MapLayer[] } => {
     const groupId = `layer_group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -168,6 +174,58 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     }));
   };
 
+  const toFiniteNumber = (raw: unknown): number | undefined => {
+    if (raw === null || raw === undefined) return undefined;
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : undefined;
+    const normalized = String(raw).trim().replace(',', '.');
+    if (!normalized) return undefined;
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
+  const parseNameValueArray = (value: unknown): Record<string, any> => {
+    if (!Array.isArray(value)) return {};
+    const out: Record<string, any> = {};
+    for (const item of value) {
+      if (!item || typeof item !== 'object') continue;
+      const key = (item as any).name ?? (item as any).key;
+      if (!key) continue;
+      out[String(key)] = (item as any).value;
+    }
+    return out;
+  };
+
+  const parseLayoutJson = (value: unknown): Record<string, any> => {
+    if (!value) return {};
+    if (typeof value === 'object') return value as Record<string, any>;
+    if (typeof value !== 'string') return {};
+    try {
+      const parsed = JSON.parse(value);
+      return (parsed && typeof parsed === 'object') ? parsed : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const pickCoordinate = (target: any, axis: 'x' | 'y'): number | undefined => {
+    const upper = axis.toUpperCase();
+    const candidates = [
+      target?.[axis],
+      target?.[`${axis}Position`],
+      target?.[`${axis}position`],
+      target?.[`position${upper}`],
+      target?.position?.[axis],
+      target?.pose?.[axis],
+      target?.coordinate?.[axis],
+      target?.coords?.[axis]
+    ];
+    for (const c of candidates) {
+      const n = toFiniteNumber(c);
+      if (n !== undefined) return n;
+    }
+    return undefined;
+  };
+
   /** 将后端图层转为前端格式（id 转 string，ordinal->zIndex，补 type/opacity/locked/elementIds） */
   const normalizeLayers = (raw: Record<string, any>[], layerGroupIdMap: Map<string | number, string>): MapLayer[] => {
     if (!Array.isArray(raw)) return [];
@@ -194,42 +252,51 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const normalizePoint = (p: Record<string, any>, defaultLayerId: string): MapPoint => {
     const id = p?.id != null ? String(p.id) : `point_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const pointId = p?.pointId ?? p?.id; // 保留后端的 pointId 用于路径关联
-    const x = p?.x ?? (p?.xPosition != null ? Number(p.xPosition) : 0);
-    const y = p?.y ?? (p?.yPosition != null ? Number(p.yPosition) : 0);
-    // 解析 properties 中的 editorProps
+    // 解析 properties 中的 point/editorProps（兼容后端仅在 properties 内保存坐标的场景）
+    let parsedPointProps: any = {};
     let parsedEditorProps: any = {};
     if (p?.properties) {
       try {
         const parsed = typeof p.properties === 'string' ? JSON.parse(p.properties) : p.properties;
-        parsedEditorProps = parsed?.editorProps || {};
+        const normalizedParsed = Array.isArray(parsed) ? parseNameValueArray(parsed) : parsed;
+        parsedPointProps = normalizedParsed?.point || normalizedParsed?.Point || {};
+        parsedEditorProps = normalizedParsed?.editorProps || normalizedParsed?.EditorProps || {};
       } catch (e) {
         // 忽略解析错误
       }
     }
+    const parsedLayout = parseLayoutJson(p?.layout);
+    const parsedLayoutEditorProps = parsedLayout?.editorProps && typeof parsedLayout.editorProps === 'object'
+      ? parsedLayout.editorProps
+      : {};
+    const x = pickCoordinate(p, 'x') ?? pickCoordinate(parsedLayout, 'x') ?? pickCoordinate(parsedPointProps, 'x') ?? 0;
+    const y = pickCoordinate(p, 'y') ?? pickCoordinate(parsedLayout, 'y') ?? pickCoordinate(parsedPointProps, 'y') ?? 0;
     return {
+      ...parsedPointProps,
       ...p,
       id,
       pointId, // 保存 pointId 到前端模型
-      layerId: p?.layerId ?? defaultLayerId,
+      layerId: p?.layerId ?? parsedLayout?.layerId ?? defaultLayerId,
       name: p?.name ?? id,
       x,
       y,
       z: p?.z ?? (p?.zPosition != null ? Number(p.zPosition) : undefined),
       status: p?.status ?? 'active',
       editorProps: {
-        radius: parsedEditorProps?.radius ?? p?.editorProps?.radius ?? p?.radius ?? 20,
-        color: parsedEditorProps?.color ?? p?.editorProps?.color ?? '#4CAF50',
-        strokeColor: parsedEditorProps?.strokeColor ?? p?.editorProps?.strokeColor,
-        textColor: parsedEditorProps?.textColor ?? p?.editorProps?.textColor,
-        icon: parsedEditorProps?.icon ?? p?.editorProps?.icon,
-        label: parsedEditorProps?.label ?? p?.editorProps?.label ?? p?.label,
-        labelVisible: parsedEditorProps?.labelVisible ?? p?.editorProps?.labelVisible ?? p?.labelVisible ?? true
+        radius: parsedEditorProps?.radius ?? parsedLayoutEditorProps?.radius ?? p?.editorProps?.radius ?? p?.radius ?? 20,
+        color: parsedEditorProps?.color ?? parsedLayoutEditorProps?.color ?? p?.editorProps?.color ?? '#4CAF50',
+        strokeColor: parsedEditorProps?.strokeColor ?? parsedLayoutEditorProps?.strokeColor ?? p?.editorProps?.strokeColor,
+        textColor: parsedEditorProps?.textColor ?? parsedLayoutEditorProps?.textColor ?? p?.editorProps?.textColor,
+        icon: parsedEditorProps?.icon ?? parsedLayoutEditorProps?.icon ?? p?.editorProps?.icon,
+        label: parsedEditorProps?.label ?? parsedLayoutEditorProps?.label ?? p?.editorProps?.label ?? p?.label,
+        labelVisible: parsedEditorProps?.labelVisible ?? parsedLayoutEditorProps?.labelVisible ?? p?.editorProps?.labelVisible ?? p?.labelVisible ?? true
       }
     };
   };
 
   /** 将后端路径转为前端 MapPath（sourcePointId/destPointId->startPointId/endPointId，id 转 string，补 geometry/editorProps） */
   const normalizePath = (p: Record<string, any>, defaultLayerId: string, allPoints?: any[]): MapPath => {
+    const parsedLayout = parseLayoutJson(p?.layout);
     const id = p?.id != null ? String(p.id) : `path_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     // 注意：后端不同版本里 start/end 可能并不等于前端点位的 id
     // 后续我们会在成功解析出起终点坐标时，把 startPointId/endPointId 规范回“点位 id”
@@ -243,12 +310,14 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
 
     // 1) 如果后端直接提供了布局控制点（layoutControlPoints），优先使用它
     const layoutControlPoints = p?.layoutControlPoints;
+    const layoutPoints = Array.isArray(parsedLayout?.controlPoints) ? parsedLayout.controlPoints : [];
+    const mergedLayoutPoints = layoutControlPoints && layoutControlPoints.length > 0 ? layoutControlPoints : layoutPoints;
     if (
       geometry.controlPoints.length === 0
-      && Array.isArray(layoutControlPoints)
-      && layoutControlPoints.length >= 2
+      && Array.isArray(mergedLayoutPoints)
+      && mergedLayoutPoints.length >= 2
     ) {
-      geometry.controlPoints = layoutControlPoints
+      geometry.controlPoints = mergedLayoutPoints
         .map((cp: any, index: number) => ({
           id: `cp_${id}_lp_${index}`,
           x: Number(cp?.x ?? cp?.xPosition ?? 0),
@@ -365,12 +434,15 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     return {
       ...p,
       id,
-      layerId: p?.layerId ?? defaultLayerId,
+      layerId: p?.layerId ?? parsedLayout?.layerId ?? defaultLayerId,
       name: p?.name ?? id,
       startPointId,
       endPointId,
       status: p?.status ?? 'active',
-      geometry,
+      geometry: {
+        ...geometry,
+        pathType: p?.geometry?.pathType || parsedLayout?.pathType || 'line'
+      },
       editorProps: {
         strokeColor: parsedEditorProps?.strokeColor ?? p?.editorProps?.strokeColor ?? '#2196F3',
         strokeWidth: parsedEditorProps?.strokeWidth ?? p?.editorProps?.strokeWidth ?? 2,
@@ -385,48 +457,63 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
 
   /** 将后端位置转为前端 MapLocation（xPosition/yPosition->x/y，id 转 string，补 geometry/editorProps） */
   const normalizeLocation = (l: Record<string, any>, defaultLayerId: string): MapLocation => {
+    const parsedLayout = parseLayoutJson(l?.layout);
+    const parsedLayoutEditorProps = parsedLayout?.editorProps && typeof parsedLayout.editorProps === 'object'
+      ? parsedLayout.editorProps
+      : {};
+    const parsedLayoutGeometry = parsedLayout?.geometry && typeof parsedLayout.geometry === 'object'
+      ? parsedLayout.geometry
+      : undefined;
     const id = l?.id != null ? String(l.id) : `location_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const x = l?.x ?? (l?.xPosition != null ? Number(l.xPosition) : 0);
-    const y = l?.y ?? (l?.yPosition != null ? Number(l.yPosition) : 0);
-    const geometry = l?.geometry ?? {
-      vertices: [
-        { id: `v_${id}_0`, x, y },
-        { id: `v_${id}_1`, x: x + 100, y },
-        { id: `v_${id}_2`, x: x + 100, y: y + 100 },
-        { id: `v_${id}_3`, x, y: y + 100 }
-      ],
-      closed: true
-    };
-    if (geometry && typeof geometry.closed === 'undefined') geometry.closed = true;
-    // 解析 properties 中的 editorProps 和 geometry
+    // 解析 properties 中的 location/editorProps/geometry
+    let parsedLocationProps: any = {};
     let parsedEditorProps: any = {};
-    let parsedGeometry = geometry;
+    let parsedGeometry: any = parsedLayoutGeometry ?? l?.geometry;
     if (l?.properties) {
       try {
         const parsed = typeof l.properties === 'string' ? JSON.parse(l.properties) : l.properties;
-        parsedEditorProps = parsed?.editorProps || {};
-        if (parsed?.geometry) {
-          parsedGeometry = parsed.geometry;
+        const normalizedParsed = Array.isArray(parsed) ? parseNameValueArray(parsed) : parsed;
+        parsedLocationProps = normalizedParsed?.location || normalizedParsed?.Location || {};
+        parsedEditorProps = normalizedParsed?.editorProps || normalizedParsed?.EditorProps || {};
+        if (normalizedParsed?.geometry) {
+          parsedGeometry = normalizedParsed.geometry;
         }
       } catch (e) {
         // 忽略解析错误
       }
     }
+    const normalizedX = pickCoordinate(l, 'x') ?? pickCoordinate(parsedLayout, 'x') ?? pickCoordinate(parsedLocationProps, 'x') ?? 0;
+    const normalizedY = pickCoordinate(l, 'y') ?? pickCoordinate(parsedLayout, 'y') ?? pickCoordinate(parsedLocationProps, 'y') ?? 0;
+    if (!parsedGeometry) {
+      parsedGeometry = {
+        vertices: [
+          { id: `v_${id}_0`, x: normalizedX, y: normalizedY },
+          { id: `v_${id}_1`, x: normalizedX + 100, y: normalizedY },
+          { id: `v_${id}_2`, x: normalizedX + 100, y: normalizedY + 100 },
+          { id: `v_${id}_3`, x: normalizedX, y: normalizedY + 100 }
+        ],
+        closed: true
+      };
+    }
+    if (parsedGeometry && typeof parsedGeometry.closed === 'undefined') {
+      parsedGeometry.closed = true;
+    }
     return {
+      ...parsedLocationProps,
       ...l,
       id,
-      layerId: l?.layerId ?? defaultLayerId,
+      layerId: l?.layerId ?? parsedLayout?.layerId ?? defaultLayerId,
       name: l?.name ?? id,
-      x,
-      y,
+      x: normalizedX,
+      y: normalizedY,
       status: l?.status ?? 'active',
       geometry: parsedGeometry,
       editorProps: {
-        fillColor: parsedEditorProps?.fillColor ?? l?.editorProps?.fillColor ?? 'rgba(33, 150, 243, 0.3)',
-        fillOpacity: parsedEditorProps?.fillOpacity ?? l?.editorProps?.fillOpacity ?? 0.3,
-        strokeColor: parsedEditorProps?.strokeColor ?? l?.editorProps?.strokeColor ?? '#2196F3',
-        strokeWidth: parsedEditorProps?.strokeWidth ?? l?.editorProps?.strokeWidth ?? 1,
-        labelVisible: parsedEditorProps?.labelVisible ?? l?.editorProps?.labelVisible ?? true
+        fillColor: parsedEditorProps?.fillColor ?? parsedLayoutEditorProps?.fillColor ?? l?.editorProps?.fillColor ?? 'rgba(33, 150, 243, 0.3)',
+        fillOpacity: parsedEditorProps?.fillOpacity ?? parsedLayoutEditorProps?.fillOpacity ?? l?.editorProps?.fillOpacity ?? 0.3,
+        strokeColor: parsedEditorProps?.strokeColor ?? parsedLayoutEditorProps?.strokeColor ?? l?.editorProps?.strokeColor ?? '#2196F3',
+        strokeWidth: parsedEditorProps?.strokeWidth ?? parsedLayoutEditorProps?.strokeWidth ?? l?.editorProps?.strokeWidth ?? 1,
+        labelVisible: parsedEditorProps?.labelVisible ?? parsedLayoutEditorProps?.labelVisible ?? l?.editorProps?.labelVisible ?? true
       }
     };
   };
@@ -529,14 +616,32 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const canRedo = computed(() => commandManager.canRedo());
   
   // ==================== Actions ====================
-  
+
+  /**
+   * 获取位置类型列表（带缓存）
+   */
+  const fetchLocationTypeList = async (): Promise<LocationVO[]> => {
+    if (locationTypeLoaded.value && locationTypeList.value.length > 0) {
+      return locationTypeList.value;
+    }
+    try {
+      const list = await getLocationTypeListForSelect();
+      locationTypeList.value = list;
+      locationTypeLoaded.value = true;
+      return list;
+    } catch (e) {
+      console.error('获取位置类型列表失败', e);
+      return [];
+    }
+  };
+
   /**
    * 加载地图数据
    */
   const loadMap = async (mapId: string | number) => {
     try {
       loading.value = true;
-      currentMapModelId.value = mapId;
+      currentMapId.value = String(mapId);
       
       // 从后端加载地图编辑器数据
       let data: MapEditorData;
@@ -547,12 +652,37 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         // 1) 经过拦截器处理后的纯业务数据：{ name, mapId, ... }
         // 2) 原始 R 包装：{ code, msg, data: { name, mapId, ... } }
         const raw = response as unknown as MapEditorResponse & { data?: MapEditorResponse };
+        const inner = raw && (raw as any).data;
         const apiData: MapEditorResponse =
-          raw && (raw as any).data && ((raw as any).data as any).mapId !== undefined
-            ? ((raw as any).data as MapEditorResponse)
+          inner != null &&
+          (inner.mapId !== undefined ||
+            inner.mapInfo?.mapId !== undefined ||
+            inner.name !== undefined ||
+            Array.isArray(inner.points))
+            ? (inner as MapEditorResponse)
             : raw;
 
-        if (apiData && (apiData.name || apiData.visualLayout || apiData.layerGroups || apiData.layers)) {
+        const mi = apiData.mapInfo;
+        const flatHeader = {
+          mapId: mi?.mapId ?? apiData.mapId,
+          name: mi?.name ?? apiData.name,
+          mapVersion: mi?.mapVersion ?? apiData.modelVersion,
+          status: mi?.status ?? apiData.status,
+          originX: mi?.originX ?? apiData.originX,
+          originY: mi?.originY ?? apiData.originY,
+          rotation: mi?.rotation ?? apiData.rotation,
+          createTime: mi?.createTime ?? apiData.createTime,
+          updateTime: mi?.updateTime ?? apiData.updateTime
+        };
+
+        if (
+          apiData &&
+          (flatHeader.mapId != null ||
+            flatHeader.name ||
+            apiData.visualLayout ||
+            apiData.layerGroups ||
+            apiData.layers)
+        ) {
           const visualLayout = apiData.visualLayout || {};
           // 图层/图层组优先取顶层的 layerGroups/layers；如果没有再退到 visualLayout 里的配置
           const rawLayerGroups =
@@ -583,9 +713,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
 
           data = {
             mapInfo: {
-              id: apiData.mapId || mapId,
-              name: apiData.name || '新地图',
-              mapVersion: apiData.modelVersion || '1.0',
+              id: flatHeader.mapId || mapId,
+              name: flatHeader.name || '新地图',
+              mapVersion: flatHeader.mapVersion || '1.0',
               description: apiData.description || '',
               width: 1920,
               height: 1080,
@@ -595,9 +725,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               offsetY: 0,
               scaleX: parseFloat(String(visualLayout.scaleX)) || 50.0,
               scaleY: parseFloat(String(visualLayout.scaleY)) || 50.0,
-              originX: apiData.originX != null ? Number(apiData.originX) : 0,
-              originY: apiData.originY != null ? Number(apiData.originY) : 0,
-              rotation: apiData.rotation != null ? Number(apiData.rotation) : 0
+              originX: flatHeader.originX != null ? Number(flatHeader.originX) : 0,
+              originY: flatHeader.originY != null ? Number(flatHeader.originY) : 0,
+              rotation: flatHeader.rotation != null ? Number(flatHeader.rotation) : 0
             },
             layerGroups: normalizedGroups,
             layers: normalizedLayers,
@@ -607,8 +737,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               locations: rawLocations.map((l: Record<string, any>) => normalizeLocation(l, defaultLocationLayerId))
             },
             metadata: {
-              createdAt: apiData.createTime || new Date().toISOString(),
-              updatedAt: apiData.updateTime || new Date().toISOString()
+              createdAt: flatHeader.createTime || new Date().toISOString(),
+              updatedAt: flatHeader.updateTime || new Date().toISOString()
             },
             visualLayout: visualLayout as any
           };
@@ -631,13 +761,14 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           const rloc = Array.isArray(apiData.elements?.locations) ? apiData.elements.locations : (Array.isArray(apiData.locations) ? apiData.locations : []);
           data = {
             mapInfo: {
-              id: apiData.mapId || apiData.mapInfo?.id || mapId,
+              // id 保留数据库主键兼容；编辑器主标识统一使用 mapId
+              id: apiData.mapInfo?.id || apiData.mapId || mapId,
               name: apiData.mapInfo?.name || '新地图',
-              mapVersion: apiData.mapInfo.modelVersion || '1.0',
+              mapVersion: apiData.mapInfo.modelVersion || apiData.mapInfo.mapVersion || '1.0',
               description: apiData.mapInfo.description || '',
-              width: parseFloat(apiData.mapInfo.layoutWidth) || 1920,
-              height: parseFloat(apiData.mapInfo.layoutHeight) || 1080,
-              scale: parseFloat(apiData.mapInfo.scale) || 1,
+              width: parseFloat(String(apiData.mapInfo.layoutWidth ?? '')) || 1920,
+              height: parseFloat(String(apiData.mapInfo.layoutHeight ?? '')) || 1080,
+              scale: parseFloat(String(apiData.mapInfo.scale ?? '')) || 1,
               offsetX: 0,
               offsetY: 0,
               scaleX: 50.0,
@@ -750,8 +881,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
    * 保存地图数据
    */
   const saveMapEditor = async () => {
-    if (!currentMapModelId.value) {
-      throw new Error('没有可保存的地图模型ID');
+    if (!currentMapId.value) {
+      throw new Error('没有可保存的地图 mapId');
     }
     
     try {
@@ -777,7 +908,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
 
       // 验证数据
       if (!mapData.value.mapInfo.name) {
-        mapData.value.mapInfo.name = `地图_${currentMapModelId.value}`;
+        mapData.value.mapInfo.name = `地图_${currentMapId.value}`;
       }
 
       // 使用 toRaw 获取原始数据，避免循环引用
@@ -797,6 +928,27 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         return Number.isFinite(n) ? n : null;
       };
 
+      const buildStableNumericIdMap = (items: any[]): Map<string, number> => {
+        const result = new Map<string, number>();
+        let tempId = -1;
+        for (const item of items || []) {
+          const rawId = item?.id;
+          if (rawId == null) continue;
+          const key = String(rawId);
+          const numeric = toLongOrNull(rawId);
+          if (numeric != null) {
+            result.set(key, numeric);
+          } else if (!result.has(key)) {
+            result.set(key, tempId);
+            tempId -= 1;
+          }
+        }
+        return result;
+      };
+
+      const layerGroupIdMap = buildStableNumericIdMap(rawData.layerGroups || []);
+      const layerIdMap = buildStableNumericIdMap(rawData.layers || []);
+
       const serializePoints = (pointsToSave: any[]) => {
         return (pointsToSave || []).map((p) => {
           const pointId = p?.id != null ? String(p.id) : undefined;
@@ -805,7 +957,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             id: null,
             // point_id 在库里是 NOT NULL
             pointId: pointId || `point_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-            layerId: toLongOrNull(p?.layerId),
+            layerId: (p?.layerId != null ? (layerIdMap.get(String(p.layerId)) ?? toLongOrNull(p.layerId)) : null),
             name: p?.name ?? pointId,
             xPosition: toNumberOrNull(p?.x) ?? toNumberOrNull(p?.xPosition) ?? 0,
             yPosition: toNumberOrNull(p?.y) ?? toNumberOrNull(p?.yPosition) ?? 0,
@@ -814,6 +966,12 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             radius: toNumberOrNull(p?.editorProps?.radius) ?? toNumberOrNull(p?.radius) ?? 0,
             locked: p?.locked ?? null,
             label: p?.editorProps?.label ?? p?.label ?? null,
+            layout: JSON.stringify({
+              x: toNumberOrNull(p?.x) ?? toNumberOrNull(p?.xPosition) ?? 0,
+              y: toNumberOrNull(p?.y) ?? toNumberOrNull(p?.yPosition) ?? 0,
+              z: toNumberOrNull(p?.z) ?? toNumberOrNull(p?.zPosition) ?? 0,
+              editorProps: p?.editorProps ?? {}
+            }),
             // 额外信息存到 properties，避免丢失前端配置
             properties: JSON.stringify({
               status: p?.status,
@@ -851,6 +1009,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           return {
             id: null,
             pathId,
+            layerId: (path?.layerId != null ? (layerIdMap.get(String(path.layerId)) ?? toLongOrNull(path.layerId)) : null),
             name: path?.name ?? pathId,
             sourcePointId,
             destPointId,
@@ -863,10 +1022,12 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               status: path?.status,
               editorProps: path?.editorProps
             }),
-            // 用于前端重建几何形状（但注解 exist=false，不入库）
-            layoutControlPoints: (path?.geometry?.controlPoints || []).map((cp: any) => ({
-              x: toNumberOrNull(cp?.x),
-              y: toNumberOrNull(cp?.y)
+            layout: JSON.stringify({
+              connectionType: path?.type ?? 'DIRECT',
+              controlPoints: (path?.geometry?.controlPoints || []).map((cp: any) => ({
+                x: toNumberOrNull(cp?.x),
+                y: toNumberOrNull(cp?.y)
+              }))
             }))
           };
         });
@@ -878,6 +1039,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           return {
             id: null,
             locationId,
+            layerId: (l?.layerId != null ? (layerIdMap.get(String(l.layerId)) ?? toLongOrNull(l.layerId)) : null),
             locationTypeId: toLongOrNull(l?.locationTypeId),
             name: l?.name ?? locationId,
             xPosition: toNumberOrNull(l?.x) ?? toNumberOrNull(l?.xPosition),
@@ -885,6 +1047,13 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             zPosition: toNumberOrNull(l?.z) ?? toNumberOrNull(l?.zPosition),
             locked: l?.locked ?? null,
             isOccupied: null,
+            layout: JSON.stringify({
+              x: toNumberOrNull(l?.x) ?? toNumberOrNull(l?.xPosition),
+              y: toNumberOrNull(l?.y) ?? toNumberOrNull(l?.yPosition),
+              z: toNumberOrNull(l?.z) ?? toNumberOrNull(l?.zPosition),
+              geometry: l?.geometry ?? null,
+              editorProps: l?.editorProps ?? {}
+            }),
             properties: JSON.stringify({
               status: l?.status,
               geometry: l?.geometry,
@@ -895,12 +1064,44 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       };
 
       const saveData = {
-        mapId: String(currentMapModelId.value),
-        name: rawData.mapInfo?.name,
-        mapVersion: rawData.mapInfo?.mapVersion || '1.0',
-        originX: rawData.mapInfo?.originX || 0,
-        originY: rawData.mapInfo?.originY || 0,
-        rotation: rawData.mapInfo?.rotation || 0,
+        mapInfo: {
+          mapId: currentMapId.value,
+          name: rawData.mapInfo?.name,
+          mapVersion: rawData.mapInfo?.mapVersion || '1.0',
+          originX: rawData.mapInfo?.originX || 0,
+          originY: rawData.mapInfo?.originY || 0,
+          rotation: rawData.mapInfo?.rotation || 0,
+          data: JSON.stringify({
+            mapInfo: {
+              scale: canvasState.scale,
+              offsetX: canvasState.offsetX,
+              offsetY: canvasState.offsetY,
+              width: canvasState.width,
+              height: canvasState.height
+            },
+            layerGroups: rawData.layerGroups || [],
+            layers: rawData.layers || []
+          })
+        },
+        layerGroups: (rawData.layerGroups || []).map((g: any, index: number) => ({
+          id: g?.id != null ? String(layerGroupIdMap.get(String(g.id)) ?? g.id) : undefined,
+          name: g?.name ?? `LayerGroup-${index + 1}`,
+          visible: g?.visible !== false,
+          ordinal: g?.ordinal ?? index + 1,
+          properties: g?.description ? JSON.stringify({ description: g.description }) : null
+        })),
+        layers: (rawData.layers || []).map((l: any, index: number) => ({
+          id: l?.id != null ? String(layerIdMap.get(String(l.id)) ?? l.id) : undefined,
+          layerGroupId: l?.layerGroupId != null ? String(layerGroupIdMap.get(String(l.layerGroupId)) ?? l.layerGroupId) : null,
+          name: l?.name ?? `Layer-${index + 1}`,
+          visible: l?.visible !== false,
+          ordinal: l?.zIndex ?? l?.ordinal ?? index + 1,
+          properties: JSON.stringify({
+            type: l?.type,
+            locked: l?.locked ?? false,
+            opacity: l?.opacity ?? 1
+          })
+        })),
         points: serializePoints(rawData.elements?.points || []),
         paths: serializePaths(rawData.elements?.paths || []),
         locations: serializeLocations(rawData.elements?.locations || [])
@@ -1660,7 +1861,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
    */
   const reset = () => {
     mapData.value = null;
-    currentMapModelId.value = null;
+    currentMapId.value = null;
     rasterBackground.value = null;
     layerGroups.value = [];
     layers.value = [];
@@ -1698,7 +1899,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   return {
     // State
     mapData,
-    currentMapModelId,
+    currentMapId,
     currentTool,
     pointType,
     pathConnectionType,
@@ -1714,15 +1915,17 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     isDirty,
     rasterBackground,
     versionHistory,
-    
+    locationTypeList,  // 导出位置类型列表
+
     // Getters
     selectedElements,
     selectedCount,
     hasSelection,
     canUndo,
     canRedo,
-    
+
     // Actions
+    fetchLocationTypeList,  // 导出获取位置类型列表方法
     loadMap,
     saveMap: saveMapEditor,
     updateLayoutProperties,

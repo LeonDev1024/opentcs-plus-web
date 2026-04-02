@@ -430,7 +430,6 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
-import { getLocationTypeListForSelect } from '@/api/opentcs/map/location';
 import type { LocationVO } from '@/api/opentcs/map/location/types';
 import { DEFAULT_POINT_OUTER_RADIUS } from '@/utils/mapEditor/mapVisualTokens';
 
@@ -441,7 +440,7 @@ const locationTypeOptions = ref<LocationVO[]>([]);
 
 const loadLocationTypes = async () => {
   try {
-    locationTypeOptions.value = await getLocationTypeListForSelect();
+    locationTypeOptions.value = await mapEditorStore.fetchLocationTypeList();
   } catch (e) {
     console.error('加载位置类型列表失败', e);
   }

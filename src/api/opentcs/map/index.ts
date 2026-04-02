@@ -1,6 +1,13 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { MapVO, MapForm, MapQuery, MapEditorResponse, MapEditorSaveData } from '@/api/opentcs/map/types';
+import {
+  MapVO,
+  MapForm,
+  MapQuery,
+  MapEditorResponse,
+  MapEditorSaveData,
+  MapEditorApiSavePayload
+} from '@/api/opentcs/map/types';
 
 // 查询地图模型列表
 export function listMap(query?: MapQuery): AxiosPromise<MapVO[]> {
@@ -59,7 +66,7 @@ export const delMap = (id: string | number | Array<string | number>) => {
 
 /**
  * 保存地图编辑器数据（保存到文件）
- * @param mapId 地图ID
+ * @param mapId 地图业务标识（mapId）
  * @param data 编辑器数据
  */
 export const saveMapEditorData = (mapId: string | number, data: MapEditorSaveData) => {
@@ -83,7 +90,7 @@ export const saveMapEditorData = (mapId: string | number, data: MapEditorSaveDat
  * 保存地图（保存语义数据到数据库 + 生成 JSON 快照）
  * @param data 地图编辑器数据
  */
-export const saveMap = (data: MapEditorSaveData) => {
+export const saveMap = (data: MapEditorApiSavePayload) => {
   return request({
     url: '/map/editor/save',
     method: 'post',
@@ -105,7 +112,7 @@ export const loadMapEditorData = (mapId: string | number): AxiosPromise<MapEdito
 
 /**
  * 发布地图
- * @param mapId 地图ID
+ * @param mapId 地图业务标识（mapId）
  */
 export const publishMap = (mapId: string | number) => {
   return request({

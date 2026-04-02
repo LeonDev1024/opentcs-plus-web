@@ -1831,12 +1831,109 @@ onMounted(async () => {
 // 发布状态加载中
 const publishLoading = ref(false);
 
+const extractErrorMessage = (error: any, fallback: string) => {
+  return error?.response?.data?.msg || error?.message || fallback;
+};
+
+const collectModelValidationErrors = (): string[] => {
+  const errors: string[] = [];
+  const points = mapEditorStore.points || [];
+  const paths = mapEditorStore.paths || [];
+  const locations = mapEditorStore.locations || [];
+  const layers = mapEditorStore.layers || [];
+
+  if (points.length === 0) errors.push("当前地图没有点位");
+  if (paths.length === 0) errors.push("当前地图没有路径");
+  if (locations.length === 0) errors.push("当前地图没有位置");
+
+  const pointIdSet = new Set(
+    points.flatMap((p: any) => {
+      const ids: string[] = [];
+      if (p?.id != null) ids.push(String(p.id));
+      if (p?.pointId != null) ids.push(String(p.pointId));
+      if (p?.name != null) ids.push(String(p.name));
+      return ids;
+    }).filter((id: string) => !!id),
+  );
+  const locationIdSet = new Set(
+    locations.flatMap((l: any) => {
+      const ids: string[] = [];
+      if (l?.id != null) ids.push(String(l.id));
+      if (l?.locationId != null) ids.push(String(l.locationId));
+      if (l?.name != null) ids.push(String(l.name));
+      return ids;
+    }).filter((id: string) => !!id),
+  );
+  const isLocationToken = (token: string) => /^Location-\d+$/i.test(token);
+  for (const path of paths) {
+    let source = String(path?.startPointId ?? path?.sourcePointId ?? "");
+    let dest = String(path?.endPointId ?? path?.destPointId ?? "");
+    // 兼容历史数据：部分路径仅在 name 中包含 "Point-xxxx --- Point-yyyy" 或 "Location-xxxx --- Point-yyyy"
+    if (!source || !dest) {
+      const rawName = String(path?.name ?? "");
+      const matches = [...rawName.matchAll(/(?:Point|Location)-\d+/gi)].map((m) => m[0]);
+      if (!source && matches[0]) source = matches[0];
+      if (!dest && matches[1]) dest = matches[1];
+    }
+    const sourceExists =
+      !!source && (isLocationToken(source) ? locationIdSet.has(source) : pointIdSet.has(source) || locationIdSet.has(source));
+    const destExists =
+      !!dest && (isLocationToken(dest) ? locationIdSet.has(dest) : pointIdSet.has(dest) || locationIdSet.has(dest));
+    if (!sourceExists) {
+      errors.push(`路径起点不存在（${path?.name || path?.id || "未命名路径"}）`);
+    }
+    if (!destExists) {
+      errors.push(`路径终点不存在（${path?.name || path?.id || "未命名路径"}）`);
+    }
+  }
+
+  const layerIdSet = new Set(layers.map((l: any) => String(l?.id ?? "")));
+  for (const point of points) {
+    if (point?.layerId != null && !layerIdSet.has(String(point.layerId))) {
+      errors.push(`点位引用了无效图层（${point?.name || point?.id || "未命名点位"}）`);
+    }
+  }
+  for (const path of paths) {
+    if (path?.layerId != null && !layerIdSet.has(String(path.layerId))) {
+      errors.push(`路径引用了无效图层（${path?.name || path?.id || "未命名路径"}）`);
+    }
+  }
+  for (const location of locations) {
+    if (location?.layerId != null && !layerIdSet.has(String(location.layerId))) {
+      errors.push(`位置引用了无效图层（${location?.name || location?.id || "未命名位置"}）`);
+    }
+  }
+
+  return errors;
+};
+
+const validateBeforePublish = (): string | null => {
+  const errors = collectModelValidationErrors();
+  if (errors.length === 0) return null;
+  return `发布前校验失败：${errors[0]}`;
+};
+
+const showValidationErrorSummary = (errors: string[], title: string) => {
+  const maxItems = 6;
+  const display = errors.slice(0, maxItems).map((e) => `- ${e}`).join("\n");
+  const omitted = errors.length > maxItems ? `\n- ... 还有 ${errors.length - maxItems} 个问题` : "";
+  ElMessageBox.alert(`${display}${omitted}`, title, {
+    confirmButtonText: "我知道了",
+    type: "warning",
+  });
+};
+
 // 发布地图
 const handlePublish = async () => {
   try {
-    const mapId = mapEditorStore.currentMapModelId;
+    const mapId = mapEditorStore.currentMapId;
     if (!mapId) {
-      ElMessage.error("地图ID不存在");
+      ElMessage.error("地图 mapId 不存在");
+      return;
+    }
+    const precheckError = validateBeforePublish();
+    if (precheckError) {
+      ElMessage.warning(precheckError);
       return;
     }
     await ElMessageBox.confirm(
@@ -1860,9 +1957,12 @@ const handlePublish = async () => {
     ElMessage.success("发布成功");
   } catch (error: any) {
     if (error !== "cancel") {
-      const errorMessage =
-        error?.response?.data?.msg || error?.message || "发布失败";
-      ElMessage.error("发布失败：" + errorMessage);
+      const errorMessage = extractErrorMessage(error, "发布失败");
+      if (errorMessage.includes("发布失败：")) {
+        ElMessage.error(errorMessage);
+      } else {
+        ElMessage.error("发布失败：" + errorMessage);
+      }
       console.error("发布错误详情:", error);
     }
   } finally {
@@ -1872,6 +1972,11 @@ const handlePublish = async () => {
 
 // 保存
 const handleSave = async () => {
+  const validationErrors = collectModelValidationErrors();
+  if (validationErrors.length > 0) {
+    showValidationErrorSummary(validationErrors, "保存前校验未通过");
+    return;
+  }
   try {
     await mapEditorStore.saveMap();
     ElMessage.success("保存成功");
@@ -1880,9 +1985,33 @@ const handleSave = async () => {
       mapEditorStore.mapData?.mapInfo?.name || props.mapName || "未命名";
     emit("map-updated", mapName);
   } catch (error: any) {
-    const errorMessage =
-      error?.response?.data?.msg || error?.message || "保存失败";
-    ElMessage.error("保存失败：" + errorMessage);
+    const errorMessage = extractErrorMessage(error, "保存失败");
+    if (errorMessage.includes("保存冲突")) {
+      try {
+        await ElMessageBox.confirm(
+          `${errorMessage}\n是否立即刷新到最新版本？未保存修改可能会丢失。`,
+          "版本冲突",
+          {
+            confirmButtonText: "立即刷新",
+            cancelButtonText: "稍后处理",
+            type: "warning",
+          },
+        );
+        const currentMapId = mapEditorStore.currentMapId;
+        if (currentMapId) {
+          await mapEditorStore.loadMap(currentMapId);
+          ElMessage.success("已刷新到最新地图版本");
+        } else {
+          ElMessage.warning("当前地图标识缺失，请返回列表后重新进入");
+        }
+      } catch (confirmError) {
+        // 用户选择稍后处理
+      }
+    } else if (errorMessage.includes("mapId")) {
+      ElMessage.error("保存失败：地图标识异常，请重新进入编辑器");
+    } else {
+      ElMessage.error("保存失败：" + errorMessage);
+    }
     console.error("保存错误详情:", error);
   }
 };
@@ -1962,13 +2091,13 @@ const handleExportMap = () => {
 
 // 导出 openTCS 模型（当前使用后端导出的 PlantModel JSON）
 const handleExportModel = async () => {
-  const modelId = mapEditorStore.currentMapModelId;
-  if (!modelId) {
+  const mapId = mapEditorStore.currentMapId;
+  if (!mapId) {
     ElMessage.warning("当前没有可导出的地图模型");
     return;
   }
   try {
-    const blob = await exportMapFile(modelId);
+    const blob = await exportMapFile(mapId);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;

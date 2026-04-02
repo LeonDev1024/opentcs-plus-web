@@ -98,6 +98,9 @@ serverless/              # Serverless 框架输出
 fusebox/                # FuseBox 缓存
 node_modules
 
+# 设计文档
+doc/
+
 # 防止构建产物在提交时反复出现（确保 dist 被明确忽略）
 dist/
 dist-*/
