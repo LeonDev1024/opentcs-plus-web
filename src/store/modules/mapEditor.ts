@@ -1201,6 +1201,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const updatePoint = (id: string, updates: Partial<MapPoint>) => {
     const index = points.value.findIndex(p => p.id === id);
     if (index !== -1) {
+      if (points.value[index].locked) return;
       points.value[index] = { ...points.value[index], ...updates };
       isDirty.value = true;
     }
@@ -1307,6 +1308,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const updatePath = (id: string, updates: Partial<MapPath>) => {
     const index = paths.value.findIndex(p => p.id === id);
     if (index !== -1) {
+      if (paths.value[index].locked) return;
       paths.value[index] = { ...paths.value[index], ...updates };
       isDirty.value = true;
     }
@@ -1357,6 +1359,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const updateLocation = (id: string, updates: Partial<MapLocation>) => {
     const index = locations.value.findIndex(l => l.id === id);
     if (index !== -1) {
+      if (locations.value[index].locked) return;
       locations.value[index] = { ...locations.value[index], ...updates };
       isDirty.value = true;
     }
@@ -1763,14 +1766,20 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
    * 撤销
    */
   const undo = () => {
-    commandManager.undo();
+    const didUndo = commandManager.undo();
+    if (didUndo) {
+      isDirty.value = true;
+    }
   };
-  
+
   /**
    * 重做
    */
   const redo = () => {
-    commandManager.redo();
+    const didRedo = commandManager.redo();
+    if (didRedo) {
+      isDirty.value = true;
+    }
   };
   
   /**
