@@ -15,14 +15,19 @@ export class CommandManager {
    * 执行命令
    */
   execute(command: Command): void {
-    command.execute();
+    try {
+      command.execute();
+    } catch (e) {
+      console.error('[CommandManager] 命令执行失败，已跳过记录:', command.description, e);
+      throw e;
+    }
     this.undoStack.push(command);
-    
+
     // 限制历史记录数量
     if (this.undoStack.length > this.maxHistorySize) {
       this.undoStack.shift();
     }
-    
+
     // 新操作清空重做栈
     this.redoStack = [];
   }
@@ -34,9 +39,14 @@ export class CommandManager {
     if (this.undoStack.length === 0) {
       return false;
     }
-    
+
     const command = this.undoStack.pop()!;
-    command.undo();
+    try {
+      command.undo();
+    } catch (e) {
+      console.error('[CommandManager] 撤销失败:', command.description, e);
+      return false;
+    }
     this.redoStack.push(command);
     return true;
   }
@@ -48,9 +58,14 @@ export class CommandManager {
     if (this.redoStack.length === 0) {
       return false;
     }
-    
+
     const command = this.redoStack.pop()!;
-    command.redo();
+    try {
+      command.redo();
+    } catch (e) {
+      console.error('[CommandManager] 重做失败:', command.description, e);
+      return false;
+    }
     this.undoStack.push(command);
     return true;
   }
