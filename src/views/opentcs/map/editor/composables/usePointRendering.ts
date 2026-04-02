@@ -47,7 +47,7 @@ export function usePointRendering(
     const labelText = point.name || point.id
     const isSelected = mapEditorStore.selection.selectedIds.has(point.id)
 
-    // 标签偏移：默认在右上方 (x = -10, y = -10)，可自定义调整
+    // 标签偏移：默认在右上方，可自定义调整
     const labelOffset = point.editorProps?.labelOffset ?? { x: -10, y: -10 }
     const offsetX = labelOffset.x
     const offsetY = labelOffset.y

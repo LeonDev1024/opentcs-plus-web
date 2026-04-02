@@ -156,20 +156,32 @@ export function useLocationRendering(
     const labelText = location.name || location.id
     const isSelected = mapEditorStore.selection.selectedIds.has(location.id)
 
-    // 标签偏移：默认在右上方 (x = -10, y = -20)，可自定义调整
-    const labelOffset = location.editorProps?.labelOffset ?? { x: -30, y: -30 }
-    const offsetX = labelOffset.x
-    const offsetY = labelOffset.y
-
-    return {
-      x: centroid.x + offsetX, y: centroid.y + offsetY,
+    const common = {
       text: labelText,
       fontSize: 12,
       fontFamily: 'Arial, sans-serif',
       fill: isSelected ? '#ff4d4f' : '#303133',
-      align: 'center', verticalAlign: 'top',
+      align: 'center' as const,
+      verticalAlign: 'top' as const,
       padding: 2,
-      listening: false, perfectDrawEnabled: false,
+      listening: false,
+      perfectDrawEnabled: false,
+    }
+
+    // 规则区域：标签在质心下方固定偏移；业务库位：使用 editorProps.labelOffset
+    if (isRuleRegionLocation(location)) {
+      return {
+        ...common,
+        x: centroid.x,
+        y: centroid.y + 15,
+      }
+    }
+
+    const labelOffset = location.editorProps?.labelOffset ?? { x: -30, y: -30 }
+    return {
+      ...common,
+      x: centroid.x + labelOffset.x,
+      y: centroid.y + labelOffset.y,
     }
   }
 
