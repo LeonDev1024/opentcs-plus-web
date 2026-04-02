@@ -2,7 +2,7 @@
   <div class="property-panel">
     <div class="panel-content">
       <!-- Layout 属性（与 openTCS 一致：选中布局时显示） -->
-      <div v-if="selectedType === 'layout'" class="layout-properties">
+      <div v-if="resolvedSelectedType === 'layout'" class="layout-properties">
         <div class="element-title">Layout</div>
         <table class="kv-table">
           <thead>
@@ -49,12 +49,12 @@
       </div>
 
       <!-- 无选择状态 -->
-      <div v-else-if="!selectedElement" class="no-selection">
+      <div v-else-if="!resolvedSelectedElement" class="no-selection">
         <el-empty description="请选择一个元素或布局" />
       </div>
 
       <!-- 点属性编辑：Key / Value 表格形式（对齐 openTCS Point 属性） -->
-      <div v-else-if="selectedType === 'point'" class="point-properties">
+      <div v-else-if="resolvedSelectedType === 'point'" class="point-properties">
         <div class="element-title">Point</div>
         <table class="kv-table">
           <thead>
@@ -124,13 +124,23 @@
             <tr>
               <td class="kv-key">Label x offset</td>
               <td class="kv-value">
-                <span class="kv-readonly">0</span>
+                <el-input-number
+                  v-model="pointForm.editorProps.labelOffset.x"
+                  size="small"
+                  :step="1"
+                  @change="updatePoint"
+                />
               </td>
             </tr>
             <tr>
               <td class="kv-key">Label y offset</td>
               <td class="kv-value">
-                <span class="kv-readonly">0</span>
+                <el-input-number
+                  v-model="pointForm.editorProps.labelOffset.y"
+                  size="small"
+                  :step="1"
+                  @change="updatePoint"
+                />
               </td>
             </tr>
             <tr>
@@ -150,7 +160,10 @@
       </div>
       
       <!-- Link 属性编辑：Key / Value 表格形式（对齐 openTCS Link 属性） -->
-      <div v-else-if="selectedType === 'path' && isCurrentPathLink" class="path-properties">
+      <div
+        v-else-if="resolvedSelectedType === 'path' && isCurrentPathLink"
+        class="path-properties"
+      >
         <div class="element-title">Link</div>
         <table class="kv-table">
           <thead>
@@ -195,7 +208,7 @@
       </div>
       
       <!-- Path 属性编辑：Key / Value 表格形式（对齐 openTCS Path 属性） -->
-      <div v-else-if="selectedType === 'path'" class="path-properties">
+      <div v-else-if="resolvedSelectedType === 'path'" class="path-properties">
         <div class="element-title">Path</div>
         <table class="kv-table">
           <thead>
@@ -298,7 +311,10 @@
       </div>
       
       <!-- Location 属性编辑：Key / Value 表格形式（对齐 openTCS Location 属性） -->
-      <div v-else-if="selectedType === 'location'" class="location-properties">
+      <div
+        v-else-if="resolvedSelectedType === 'location'"
+        class="location-properties"
+      >
         <div class="element-title">Location</div>
         <table class="kv-table">
           <thead>
@@ -368,13 +384,23 @@
             <tr>
               <td class="kv-key">Label x offset</td>
               <td class="kv-value">
-                <span class="kv-readonly">0</span>
+                <el-input-number
+                  v-model="locationForm.editorProps.labelOffset.x"
+                  size="small"
+                  :step="1"
+                  @change="updateLocation"
+                />
               </td>
             </tr>
             <tr>
               <td class="kv-key">Label y offset</td>
               <td class="kv-value">
-                <span class="kv-readonly">0</span>
+                <el-input-number
+                  v-model="locationForm.editorProps.labelOffset.y"
+                  size="small"
+                  :step="1"
+                  @change="updateLocation"
+                />
               </td>
             </tr>
             <tr>
@@ -481,23 +507,54 @@ const getSymbolForLocationType = (locationTypeId: string | number | undefined): 
   return (p && p.value) ? String(p.value) : '-';
 };
 
-// 选中类型
-const selectedType = computed(() => mapEditorStore.selection.selectedType);
+// 原始选中类型（可能为 null；例如 Set/同步时序问题导致 selectedType 没跟上）
+const rawSelectedType = computed(() => mapEditorStore.selection.selectedType);
+
+// 兜底：在 selectedType 为 null/异常时，根据 selectedIds 反查元素类型
+const resolvedSelectedType = computed<"point" | "path" | "location" | "layout" | null>(
+  () => {
+    const raw = rawSelectedType.value;
+    const selectedIds = mapEditorStore.selection.selectedIds;
+
+    // layout 直接采用原始类型（布局是 editor 特例，不在点/线/位置数组里）
+    if (raw === "layout") return "layout";
+
+    // 走正常类型
+    if (raw === "point" || raw === "path" || raw === "location") {
+      return raw;
+    }
+
+    // 兜底推断：仅当单选且 selectedType 为空/异常时推断
+    if (selectedIds.size !== 1) return null;
+    const id = Array.from(selectedIds)[0];
+    const idStr = String(id);
+
+    if (mapEditorStore.points.some((p) => String(p.id) === idStr)) return "point";
+    if (mapEditorStore.paths.some((p) => String(p.id) === idStr)) return "path";
+    if (mapEditorStore.locations.some((l) => String(l.id) === idStr)) return "location";
+
+    return null;
+  },
+);
 
 // 选中的元素（单选时）
-const selectedElement = computed<MapPoint | MapPath | MapLocation | null>(() => {
+const resolvedSelectedElement = computed<MapPoint | MapPath | MapLocation | null>(() => {
   const selectedIds = mapEditorStore.selection.selectedIds;
-  if (!selectedType.value || selectedIds.size !== 1) {
+  if (resolvedSelectedType.value === "layout") {
     return null;
   }
-  if (selectedType.value === 'layout') return null;
+  if (!resolvedSelectedType.value || selectedIds.size !== 1) {
+    return null;
+  }
   const id = Array.from(selectedIds)[0];
-  if (selectedType.value === 'point') {
-    return mapEditorStore.points.find(p => p.id === id) || null;
-  } else if (selectedType.value === 'path') {
-    return mapEditorStore.paths.find(p => p.id === id) || null;
-  } else if (selectedType.value === 'location') {
-    return mapEditorStore.locations.find(l => l.id === id) || null;
+
+  const idStr = String(id);
+  if (resolvedSelectedType.value === "point") {
+    return mapEditorStore.points.find((p) => String(p.id) === idStr) || null;
+  } else if (resolvedSelectedType.value === "path") {
+    return mapEditorStore.paths.find((p) => String(p.id) === idStr) || null;
+  } else if (resolvedSelectedType.value === "location") {
+    return mapEditorStore.locations.find((l) => String(l.id) === idStr) || null;
   }
   return null;
 });
@@ -508,9 +565,9 @@ const defaultLayerName = computed(() => mapEditorStore.layers[0]?.name || 'Defau
 const defaultLayerGroupName = computed(() => mapEditorStore.layerGroups[0]?.name || 'Default layer group');
 
 watch(
-  () => [selectedType.value, mapEditorStore.mapData] as const,
+  () => [resolvedSelectedType.value, mapEditorStore.mapData] as const,
   () => {
-    if (selectedType.value === 'layout' && mapEditorStore.mapData) {
+    if (resolvedSelectedType.value === 'layout' && mapEditorStore.mapData) {
       const info = mapEditorStore.mapData.mapInfo;
       const vl = mapEditorStore.mapData.visualLayout;
       layoutForm.value = {
@@ -545,7 +602,8 @@ const pointForm = ref<MapPoint>({
     radius: DEFAULT_POINT_OUTER_RADIUS,
     color: '#8c8c8c',
     strokeColor: '#d9d9d9',
-    labelVisible: true
+    labelVisible: true,
+    labelOffset: { x: -30, y: -30 }
   }
 });
 
@@ -585,27 +643,110 @@ const locationForm = ref<MapLocation>({
     fillOpacity: 1,
     strokeColor: '#000000',
     strokeWidth: 2,
-    labelVisible: true
+    labelVisible: true,
+    labelOffset: { x: -30, y: -30 }
   }
 });
 
-// 选中元素变化时同步表单
-watch(selectedElement, (newElement) => {
-  if (!newElement || !selectedType.value) return;
+const normalizeLocationForm = () => {
+  // 后端/导入数据可能缺少 editorProps 或 labelOffset
+  const ep: any = (locationForm.value as any).editorProps;
+  if (!ep) {
+    locationForm.value.editorProps = {
+      fillColor: '#ffffff',
+      fillOpacity: 1,
+      strokeColor: '#000000',
+      strokeWidth: 2,
+      labelVisible: true,
+      labelOffset: { x: -30, y: -30 },
+    };
+    return;
+  }
+  if (!ep.labelOffset) {
+    ep.labelOffset = { x: -30, y: -30 };
+  }
+  if (typeof ep.labelOffset.x !== 'number') {
+    ep.labelOffset.x = -30;
+  }
+  if (typeof ep.labelOffset.y !== 'number') {
+    ep.labelOffset.y = -30;
+  }
+};
 
-  if (selectedType.value === 'point') {
+const normalizePointForm = () => {
+  // 后端/导入数据可能缺少 editorProps 或 labelOffset
+  const ep: any = (pointForm.value as any).editorProps;
+  if (!ep) {
+    pointForm.value.editorProps = {
+      radius: DEFAULT_POINT_OUTER_RADIUS,
+      color: '#8c8c8c',
+      strokeColor: '#d9d9d9',
+      textColor: '#595959',
+      labelVisible: true,
+      labelOffset: { x: -30, y: -30 },
+    };
+    return;
+  }
+  if (!ep.labelOffset) {
+    ep.labelOffset = { x: -30, y: -30 };
+  }
+  if (typeof ep.labelOffset.x !== 'number') {
+    ep.labelOffset.x = -30;
+  }
+  if (typeof ep.labelOffset.y !== 'number') {
+    ep.labelOffset.y = -30;
+  }
+};
+
+// 选中元素变化时同步表单
+watch(resolvedSelectedElement, (newElement) => {
+  if (!newElement || !resolvedSelectedType.value) {
+    // 当 selectedType 变化但 selectedElement 还未更新时，尝试重新查找
+    return;
+  }
+
+  if (resolvedSelectedType.value === 'point') {
     pointForm.value = { ...(newElement as MapPoint) };
-  } else if (selectedType.value === 'path') {
+    normalizePointForm();
+  } else if (resolvedSelectedType.value === 'path') {
     pathForm.value = { ...(newElement as MapPath) };
-  } else if (selectedType.value === 'location') {
+  } else if (resolvedSelectedType.value === 'location') {
     locationForm.value = { ...(newElement as MapLocation) };
+    normalizeLocationForm();
+  }
+});
+
+// 额外监听 selectedType 变化，确保在类型切换时能正确同步表单
+watch(() => resolvedSelectedType.value, (newType) => {
+  if (!newType || newType === 'layout') return;
+
+  const selectedIds = mapEditorStore.selection.selectedIds;
+  if (selectedIds.size !== 1) return;
+
+  const id = Array.from(selectedIds)[0];
+
+  if (newType === 'point') {
+    const point = mapEditorStore.points.find(p => String(p.id) === String(id));
+    if (point) {
+      pointForm.value = { ...point };
+      normalizePointForm();
+    }
+  } else if (newType === 'path') {
+    const path = mapEditorStore.paths.find(p => String(p.id) === String(id));
+    if (path) pathForm.value = { ...path };
+  } else if (newType === 'location') {
+    const location = mapEditorStore.locations.find(l => String(l.id) === String(id));
+    if (location) {
+      locationForm.value = { ...location };
+      normalizeLocationForm();
+    }
   }
 });
 
 // 按需回写到 store（由表格控件的 @change 触发）
 const updatePoint = () => {
-  if (selectedType.value === 'point' && selectedElement.value) {
-    mapEditorStore.updatePoint((selectedElement.value as MapPoint).id, pointForm.value);
+  if (resolvedSelectedType.value === 'point' && resolvedSelectedElement.value) {
+    mapEditorStore.updatePoint((resolvedSelectedElement.value as MapPoint).id, pointForm.value);
   }
 };
 
@@ -665,7 +806,7 @@ const formatLocationType = (loc: MapLocation) => {
 
 // 判断当前选中路径是否为 Link（根据图层组名称或名称前缀）
 const isCurrentPathLink = computed(() => {
-  if (selectedType.value !== 'path') return false;
+  if (resolvedSelectedType.value !== 'path') return false;
   const layer = mapEditorStore.layers.find(l => l.id === pathForm.value.layerId);
   if (!layer) return false;
   const group = mapEditorStore.layerGroups.find(g => g.id === layer.layerGroupId);
@@ -675,36 +816,36 @@ const isCurrentPathLink = computed(() => {
 
 // 更新路径属性
 const updatePath = () => {
-  if (selectedType.value === 'path' && selectedElement.value) {
-    mapEditorStore.updatePath((selectedElement.value as MapPath).id, pathForm.value);
+  if (resolvedSelectedType.value === 'path' && resolvedSelectedElement.value) {
+    mapEditorStore.updatePath((resolvedSelectedElement.value as MapPath).id, pathForm.value);
   }
 };
 
 // 更新位置属性
 const updateLocation = () => {
-  if (selectedType.value === 'location' && selectedElement.value) {
-    mapEditorStore.updateLocation((selectedElement.value as MapLocation).id, locationForm.value);
+  if (resolvedSelectedType.value === 'location' && resolvedSelectedElement.value) {
+    mapEditorStore.updateLocation((resolvedSelectedElement.value as MapLocation).id, locationForm.value);
   }
 };
 
 // 切换点锁定状态
 const togglePointLock = () => {
-  if (selectedType.value === 'point' && selectedElement.value) {
-    mapEditorStore.togglePointLock((selectedElement.value as MapPoint).id);
+  if (resolvedSelectedType.value === 'point' && resolvedSelectedElement.value) {
+    mapEditorStore.togglePointLock((resolvedSelectedElement.value as MapPoint).id);
   }
 };
 
 // 切换路径锁定状态
 const togglePathLock = () => {
-  if (selectedType.value === 'path' && selectedElement.value) {
-    mapEditorStore.togglePathLock((selectedElement.value as MapPath).id);
+  if (resolvedSelectedType.value === 'path' && resolvedSelectedElement.value) {
+    mapEditorStore.togglePathLock((resolvedSelectedElement.value as MapPath).id);
   }
 };
 
 // 切换位置锁定状态
 const toggleLocationLock = () => {
-  if (selectedType.value === 'location' && selectedElement.value) {
-    mapEditorStore.toggleLocationLock((selectedElement.value as MapLocation).id);
+  if (resolvedSelectedType.value === 'location' && resolvedSelectedElement.value) {
+    mapEditorStore.toggleLocationLock((resolvedSelectedElement.value as MapLocation).id);
   }
 };
 </script>

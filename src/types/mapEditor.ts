@@ -72,6 +72,10 @@ export interface MapPoint {
     icon?: string; // 图标URL
     label?: string; // 标签文本
     labelVisible: boolean; // 标签是否显示
+    labelOffset?: {
+      x: number; // 标签X偏移
+      y: number; // 标签Y偏移
+    };
   };
 
   // 元数据
@@ -174,6 +178,10 @@ export interface MapLocation {
     strokeWidth: number; // 边框宽度
     label?: string;
     labelVisible: boolean;
+    labelOffset?: {
+      x: number; // 标签X偏移
+      y: number; // 标签Y偏移
+    };
   };
 
   // 元数据

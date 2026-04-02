@@ -87,7 +87,7 @@ const pointVisualMetaCache = new Map<string, PointVisualMeta>();
  * 获取点位的视觉元数据（带缓存）
  */
 export function getPointVisualMeta(point: MapPoint): PointVisualMeta {
-  const cacheKey = String(point.id);
+  const cacheKey = `${String(point.id ?? "")}:${String((point as any).pointId ?? "")}`;
   const cached = pointVisualMetaCache.get(cacheKey);
   if (cached) return cached;
 
@@ -99,14 +99,19 @@ export function getPointVisualMeta(point: MapPoint): PointVisualMeta {
 function computePointVisualMeta(point: MapPoint): PointVisualMeta {
   const typeConfig = POINT_TYPE_CONFIG[point.type || ""];
 
+  const rawRadius =
+    point.editorProps?.radius ||
+    typeConfig?.radius ||
+    DEFAULT_POINT_OUTER_RADIUS;
+  const radius = Number.isFinite(Number(rawRadius))
+    ? Math.max(1, Number(rawRadius))
+    : DEFAULT_POINT_OUTER_RADIUS;
+
   return {
     fill: resolvePointFill(point, typeConfig),
     stroke: point.editorProps?.strokeColor || typeConfig?.stroke || "#ffffff",
     strokeWidth: typeConfig ? 1.6 : 1.2,
-    radius:
-      point.editorProps?.radius ||
-      typeConfig?.radius ||
-      DEFAULT_POINT_OUTER_RADIUS,
+    radius,
     glyph: point.editorProps?.icon ? undefined : typeConfig?.glyph || undefined,
     glyphColor:
       point.editorProps?.textColor || typeConfig?.glyphColor || "#606266",
@@ -180,8 +185,11 @@ export function resolvePointBullseyeStyleReadonly(
   point: MapPoint,
   paths: MapPath[],
 ): PointBullseyeStyle {
-  // 使用缓存的连接状态，避免 O(n) 遍历
-  const isConnected = isPointConnected(String(point.id));
+  // 路径端点存的是 pointId（业务 id），与数据库主键 id 可能不同，需同时匹配
+  const pid = String((point as any).pointId ?? "");
+  const dbId = String(point.id ?? "");
+  const isConnected =
+    (pid && isPointConnected(pid)) || (dbId && isPointConnected(dbId));
 
   const visual = getPointVisualMeta(point);
   const baseFill = "#2563EB";

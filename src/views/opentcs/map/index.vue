@@ -53,6 +53,7 @@
                 alt="地图底图"
               />
             </div>
+
             <MapRenderer
               v-if="
                 previewUseRenderer &&
@@ -73,16 +74,16 @@
               :width="previewCanvasSize.w"
               :height="previewCanvasSize.h"
               :scale="canvasScale"
-              :offset-x="viewOffset.x - rendererClipCompensation.x"
-              :offset-y="viewOffset.y - rendererClipCompensation.y"
+              :offset-x="konvaStageOffsetX"
+              :offset-y="konvaStageOffsetY"
               :readonly="true"
               :auto-center="false"
             />
+
             <svg
               v-else-if="!isEditingOrigin && activeMap && hasRenderableElements"
               class="map-layer-svg"
             >
-              <!-- 与工厂原点对齐：点位为地图坐标时需加 origin；并将内容平移到视口附近（避免固定 -50000 偏移把小坐标画到屏外） -->
               <g :transform="previewSvgCenterTransform">
                 <g
                   v-for="path in pathsForPreviewVisible"
@@ -117,13 +118,14 @@
                     stroke-linecap="round"
                   />
                 </g>
+
                 <g
                   v-for="point in pointsForPreviewVisible"
                   :key="'pt-' + point.id"
                 >
                   <circle
-                    :cx="(point.x + previewOrigin.ox) * SCALE"
-                    :cy="-(point.y + previewOrigin.oy) * SCALE"
+                    :cx="point.x * SCALE"
+                    :cy="point.y * SCALE"
                     :r="point.editorProps?.radius || 8"
                     :fill="point.editorProps?.color || '#409eff'"
                     stroke="#fff"
@@ -133,14 +135,8 @@
                     v-if="
                       point.editorProps?.labelVisible !== false && point.name
                     "
-                    :x="(point.x + previewOrigin.ox) * SCALE"
-                    :y="-(point.y + previewOrigin.oy) * SCALE - 12"
-                    :transform="
-                      svgTextUnflipAt(
-                        (point.x + previewOrigin.ox) * SCALE,
-                        -(point.y + previewOrigin.oy) * SCALE - 12,
-                      )
-                    "
+                    :x="point.x * SCALE"
+                    :y="point.y * SCALE - 12"
                     fill="#666"
                     font-size="10"
                     text-anchor="middle"
@@ -148,23 +144,19 @@
                     {{ point.name }}
                   </text>
                 </g>
+
                 <g
                   v-for="location in locationsForPreviewVisible"
                   :key="'loc-' + location.id"
                 >
                   <rect
                     :x="
-                      (location.x +
-                        previewOrigin.ox -
-                        (location.editorProps?.width || 20) / 2) *
+                      (location.x - (location.editorProps?.width || 20) / 2) *
                       SCALE
                     "
                     :y="
-                      -(
-                        location.y +
-                        previewOrigin.oy +
-                        (location.editorProps?.height || 20) / 2
-                      ) * SCALE
+                      (location.y - (location.editorProps?.height || 20) / 2) *
+                      SCALE
                     "
                     :width="(location.editorProps?.width || 20) * SCALE"
                     :height="(location.editorProps?.height || 20) * SCALE"
@@ -176,40 +168,14 @@
               </g>
             </svg>
 
-            <!-- 普通模式：工厂坐标轴 O(0,0)（实线）+ 地图原点虚线 -->
-            <template v-if="!isEditingOrigin">
-              <div class="layer-axis">
-                <div class="axis-line axis-x" />
-                <div class="axis-line axis-y" />
-                <div class="axis-origin">O(0,0)</div>
-              </div>
-              <div
-                v-if="activeMap && !isMapOriginAtFactory"
-                class="layer-axis map-origin-axis"
-                :style="mapOriginLayerStyle"
-              >
-                <div class="axis-line axis-x" />
-                <div class="axis-line axis-y" />
-              </div>
-            </template>
-
-            <!-- 原点编辑模式：工厂原点实线坐标轴 + 所有地图原点虚线坐标轴 -->
-            <template v-if="isEditingOrigin">
-              <div class="layer-axis">
-                <div class="axis-line axis-x" />
-                <div class="axis-line axis-y" />
-                <div class="axis-origin">O(0,0)</div>
-              </div>
-              <div
-                v-for="m in filteredMaps"
-                :key="'axis-' + m.mapId"
-                class="layer-axis map-origin-axis"
-                :style="getMapLayerOffset(m)"
-              >
-                <div class="axis-line axis-x" />
-                <div class="axis-line axis-y" />
-              </div>
-            </template>
+            <MapManagementCanvasAxes
+              :is-editing-origin="isEditingOrigin"
+              :active-map="activeMap"
+              :is-map-origin-at-factory="isMapOriginAtFactory"
+              :map-origin-layer-style="mapOriginLayerStyle"
+              :filtered-maps="filteredMaps"
+              :get-map-layer-offset="getMapLayerOffset"
+            />
           </div>
 
           <!-- 拖拽手柄：在地图层外部，使用屏幕坐标定位，避免 CSS transform 影响点击 -->
@@ -536,12 +502,16 @@ import { listType } from "@/api/opentcs/vehicle/type";
 import type { TypeVO } from "@/api/opentcs/vehicle/type/types";
 import { loadMapEditorData } from "@/api/opentcs/map";
 import type { MapEditorResponse } from "@/api/opentcs/map/types";
-import { HttpStatus } from "@/enums/RespEnum";
 import MapRenderer from "@/components/map/MapRenderer.vue";
+import MapManagementCanvasAxes from "@/components/map/MapManagementCanvasAxes.vue";
 import type { MapLayerVisibility } from "@/types/mapEditor";
 import { defaultMapLayerVisibility } from "@/types/mapEditor";
 import layerIconUrl from "@/assets/icons/svg/图层.svg?url";
 import { getDefaultPointRadiusForType } from "@/utils/mapEditor/mapVisualTokens";
+import {
+  clearPointVisualMetaCache,
+  updateConnectedPointIds,
+} from "@/utils/mapEditor/pointStyle";
 import { useMapEditorTabsStore } from "@/store/modules/mapEditorTabs";
 import { useAppStore } from "@/store/modules/app";
 import { ElMessage, ElMessageBox } from "element-plus";
@@ -588,27 +558,27 @@ const elementsLoading = ref(false);
 const SCALE = 1;
 
 /**
- * 请求拦截器返回的是 AjaxResult：{ code, msg, data }。
- * 不能依赖 data.mapId 判断，否则 data 无 mapId 时会把整包当 payload，导致 points 永远为空。
+ * 与 mapEditor loadMap 一致：从 AjaxResult 中取出真正的地图负载。
+ * 若仅当 code===SUCCESS 才用 data，而后端返回其它成功码时，会误用外层 { code, data } 导致 points 永远为空。
  */
 function unwrapAjaxMapPayload(raw: unknown): Record<string, any> {
   const r = raw as Record<string, any>;
   if (!r || typeof r !== "object") return {};
-  const inner = r.data;
-  const shouldUseInner =
+  const inner = r.data as Record<string, any> | undefined;
+  if (
     inner != null &&
     typeof inner === "object" &&
     !Array.isArray(inner) &&
-    (r.code === HttpStatus.SUCCESS ||
-      r.code === 200 ||
-      (r.code === undefined &&
-        ((inner as Record<string, any>).points !== undefined ||
-          (inner as Record<string, any>).paths !== undefined ||
-          (inner as Record<string, any>).locations !== undefined ||
-          (inner as Record<string, any>).elements !== undefined ||
-          (inner as Record<string, any>).mapInfo !== undefined)));
-  if (shouldUseInner) {
-    return inner as Record<string, any>;
+    (inner.mapId !== undefined ||
+      inner.mapInfo?.mapId !== undefined ||
+      inner.name !== undefined ||
+      Array.isArray(inner.points) ||
+      (inner.elements &&
+        typeof inner.elements === "object" &&
+        !Array.isArray(inner.elements)) ||
+      inner.mapInfo !== undefined)
+  ) {
+    return inner;
   }
   return r;
 }
@@ -653,6 +623,23 @@ function parsePropertiesPayload(raw: any): Record<string, any> {
   return {};
 }
 
+/** 与 mapEditor 一致：解析 layout 字符串，供坐标与 editorProps 兜底 */
+function parseLayoutJson(value: unknown): Record<string, any> {
+  if (value == null || value === "") return {};
+  if (typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, any>;
+  }
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 function toFiniteNumber(raw: unknown): number | undefined {
   if (raw === null || raw === undefined) return undefined;
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : undefined;
@@ -668,6 +655,8 @@ function pickCoordinate(target: any, axis: "x" | "y"): number | undefined {
     target?.[axis],
     target?.[`${axis}Position`],
     target?.[`${axis}position`],
+    target?.[`${upper}Position`],
+    target?.[`${upper}position`],
     target?.[`position${upper}`],
     target?.position?.[axis],
     target?.pose?.[axis],
@@ -701,28 +690,25 @@ function getCanvasRect() {
 }
 
 /**
- * 地图层 CSS transform：
- * - 以画布内容区左下角为坐标系原点
- * - translate 定位工厂原点 O(0,0)
- * - scale 缩放地图层
- * - Y 轴翻转（CSS Y 向下，世界 Y 向上）
+ * 地图层 CSS transform（与地图编辑器 Konva Stage 一致）：
+ * - 以画布内容区左下角为参考，translate 将工厂原点 O(0,0) 置于视口
+ * - 统一正缩放，不在此层做 Y 轴翻转；模型坐标 = Konva（y 向下），与 useCanvasAxis / MapRenderer 单一约定
  */
 const mapLayerStyle = computed(() => {
   const { h } = getCanvasRect();
   return {
-    transform: `translate(${viewOffset.x}px, ${h - viewOffset.y}px) scale(${canvasScale.value}, ${-canvasScale.value})`,
+    transform: `translate(${viewOffset.x}px, ${h - viewOffset.y}px) scale(${canvasScale.value})`,
   };
 });
 
 /**
- * 地图原点在地图层本地坐标系中的偏移。
- * 因为 canvas-map-layer 已使用 scaleY(-1) 翻转 Y 轴，
- * 本地 top 为正值时视觉方向向上（世界 Y-up），无需取反。
+ * 地图/导航原点在层内的偏移（mm≈px，SCALE=1）。
+ * 与 useCanvasAxis.mapOriginCoord 一致：Konva y 向下，后端 originY 向上为正 → 模型 y = -originY
  */
 function mapOriginOffset(ox: number, oy: number) {
   return {
     left: ox * SCALE + "px",
-    top: oy * SCALE + "px",
+    top: -oy * SCALE + "px",
   };
 }
 
@@ -951,6 +937,8 @@ function onDragMapOrigin(e: MouseEvent) {
   const deltaXPx = e.clientX - mapOriginDragStart.x;
   const deltaYPx = e.clientY - mapOriginDragStart.y;
   editOriginX.value = Math.round(mapOriginEditStart.x + deltaXPx / pxPerMm);
+  // 控制台的拖拽手柄使用 screen Y 向下为正方向；
+  // 为保证手柄拖拽与世界坐标变化方向一致，这里取反处理（与原点对齐逻辑一致）
   editOriginY.value = Math.round(mapOriginEditStart.y - deltaYPx / pxPerMm);
   originDrafts.value.set(draggingMapId.value, {
     originX: editOriginX.value,
@@ -1085,18 +1073,11 @@ function pointToSegmentDistSq(
   return dx * dx + dy * dy;
 }
 
-/** 当前选中地图原点（mm），预览层与多地图原点虚线一致 */
-const previewOrigin = computed(() => ({
-  ox: Number(activeMap.value?.originX ?? 0),
-  oy: Number(activeMap.value?.originY ?? 0),
-}));
-
 const previewUseRenderer = true;
 
-const previewCanvasSize = computed(() => {
-  const { w, h } = getCanvasRect();
-  return { w: Math.max(1, Math.round(w)), h: Math.max(1, Math.round(h)) };
-});
+/** 地图管理预览：Konva Stage 若仅用视口宽高，场景坐标大于视口的点/线会被画布裁掉；平移后仍看不到下方内容。 */
+const PREVIEW_SCENE_PADDING = 96;
+const PREVIEW_CANVAS_MAX_DIM = 16384;
 
 const rendererClipCompensation = computed(() => {
   let minX = 0;
@@ -1108,21 +1089,15 @@ const rendererClipCompensation = computed(() => {
   };
 
   for (const p of mapElements.value.points || []) {
-    push(
-      Number(p.x ?? p.xPosition ?? 0) + previewOrigin.value.ox,
-      -(Number(p.y ?? p.yPosition ?? 0) + previewOrigin.value.oy),
-    );
+    push(Number(p.x ?? p.xPosition ?? 0), Number(p.y ?? p.yPosition ?? 0));
   }
   for (const l of mapElements.value.locations || []) {
-    const lx = Number(l.x ?? l.xPosition ?? 0) + previewOrigin.value.ox;
-    const ly = -(Number(l.y ?? l.yPosition ?? 0) + previewOrigin.value.oy);
+    const lx = Number(l.x ?? l.xPosition ?? 0);
+    const ly = Number(l.y ?? l.yPosition ?? 0);
     push(lx, ly);
     if (Array.isArray(l.geometry?.vertices)) {
       for (const v of l.geometry.vertices) {
-        push(
-          Number(v.x ?? v.xPosition ?? 0) + previewOrigin.value.ox,
-          -(Number(v.y ?? v.yPosition ?? 0) + previewOrigin.value.oy),
-        );
+        push(Number(v.x ?? v.xPosition ?? 0), Number(v.y ?? v.yPosition ?? 0));
       }
     }
   }
@@ -1130,10 +1105,7 @@ const rendererClipCompensation = computed(() => {
     const cps = extractPathControlPoints(path);
     if (Array.isArray(cps)) {
       for (const cp of cps) {
-        push(
-          Number(cp.x ?? cp.xPosition ?? 0) + previewOrigin.value.ox,
-          -(Number(cp.y ?? cp.yPosition ?? 0) + previewOrigin.value.oy),
-        );
+        push(Number(cp.x ?? cp.xPosition ?? 0), Number(cp.y ?? cp.yPosition ?? 0));
       }
     }
   }
@@ -1144,14 +1116,91 @@ const rendererClipCompensation = computed(() => {
   };
 });
 
+/** 与 rendererPoints 同坐标系：负坐标补偿后的场景最大范围，用于撑大 Konva 画布避免裁切 */
+const rendererSceneExtentMax = computed(() => {
+  const { x: sx, y: sy } = rendererClipCompensation.value;
+  let maxX = 0;
+  let maxY = 0;
+  const push = (x: number, y: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  };
+
+  for (const p of mapElements.value.points || []) {
+    push(
+      Number(p.x ?? p.xPosition ?? 0) + sx,
+      Number(p.y ?? p.yPosition ?? 0) + sy,
+    );
+  }
+  for (const l of mapElements.value.locations || []) {
+    push(
+      Number(l.x ?? l.xPosition ?? 0) + sx,
+      Number(l.y ?? l.yPosition ?? 0) + sy,
+    );
+    if (Array.isArray(l.geometry?.vertices)) {
+      for (const v of l.geometry.vertices) {
+        push(
+          Number(v.x ?? v.xPosition ?? 0) + sx,
+          Number(v.y ?? v.yPosition ?? 0) + sy,
+        );
+      }
+    }
+  }
+  for (const path of processedPaths.value) {
+    const cps = extractPathControlPoints(path);
+    if (Array.isArray(cps)) {
+      for (const cp of cps) {
+        push(
+          Number(cp.x ?? cp.xPosition ?? 0) + sx,
+          Number(cp.y ?? cp.yPosition ?? 0) + sy,
+        );
+      }
+    }
+  }
+  return { maxX, maxY };
+});
+
+const previewCanvasSize = computed(() => {
+  const { w, h } = getCanvasRect();
+  const pad = PREVIEW_SCENE_PADDING;
+  const { maxX, maxY } = rendererSceneExtentMax.value;
+  const needW = Math.max(w, Math.ceil(maxX + pad));
+  const needH = Math.max(h, Math.ceil(maxY + pad));
+  return {
+    w: Math.max(
+      1,
+      Math.min(PREVIEW_CANVAS_MAX_DIM, Math.round(needW)),
+    ),
+    h: Math.max(
+      1,
+      Math.min(PREVIEW_CANVAS_MAX_DIM, Math.round(needH)),
+    ),
+  };
+});
+
+/**
+ * Konva Stage 偏移：仅对齐「负坐标裁切」与 Stage 缩放，使场景 (0,0) 落在地图层本地 (0,0)，
+ * 与 .layer-axis 工厂原点重合。平移视口只由外层 mapLayerStyle 的 translate(viewOffset) 负责，
+ * 不可再叠加 viewOffset 到 Stage（否则会与坐标轴错位，量距原点不准）。
+ */
+const konvaStageOffsetX = computed(() => {
+  const s = canvasScale.value;
+  const sx = rendererClipCompensation.value.x;
+  return sx * (1 - s);
+});
+const konvaStageOffsetY = computed(() => {
+  const s = canvasScale.value;
+  const sy = rendererClipCompensation.value.y;
+  return sy * (1 - s);
+});
+
 const rendererPoints = computed(() => {
-  const { ox, oy } = previewOrigin.value;
   const { x: sx, y: sy } = rendererClipCompensation.value;
   return (mapElements.value.points || []).map((p: any) => ({
     ...p,
-    x: Number(p.x ?? p.xPosition ?? 0) + ox + sx,
-    // MapRenderer 运行在已翻转的地图层中，这里反转一次使预览上下方向与编辑器一致
-    y: -(Number(p.y ?? p.yPosition ?? 0) + oy) + sy,
+    x: Number(p.x ?? p.xPosition ?? 0) + sx,
+    y: Number(p.y ?? p.yPosition ?? 0) + sy,
     editorProps: {
       ...p.editorProps,
       radius: p.editorProps?.radius ?? getDefaultPointRadiusForType(p.type),
@@ -1166,15 +1215,14 @@ const rendererPointsVisible = computed(() =>
 );
 
 const rendererPaths = computed(() => {
-  const { ox, oy } = previewOrigin.value;
   const { x: sx, y: sy } = rendererClipCompensation.value;
   return processedPaths.value.map((path: any) => {
     const cps = extractPathControlPoints(path);
     let controlPoints = Array.isArray(cps)
       ? cps.map((cp: any) => ({
           ...cp,
-          x: Number(cp.x ?? cp.xPosition ?? 0) + ox + sx,
-          y: -(Number(cp.y ?? cp.yPosition ?? 0) + oy) + sy,
+          x: Number(cp.x ?? cp.xPosition ?? 0) + sx,
+          y: Number(cp.y ?? cp.yPosition ?? 0) + sy,
         }))
       : [];
     if (controlPoints.length < 2 && path.startPoint && path.endPoint) {
@@ -1182,20 +1230,15 @@ const rendererPaths = computed(() => {
         {
           id: `cp_${path.id}_0`,
           x:
-            Number(path.startPoint.x ?? path.startPoint.xPosition ?? 0) +
-            ox +
-            sx,
+            Number(path.startPoint.x ?? path.startPoint.xPosition ?? 0) + sx,
           y:
-            -(
-              Number(path.startPoint.y ?? path.startPoint.yPosition ?? 0) + oy
-            ) + sy,
+            Number(path.startPoint.y ?? path.startPoint.yPosition ?? 0) + sy,
         },
         {
           id: `cp_${path.id}_1`,
-          x: Number(path.endPoint.x ?? path.endPoint.xPosition ?? 0) + ox + sx,
+          x: Number(path.endPoint.x ?? path.endPoint.xPosition ?? 0) + sx,
           y:
-            -(Number(path.endPoint.y ?? path.endPoint.yPosition ?? 0) + oy) +
-            sy,
+            Number(path.endPoint.y ?? path.endPoint.yPosition ?? 0) + sy,
         },
       ];
     }
@@ -1233,20 +1276,19 @@ const rendererPathsVisible = computed(() =>
 );
 
 const rendererLocations = computed(() => {
-  const { ox, oy } = previewOrigin.value;
   const { x: sx, y: sy } = rendererClipCompensation.value;
   return (mapElements.value.locations || []).map((l: any) => ({
     ...l,
-    x: Number(l.x ?? l.xPosition ?? 0) + ox + sx,
-    y: -(Number(l.y ?? l.yPosition ?? 0) + oy) + sy,
+    x: Number(l.x ?? l.xPosition ?? 0) + sx,
+    y: Number(l.y ?? l.yPosition ?? 0) + sy,
     geometry:
       l.geometry && Array.isArray(l.geometry.vertices)
         ? {
             ...l.geometry,
             vertices: l.geometry.vertices.map((v: any) => ({
               ...v,
-              x: Number(v.x ?? v.xPosition ?? 0) + ox + sx,
-              y: -(Number(v.y ?? v.yPosition ?? 0) + oy) + sy,
+              x: Number(v.x ?? v.xPosition ?? 0) + sx,
+              y: Number(v.y ?? v.yPosition ?? 0) + sy,
             })),
           }
         : l.geometry,
@@ -1283,17 +1325,17 @@ const hasRenderableElements = computed(
  * 曲线（Konva tension）不能用折线连控制点，三点时用 SVG 二次贝塞尔 Q 近似。
  */
 function buildPathPreviewSpec(path: any): PathPreviewSpec {
-  const { ox, oy } = previewOrigin.value;
   const cps = extractPathControlPoints(path);
   const kind = pathConnectionKind(path);
 
   const fp = (cp: any) => ({
-    fx: Number(cp?.x ?? cp?.xPosition ?? 0) + ox,
-    fy: Number(cp?.y ?? cp?.yPosition ?? 0) + oy,
+    fx: Number(cp?.x ?? cp?.xPosition ?? 0),
+    fy: Number(cp?.y ?? cp?.yPosition ?? 0),
   });
+  /** SVG 与 Konva 一致：y 轴向下，模型 mm（SCALE=1 时 1mm=1px） */
   const sv = (fx: number, fy: number) => {
     if (!Number.isFinite(fx) || !Number.isFinite(fy)) return null;
-    return { x: fx * SCALE, y: -fy * SCALE };
+    return { x: fx * SCALE, y: fy * SCALE };
   };
 
   const lineFromCp = (a: any, b: any): PathPreviewSpec => {
@@ -1305,11 +1347,8 @@ function buildPathPreviewSpec(path: any): PathPreviewSpec {
 
   if (!cps || cps.length < 2) {
     if (path.startPoint && path.endPoint) {
-      const pa = sv(
-        Number(path.startPoint.x) + ox,
-        Number(path.startPoint.y) + oy,
-      );
-      const pb = sv(Number(path.endPoint.x) + ox, Number(path.endPoint.y) + oy);
+      const pa = sv(Number(path.startPoint.x), Number(path.startPoint.y));
+      const pb = sv(Number(path.endPoint.x), Number(path.endPoint.y));
       if (pa && pb)
         return { mode: "line", x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y };
     }
@@ -1366,7 +1405,6 @@ const pathsForPreview = computed(() =>
 
 /** 根据全部元素计算工厂坐标系包围盒，用于把拓扑平移到视口附近 */
 const previewContentBounds = computed(() => {
-  const { ox, oy } = previewOrigin.value;
   let minX = Infinity;
   let maxX = -Infinity;
   let minY = Infinity;
@@ -1380,10 +1418,7 @@ const previewContentBounds = computed(() => {
   };
 
   for (const p of mapElements.value.points || []) {
-    expand(
-      Number(p.x ?? p.xPosition ?? 0) + ox,
-      Number(p.y ?? p.yPosition ?? 0) + oy,
-    );
+    expand(Number(p.x ?? p.xPosition ?? 0), Number(p.y ?? p.yPosition ?? 0));
   }
 
   for (const l of mapElements.value.locations || []) {
@@ -1391,22 +1426,19 @@ const previewContentBounds = computed(() => {
     const y = Number(l.y ?? l.yPosition ?? 0);
     const hw = Number(l.editorProps?.width ?? 20) / 2;
     const hh = Number(l.editorProps?.height ?? 20) / 2;
-    expand(x - hw + ox, y - hh + oy);
-    expand(x + hw + ox, y + hh + oy);
+    expand(x - hw, y - hh);
+    expand(x + hw, y + hh);
   }
 
   for (const path of processedPaths.value) {
     const cps = extractPathControlPoints(path);
     if (cps) {
       for (const cp of cps) {
-        expand(
-          Number(cp.x ?? cp.xPosition ?? 0) + ox,
-          Number(cp.y ?? cp.yPosition ?? 0) + oy,
-        );
+        expand(Number(cp.x ?? cp.xPosition ?? 0), Number(cp.y ?? cp.yPosition ?? 0));
       }
     } else if (path.startPoint && path.endPoint) {
-      expand(Number(path.startPoint.x) + ox, Number(path.startPoint.y) + oy);
-      expand(Number(path.endPoint.x) + ox, Number(path.endPoint.y) + oy);
+      expand(Number(path.startPoint.x), Number(path.startPoint.y));
+      expand(Number(path.endPoint.x), Number(path.endPoint.y));
     }
   }
 
@@ -1424,17 +1456,8 @@ const previewContentBounds = computed(() => {
 const previewSvgCenterTransform = computed(() => {
   const b = previewContentBounds.value;
   if (!b) return "translate(0,0)";
-  return `translate(${-b.cx * SCALE},${b.cy * SCALE})`;
+  return `translate(${-b.cx * SCALE},${-b.cy * SCALE})`;
 });
-
-/**
- * 抵消 .canvas-map-layer 上 `scale(..., -1)` 对字形的纵向翻转，
- * 与坐标轴文案 `.axis-origin` / `.axis-x::after` 使用的 `scaleY(-1)` 同理。
- * SVG 变换从右到左复合，故用「平移到锚点 → 竖直翻转 → 平移回」。
- */
-function svgTextUnflipAt(cx: number, cy: number): string {
-  return `translate(${cx},${cy}) scale(1,-1) translate(${-cx},${-cy})`;
-}
 
 const filteredMaps = computed(() => {
   return [...mapList.value].sort((a, b) => {
@@ -1622,47 +1645,144 @@ const loadMapElements = async (
       return { pointsRaw, pathsRaw, locationsRaw };
     };
 
-    // 转换点位数据：后端返回 xPosition/yPosition，前端期望 x/y
+    // 转换点位：与 mapEditor.normalizePoint 一致（xposition / layout.x / properties）
     const normalizePoints = (points: any[]) => {
-      return (points || []).map((p) => {
+      return (points || []).map((p, index) => {
         const propsPayload = parsePropertiesPayload(p?.properties);
         const pointFromProps = propsPayload?.point ?? {};
+        const parsedEditorProps = propsPayload?.editorProps ?? {};
+        const parsedLayout = parseLayoutJson(p?.layout);
+        const parsedLayoutEditorProps =
+          parsedLayout?.editorProps && typeof parsedLayout.editorProps === "object"
+            ? parsedLayout.editorProps
+            : {};
+        const x =
+          pickCoordinate(p, "x") ??
+          pickCoordinate(parsedLayout, "x") ??
+          pickCoordinate(pointFromProps, "x") ??
+          0;
+        const y =
+          pickCoordinate(p, "y") ??
+          pickCoordinate(parsedLayout, "y") ??
+          pickCoordinate(pointFromProps, "y") ??
+          0;
+        const radiusResolved =
+          toFiniteNumber(parsedEditorProps?.radius) ??
+          toFiniteNumber(parsedLayoutEditorProps?.radius) ??
+          toFiniteNumber(p?.editorProps?.radius) ??
+          toFiniteNumber(p?.radius) ??
+          20;
+        const stableId =
+          p?.id != null && String(p.id) !== ""
+            ? String(p.id)
+            : p?.pointId != null && String(p.pointId) !== ""
+              ? `pid-${String(p.pointId)}`
+              : `p-${index}`;
         return {
           ...pointFromProps,
           ...p,
+          id: stableId,
           pointId: p.pointId ?? p.id,
-          x: pickCoordinate(p, "x") ?? pickCoordinate(pointFromProps, "x") ?? 0,
-          y: pickCoordinate(p, "y") ?? pickCoordinate(pointFromProps, "y") ?? 0,
+          x,
+          y,
           editorProps: {
-            ...(propsPayload?.editorProps ?? {}),
-            ...(p.editorProps ?? {}),
+            color:
+              parsedEditorProps?.color ??
+              parsedLayoutEditorProps?.color ??
+              p?.editorProps?.color,
+            radius: radiusResolved,
+            strokeColor:
+              parsedEditorProps?.strokeColor ??
+              parsedLayoutEditorProps?.strokeColor ??
+              p?.editorProps?.strokeColor,
+            textColor:
+              parsedEditorProps?.textColor ??
+              parsedLayoutEditorProps?.textColor ??
+              p?.editorProps?.textColor,
+            label:
+              parsedEditorProps?.label ??
+              parsedLayoutEditorProps?.label ??
+              p?.editorProps?.label ??
+              p?.label,
+            labelVisible:
+              parsedEditorProps?.labelVisible ??
+              parsedLayoutEditorProps?.labelVisible ??
+              p?.editorProps?.labelVisible ??
+              p?.labelVisible ??
+              true,
+            labelOffset: {
+              x:
+                toFiniteNumber(parsedEditorProps?.labelOffset?.x) ??
+                toFiniteNumber(parsedLayoutEditorProps?.labelOffset?.x) ??
+                toFiniteNumber(p?.editorProps?.labelOffset?.x) ??
+                -30,
+              y:
+                toFiniteNumber(parsedEditorProps?.labelOffset?.y) ??
+                toFiniteNumber(parsedLayoutEditorProps?.labelOffset?.y) ??
+                toFiniteNumber(p?.editorProps?.labelOffset?.y) ??
+                -30,
+            },
           },
         };
       });
     };
 
-    // 转换路径数据（保留 geometry / layoutControlPoints 供折线预览）
+    // 转换路径数据：与 mapEditor.normalizePath 一致，保留 API geometry.controlPoints，再补 layout / layoutControlPoints
     const normalizePaths = (paths: any[]) => {
       return (paths || []).map((p) => {
         const propsPayload = parsePropertiesPayload(p?.properties);
         const geometryFromProps = propsPayload?.geometry;
         const editorPropsFromProps = propsPayload?.editorProps;
 
-        // 解析 layout 字段获取 controlPoints，参考编辑器 store 的处理方式
         let layoutObj: any = null;
-        let layoutControlPoints: any[] = [];
+        let layoutCpFromJson: any[] = [];
         try {
-          layoutObj = typeof p.layout === 'string' ? JSON.parse(p.layout) : p.layout;
+          layoutObj =
+            typeof p.layout === "string" ? JSON.parse(p.layout) : p.layout;
           if (layoutObj?.controlPoints && Array.isArray(layoutObj.controlPoints)) {
-            layoutControlPoints = layoutObj.controlPoints.map((cp: any, index: number) => ({
-              id: `cp_${p.id}_${index}`,
-              x: Number(cp?.x ?? cp?.xPosition ?? 0),
-              y: Number(cp?.y ?? cp?.yPosition ?? 0),
-            }));
+            layoutCpFromJson = layoutObj.controlPoints.map(
+              (cp: any, index: number) => ({
+                id: `cp_${p.id}_${index}`,
+                x: pickCoordinate(cp, "x") ?? 0,
+                y: pickCoordinate(cp, "y") ?? 0,
+              }),
+            );
           }
-        } catch (e) {
-          // ignore parse error
+        } catch {
+          // ignore
         }
+
+        const baseGeometry =
+          p.geometry && typeof p.geometry === "object" ? { ...p.geometry } : {};
+        if (geometryFromProps && typeof geometryFromProps === "object") {
+          Object.assign(baseGeometry, geometryFromProps);
+        }
+
+        let controlPoints = Array.isArray(baseGeometry.controlPoints)
+          ? [...baseGeometry.controlPoints]
+          : [];
+        const layoutCpTop = p.layoutControlPoints;
+        const mergedLayout =
+          Array.isArray(layoutCpTop) && layoutCpTop.length > 0
+            ? layoutCpTop
+            : layoutCpFromJson;
+
+        if (
+          controlPoints.length === 0 &&
+          Array.isArray(mergedLayout) &&
+          mergedLayout.length >= 2
+        ) {
+          controlPoints = mergedLayout.map((cp: any, index: number) => ({
+            id: `cp_${p.id}_lp_${index}`,
+            x: pickCoordinate(cp, "x") ?? 0,
+            y: pickCoordinate(cp, "y") ?? 0,
+          }));
+        }
+
+        const pathType =
+          baseGeometry.pathType ||
+          layoutObj?.connectionType?.toLowerCase() ||
+          "direct";
 
         return {
           ...(propsPayload?.path ?? {}),
@@ -1674,10 +1794,10 @@ const loadMapElements = async (
             p.startPoint?.id,
           endPointId:
             p.endPointId ?? p.destPointId ?? p.destPoint?.id ?? p.endPoint?.id,
-          // 直接将 layout 中的 controlPoints 放入 geometry
           geometry: {
-            controlPoints: layoutControlPoints,
-            pathType: layoutObj?.connectionType?.toLowerCase() || 'direct',
+            ...baseGeometry,
+            controlPoints,
+            pathType,
           },
           editorProps: {
             ...(editorPropsFromProps && typeof editorPropsFromProps === "object"
@@ -1689,29 +1809,78 @@ const loadMapElements = async (
       });
     };
 
-    // 转换位置数据
+    // 转换库位：与 mapEditor.normalizeLocation 一致（layout.geometry、properties.geometry 覆盖顺序）
     const normalizeLocations = (locations: any[]) => {
-      return (locations || []).map((l) => {
+      return (locations || []).map((l, index) => {
         const propsPayload = parsePropertiesPayload(l?.properties);
         const geometryFromProps = propsPayload?.geometry;
-        const editorPropsFromProps = propsPayload?.editorProps;
+        const editorPropsFromProps = propsPayload?.editorProps ?? {};
         const locationFromProps = propsPayload?.location ?? {};
+        const parsedLayout = parseLayoutJson(l?.layout);
+        const parsedLayoutEditorProps =
+          parsedLayout?.editorProps && typeof parsedLayout.editorProps === "object"
+            ? parsedLayout.editorProps
+            : {};
+        const parsedLayoutGeometry =
+          parsedLayout?.geometry && typeof parsedLayout.geometry === "object"
+            ? parsedLayout.geometry
+            : undefined;
+
+        const mergedGeometry: Record<string, any> = {
+          ...(parsedLayoutGeometry ?? {}),
+          ...(l.geometry && typeof l.geometry === "object" ? l.geometry : {}),
+          ...(geometryFromProps && typeof geometryFromProps === "object"
+            ? geometryFromProps
+            : {}),
+        };
+
+        const x =
+          pickCoordinate(l, "x") ??
+          pickCoordinate(parsedLayout, "x") ??
+          pickCoordinate(locationFromProps, "x") ??
+          0;
+        const y =
+          pickCoordinate(l, "y") ??
+          pickCoordinate(parsedLayout, "y") ??
+          pickCoordinate(locationFromProps, "y") ??
+          0;
+
+        const locStableId =
+          l?.id != null && String(l.id) !== ""
+            ? String(l.id)
+            : l?.locationId != null && String(l.locationId) !== ""
+              ? `lid-${String(l.locationId)}`
+              : `loc-${index}`;
+
+        if (
+          !mergedGeometry.vertices ||
+          !Array.isArray(mergedGeometry.vertices) ||
+          mergedGeometry.vertices.length === 0
+        ) {
+          mergedGeometry.vertices = [
+            { id: `v_${locStableId}_0`, x, y },
+            { id: `v_${locStableId}_1`, x: x + 100, y },
+            { id: `v_${locStableId}_2`, x: x + 100, y: y + 100 },
+            { id: `v_${locStableId}_3`, x, y: y + 100 },
+          ];
+        }
+        if (mergedGeometry.closed === undefined) mergedGeometry.closed = true;
+
         return {
           ...locationFromProps,
           ...l,
-          x: pickCoordinate(l, "x") ?? pickCoordinate(locationFromProps, "x") ?? 0,
-          y: pickCoordinate(l, "y") ?? pickCoordinate(locationFromProps, "y") ?? 0,
-          geometry: {
-            ...(geometryFromProps && typeof geometryFromProps === "object"
-              ? geometryFromProps
-              : {}),
-            ...(l.geometry && typeof l.geometry === "object" ? l.geometry : {}),
-          },
+          id: locStableId,
+          x,
+          y,
+          geometry: mergedGeometry,
           editorProps: {
+            ...(parsedLayoutEditorProps && typeof parsedLayoutEditorProps === "object"
+              ? parsedLayoutEditorProps
+              : {}),
             ...(editorPropsFromProps && typeof editorPropsFromProps === "object"
               ? editorPropsFromProps
               : {}),
-            ...(l.editorProps ?? {}),
+            ...(l.editorProps && typeof l.editorProps === "object" ? l.editorProps : {}),
           },
         };
       });
@@ -1727,6 +1896,8 @@ const loadMapElements = async (
       paths: normalizePaths(pathsRaw),
       locations: normalizeLocations(locationsRaw),
     };
+    clearPointVisualMetaCache();
+    updateConnectedPointIds(mapElements.value.paths as any);
   } catch (error) {
     console.error("加载地图元素失败:", error);
     mapElements.value = { points: [], paths: [], locations: [] };
@@ -1840,7 +2011,7 @@ onBeforeUnmount(() => {
 });
 </script>
 
-<style scoped lang="scss">
+<style lang="scss">
 .workbench {
   height: 100%;
   padding: 16px;
@@ -1974,7 +2145,7 @@ onBeforeUnmount(() => {
   place-items: center;
 }
 
-// 坐标轴（在地图层内部，随层一起缩放）
+// 坐标轴（在地图层内部，随层一起缩放；与编辑器同一 Konva 约定，不再二次 scaleY）
 .layer-axis {
   position: absolute;
   left: 0;
@@ -1990,7 +2161,6 @@ onBeforeUnmount(() => {
   user-select: none;
   pointer-events: none;
   white-space: nowrap;
-  transform: scaleY(-1);
 }
 
 .axis-line {
@@ -2025,10 +2195,13 @@ onBeforeUnmount(() => {
   font-size: 11px;
   font-weight: bold;
   color: #2563eb;
-  transform: scaleY(-1);
 }
 
+/* 与 useCanvasAxis 一致：Y 臂沿 Konva 负 y 方向（屏幕向上） */
 .axis-y {
+  position: absolute;
+  left: 0;
+  top: -120px;
   width: 2px;
   height: 120px;
   background: #ef4444;
@@ -2038,10 +2211,10 @@ onBeforeUnmount(() => {
 .axis-y::before {
   content: "";
   position: absolute;
-  bottom: -6px;
+  top: -6px;
   left: 50%;
   transform: translateX(-50%);
-  border-top: 8px solid #ef4444;
+  border-bottom: 8px solid #ef4444;
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
 }
@@ -2050,11 +2223,10 @@ onBeforeUnmount(() => {
   content: "Y";
   position: absolute;
   left: 8px;
-  bottom: 0;
+  top: 0;
   font-size: 11px;
   font-weight: bold;
   color: #ef4444;
-  transform: scaleY(-1);
 }
 
 .canvas-footer {
