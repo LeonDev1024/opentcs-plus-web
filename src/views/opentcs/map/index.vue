@@ -72,9 +72,9 @@
               :locations="rendererLocationsVisible"
               :width="previewCanvasSize.w"
               :height="previewCanvasSize.h"
-              :scale="1"
-              :offset-x="0"
-              :offset-y="0"
+              :scale="canvasScale"
+              :offset-x="viewOffset.x - rendererClipCompensation.x"
+              :offset-y="viewOffset.y - rendererClipCompensation.y"
               :readonly="true"
               :auto-center="false"
             />

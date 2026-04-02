@@ -258,11 +258,14 @@ const stageConfig = computed(() => {
     stageY = centerY - bounds.cy * props.scale;
   }
 
+  // 翻转 Y 轴以匹配父容器的 scaleY(-1)
+  const scaleYFinal = props.flipY ? -props.scale : props.scale;
+
   return {
     width: props.width,
     height: props.height,
     scaleX,
-    scaleY,
+    scaleY: scaleYFinal,
     x: stageX,
     y: stageY,
     draggable: !props.readonly,

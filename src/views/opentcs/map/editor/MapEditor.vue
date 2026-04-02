@@ -375,6 +375,16 @@
             >
           </div>
         </div>
+        <div class="canvas-footer">
+          <span class="muted">编辑模式</span>
+          <span class="footer-sep">·</span>
+          <span class="muted">地图ID：</span>
+          <span class="mono">{{ currentMapId || '-' }}</span>
+          <span class="footer-sep">·</span>
+          <span class="zoom-indicator" @click="resetZoom">
+            {{ zoomPercent }}%
+          </span>
+        </div>
       </div>
     </div>
 
@@ -1370,6 +1380,7 @@ const resizeStartWidth = ref(0);
 
 // 从 store 获取状态
 const currentTool = computed(() => mapEditorStore.currentTool);
+const currentMapId = computed(() => mapEditorStore.currentMapId);
 const canUndo = computed(() => mapEditorStore.canUndo);
 const canRedo = computed(() => mapEditorStore.canRedo);
 const loading = computed(() => mapEditorStore.loading);
@@ -3845,6 +3856,38 @@ onUnmounted(() => {
           font-weight: 600;
           line-height: 1;
           letter-spacing: 0;
+        }
+      }
+    }
+
+    .canvas-footer {
+      position: absolute;
+      left: 14px;
+      bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      z-index: 12;
+
+      .muted {
+        color: #909399;
+      }
+
+      .footer-sep {
+        color: #dcdfe6;
+      }
+
+      .mono {
+        font-family: monospace;
+        color: #606266;
+      }
+
+      .zoom-indicator {
+        color: #409eff;
+        cursor: pointer;
+        &:hover {
+          text-decoration: underline;
         }
       }
     }
