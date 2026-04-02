@@ -1028,7 +1028,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
                 x: toNumberOrNull(cp?.x),
                 y: toNumberOrNull(cp?.y)
               }))
-            }))
+            })
           };
         });
       };
