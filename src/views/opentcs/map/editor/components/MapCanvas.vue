@@ -3793,6 +3793,30 @@ const handlePointDragMove = (point: MapPoint, e: any) => {
   node.y(snapped.y);
 };
 
+const syncPathControlPoints = (pointId: string, x: number, y: number) => {
+  mapEditorStore.paths.forEach((path) => {
+    const cps = path.geometry.controlPoints;
+    if (!cps.length) return;
+    const startId = path.startPointId != null ? String(path.startPointId) : null;
+    const endId = path.endPointId != null ? String(path.endPointId) : null;
+    const pid = String(pointId);
+    let updated: typeof cps | null = null;
+    if (startId === pid) {
+      updated = [...cps];
+      updated[0] = { ...updated[0], x, y };
+    }
+    if (endId === pid) {
+      updated = updated ?? [...cps];
+      updated[updated.length - 1] = { ...updated[updated.length - 1], x, y };
+    }
+    if (updated) {
+      mapEditorStore.updatePath(path.id, {
+        geometry: { ...path.geometry, controlPoints: updated },
+      });
+    }
+  });
+};
+
 const handlePointDragEnd = (point: MapPoint) => {
   isDragging.value = false;
   const layer = getKonvaNode(pointLayerRef.value);
@@ -3801,35 +3825,21 @@ const handlePointDragEnd = (point: MapPoint) => {
   if (!node) return;
   const newX = node.x();
   const newY = node.y();
-  mapEditorStore.updatePoint(point.id, { x: newX, y: newY });
-  // 同步以该点为端点的连线：更新路径的首/末控制点
-  const paths = mapEditorStore.paths;
-  paths.forEach((path) => {
-    const cps = path.geometry.controlPoints;
-    if (!cps.length) return;
-    const startId =
-      path.startPointId != null ? String(path.startPointId) : null;
-    const endId = path.endPointId != null ? String(path.endPointId) : null;
-    const pointId = String(point.id);
-    let updated: typeof cps | null = null;
-    if (startId === pointId) {
-      updated = [...cps];
-      updated[0] = { ...updated[0], x: newX, y: newY };
-    }
-    if (endId === pointId) {
-      updated = updated ?? [...cps];
-      updated[updated.length - 1] = {
-        ...updated[updated.length - 1],
-        x: newX,
-        y: newY,
-      };
-    }
-    if (updated) {
-      mapEditorStore.updatePath(path.id, {
-        geometry: { ...path.geometry, controlPoints: updated },
-      });
-    }
-  });
+
+  // 位置未变化时不记录命令
+  if (newX === point.x && newY === point.y) return;
+
+  const command = new MovePointCommand(
+    point.id,
+    { x: point.x, y: point.y },
+    { x: newX, y: newY },
+    (id, pos) => {
+      mapEditorStore.updatePoint(id, { x: pos.x, y: pos.y });
+      syncPathControlPoints(id, pos.x, pos.y);
+    },
+    '移动点'
+  );
+  mapEditorStore.executeCommand(command);
 };
 
 // 路径点击
