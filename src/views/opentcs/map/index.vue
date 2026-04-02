@@ -506,7 +506,6 @@ import MapRenderer from "@/components/map/MapRenderer.vue";
 import MapManagementCanvasAxes from "@/components/map/MapManagementCanvasAxes.vue";
 import type { MapLayerVisibility } from "@/types/mapEditor";
 import { defaultMapLayerVisibility } from "@/types/mapEditor";
-import layerIconUrl from "@/assets/icons/svg/图层.svg?url";
 import { getDefaultPointRadiusForType } from "@/utils/mapEditor/mapVisualTokens";
 import {
   clearPointVisualMetaCache,
@@ -516,6 +515,7 @@ import { useMapEditorTabsStore } from "@/store/modules/mapEditorTabs";
 import { useAppStore } from "@/store/modules/app";
 import { ElMessage, ElMessageBox } from "element-plus";
 import type { FormInstance } from "element-plus";
+import layerIconUrl from "@/assets/icons/svg/图层.svg?url";
 import { View, Hide } from "@element-plus/icons-vue";
 import { watch, onBeforeUnmount } from "vue";
 
