@@ -569,6 +569,7 @@ const layerVisibility = reactive<MapLayerVisibility>(
 );
 const layerMenuItems: { key: keyof MapLayerVisibility; label: string }[] = [
   { key: "station", label: "站点显隐" },
+  { key: "path", label: "路径显隐" },
   { key: "pathDirection", label: "方向显隐" },
   { key: "raster", label: "底图显隐" },
 ];
@@ -1220,13 +1221,15 @@ const rendererPaths = computed(() => {
 });
 
 const rendererPathsVisible = computed(() =>
-  rendererPaths.value.map((p: any) => ({
-    ...p,
-    editorProps: {
-      ...(p.editorProps ?? {}),
-      arrowVisible: layerVisibility.pathDirection,
-    },
-  })),
+  layerVisibility.path
+    ? rendererPaths.value.map((p: any) => ({
+        ...p,
+        editorProps: {
+          ...(p.editorProps ?? {}),
+          arrowVisible: layerVisibility.pathDirection,
+        },
+      }))
+    : [],
 );
 
 const rendererLocations = computed(() => {
@@ -1644,6 +1647,23 @@ const loadMapElements = async (
         const propsPayload = parsePropertiesPayload(p?.properties);
         const geometryFromProps = propsPayload?.geometry;
         const editorPropsFromProps = propsPayload?.editorProps;
+
+        // 解析 layout 字段获取 controlPoints，参考编辑器 store 的处理方式
+        let layoutObj: any = null;
+        let layoutControlPoints: any[] = [];
+        try {
+          layoutObj = typeof p.layout === 'string' ? JSON.parse(p.layout) : p.layout;
+          if (layoutObj?.controlPoints && Array.isArray(layoutObj.controlPoints)) {
+            layoutControlPoints = layoutObj.controlPoints.map((cp: any, index: number) => ({
+              id: `cp_${p.id}_${index}`,
+              x: Number(cp?.x ?? cp?.xPosition ?? 0),
+              y: Number(cp?.y ?? cp?.yPosition ?? 0),
+            }));
+          }
+        } catch (e) {
+          // ignore parse error
+        }
+
         return {
           ...(propsPayload?.path ?? {}),
           ...p,
@@ -1654,11 +1674,10 @@ const loadMapElements = async (
             p.startPoint?.id,
           endPointId:
             p.endPointId ?? p.destPointId ?? p.destPoint?.id ?? p.endPoint?.id,
+          // 直接将 layout 中的 controlPoints 放入 geometry
           geometry: {
-            ...(geometryFromProps && typeof geometryFromProps === "object"
-              ? geometryFromProps
-              : {}),
-            ...(p.geometry && typeof p.geometry === "object" ? p.geometry : {}),
+            controlPoints: layoutControlPoints,
+            pathType: layoutObj?.connectionType?.toLowerCase() || 'direct',
           },
           editorProps: {
             ...(editorPropsFromProps && typeof editorPropsFromProps === "object"
