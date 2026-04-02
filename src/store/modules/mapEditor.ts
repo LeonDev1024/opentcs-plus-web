@@ -1113,6 +1113,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       // 保存成功后不更新前端版本号，避免循环引用问题
       // 用户可以手动刷新页面查看新版本，或者重新加载地图
 
+      // 清空 undo/redo 历史：保存后不应再能撤销到保存前的状态
+      commandManager.clear();
       isDirty.value = false;
 
       return mapData.value;
@@ -1201,6 +1203,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const updatePoint = (id: string, updates: Partial<MapPoint>) => {
     const index = points.value.findIndex(p => p.id === id);
     if (index !== -1) {
+      if (points.value[index].locked) return;
       points.value[index] = { ...points.value[index], ...updates };
       isDirty.value = true;
     }
@@ -1307,6 +1310,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const updatePath = (id: string, updates: Partial<MapPath>) => {
     const index = paths.value.findIndex(p => p.id === id);
     if (index !== -1) {
+      if (paths.value[index].locked) return;
       paths.value[index] = { ...paths.value[index], ...updates };
       isDirty.value = true;
     }
@@ -1357,6 +1361,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const updateLocation = (id: string, updates: Partial<MapLocation>) => {
     const index = locations.value.findIndex(l => l.id === id);
     if (index !== -1) {
+      if (locations.value[index].locked) return;
       locations.value[index] = { ...locations.value[index], ...updates };
       isDirty.value = true;
     }
@@ -1763,14 +1768,20 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
    * 撤销
    */
   const undo = () => {
-    commandManager.undo();
+    const didUndo = commandManager.undo();
+    if (didUndo) {
+      isDirty.value = true;
+    }
   };
-  
+
   /**
    * 重做
    */
   const redo = () => {
-    commandManager.redo();
+    const didRedo = commandManager.redo();
+    if (didRedo) {
+      isDirty.value = true;
+    }
   };
   
   /**
@@ -1842,6 +1853,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
 
     // 清除选择
     clearSelection();
+
+    // 版本回滚后清空 undo/redo 栈，避免与快照状态不一致
+    commandManager.clear();
 
     // 标记为已修改
     isDirty.value = true;

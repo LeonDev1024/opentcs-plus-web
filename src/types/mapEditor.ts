@@ -307,6 +307,8 @@ export interface MapLayerVisibility {
   pathDirection: boolean;
   /** 栅格底图 */
   raster: boolean;
+  /** 路径线 */
+  path: boolean;
 }
 
 export function defaultMapLayerVisibility(): MapLayerVisibility {
@@ -314,5 +316,6 @@ export function defaultMapLayerVisibility(): MapLayerVisibility {
     station: true,
     pathDirection: true,
     raster: true,
+    path: true,
   };
 }

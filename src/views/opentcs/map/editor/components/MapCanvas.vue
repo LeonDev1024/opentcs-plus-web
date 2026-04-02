@@ -331,6 +331,19 @@ import {
 import { POINT_TYPE, getPointVisualMeta } from "@/utils/mapEditor/pointStyle";
 import type { LocationVO } from "@/api/opentcs/map/location/types";
 import LocationEditDialog from "./LocationEditDialog.vue";
+import {
+  useLocationTypes,
+  useCanvasAxis,
+  useCanvasViewport,
+  getKonvaNode,
+  usePointRendering,
+  usePathRendering,
+  PATH_ARROW,
+  PATH_PREVIEW_STROKE,
+  useLocationRendering,
+  BUSINESS_LOCATION_BOX_SIZE,
+  AXIS_ARM,
+} from "../composables";
 
 // 节流标志 - 拖拽时设为 true 禁用节流
 const isDraggingState = ref(false);
@@ -345,73 +358,6 @@ const updateMousePosition = (x: number, y: number) => {
     mousePosition.value = { x, y };
     lastMouseUpdate = now;
   }
-};
-
-// 位置类型列表（用于解析 properties 中 name===symbol 的 value 作为图标）
-const locationTypeList = ref<LocationVO[]>([]);
-const loadLocationTypes = async () => {
-  try {
-    locationTypeList.value = await mapEditorStore.fetchLocationTypeList();
-    preloadLocationIconImages();
-  } catch (e) {
-    console.error("加载位置类型列表失败", e);
-  }
-};
-
-// 从位置类型的 properties 中取 name 为 symbol 的 value
-const getSymbolForLocationTypeId = (
-  locationTypeId: string | number | undefined,
-): string => {
-  if (locationTypeId === undefined || locationTypeId === null) return "";
-  const id = String(locationTypeId);
-  const type = locationTypeList.value.find((t) => String(t.id) === id);
-  if (!type?.properties || !Array.isArray(type.properties)) return "";
-  const symbolProp = type.properties.find(
-    (p: any) => p && (p.name === "symbol" || p.name === "Symbol"),
-  );
-  return symbolProp && symbolProp.value ? String(symbolProp.value) : "";
-};
-
-// 位置方框内图标：assets/location/*.svg 的 URL 映射（symbol 名称 -> url）
-const locationIconUrlMap: Record<string, string> = {};
-try {
-  const modules = import.meta.glob("@/assets/location/*.svg", {
-    eager: true,
-    as: "url",
-  }) as Record<string, string | { default: string }>;
-  Object.keys(modules).forEach((path) => {
-    const match = path.match(/location[\/\\]([^\/\\]+)\.svg$/);
-    if (!match || !match[1]) return;
-    const v = modules[path];
-    const url =
-      typeof v === "string" ? v : v && (v as { default: string }).default;
-    if (url) locationIconUrlMap[match[1]] = url;
-  });
-} catch (_) {}
-
-// 已加载的图标图片缓存（symbol -> HTMLImageElement），用于 Konva.Image
-const locationIconImageCache = ref<Record<string, HTMLImageElement>>({});
-const preloadLocationIconImages = () => {
-  const symbols = new Set<string>();
-  locationTypeList.value.forEach((t) => {
-    if (!t.properties || !Array.isArray(t.properties)) return;
-    const p = t.properties.find(
-      (x: any) => x && (x.name === "symbol" || x.name === "Symbol"),
-    );
-    if (p && p.value) symbols.add(String(p.value));
-  });
-  symbols.forEach((symbol) => {
-    if (locationIconImageCache.value[symbol] || !locationIconUrlMap[symbol])
-      return;
-    const img = new Image();
-    img.onload = () => {
-      locationIconImageCache.value = {
-        ...locationIconImageCache.value,
-        [symbol]: img,
-      };
-    };
-    img.src = locationIconUrlMap[symbol];
-  });
 };
 
 // 注册 vue-konva 组件（如果全局注册不工作，则在组件内注册）
@@ -460,77 +406,6 @@ const pointLayerRef = ref<any>();
 const pathLayerRef = ref<any>();
 const locationLayerRef = ref<any>();
 const tempLayerRef = ref<any>();
-
-/** 默认视口：模型原点 (0,0) 落在画布容器左下角附近（与 Stage offset 一致） */
-const DEFAULT_VIEWPORT_ORIGIN_PAD = 48;
-
-function tryApplyViewportOriginBottomLeft() {
-  const el = containerRef.value;
-  if (!el) return;
-  const cs = mapEditorStore.canvasState;
-  if (cs.offsetX !== 0 || cs.offsetY !== 0) return;
-  const h = el.clientHeight || 1080;
-  const w = el.clientWidth || 1920;
-  if (h < 80 || w < 80) return; // 宽高过小不调整，避免异常布局
-  const originX = Number(mapEditorStore.mapData?.mapInfo?.originX ?? 0) || 0;
-  const originY = Number(mapEditorStore.mapData?.mapInfo?.originY ?? 0) || 0;
-  const s = cs.scale || 1;
-  // 与 mapOriginCoord 的 y 方向约定一致：显示用取反后的 y
-  const mapOriginY = -originY;
-
-  // 当地图原点不在 (0,0) 时，理论上需要同时保证：
-  // - 工厂原点(0,0)实线轴可见
-  // - 地图原点(originX, originY)虚线轴可见
-  //
-  // 但如果 origin 距离太远，窗口无法同时容纳两者（约束区间交集为空）；
-  // 此时会出现“实线有、虚线不见”之类的问题。
-  // 这里优先选择能同时满足的 offset；若交集为空，则退回居中到地图原点，确保虚线一定可见。
-  if (originX !== 0 || originY !== 0) {
-    const pad = DEFAULT_VIEWPORT_ORIGIN_PAD;
-
-    // 计算 (0,0) 实线轴 + (originX,originY) 虚线轴 的整体 bbox（模型坐标系）。
-    const minXModel = Math.min(0, originX);
-    const maxXModel = Math.max(AXIS_ARM, originX + AXIS_ARM);
-    const minYModel = Math.min(-AXIS_ARM, mapOriginY - AXIS_ARM);
-    const maxYModel = Math.max(0, mapOriginY);
-
-    const centerXModel = (minXModel + maxXModel) / 2;
-    const centerYModel = (minYModel + maxYModel) / 2;
-
-    mapEditorStore.updateCanvasState({
-      // 只做平移（offset），不修改 scale：避免与控制台 mm->px 换算比例不一致
-      offsetX: w / 2 - centerXModel * s,
-      offsetY: h / 2 - centerYModel * s,
-    });
-    return;
-  }
-
-  // origin 为 (0,0) 时：保持原有默认逻辑（把工厂原点摆到左下角附近）
-  mapEditorStore.updateCanvasState({
-    offsetX: DEFAULT_VIEWPORT_ORIGIN_PAD,
-    offsetY: h - DEFAULT_VIEWPORT_ORIGIN_PAD,
-  });
-}
-
-// 辅助函数：获取 Konva 节点（兼容不同的 vue-konva 版本）
-const getKonvaNode = (ref: any) => {
-  if (!ref) return null;
-  // 尝试多种方式获取节点
-  if (ref.getNode && typeof ref.getNode === "function") {
-    return ref.getNode();
-  }
-  if (ref.$konva) {
-    return ref.$konva;
-  }
-  if (ref.getStage && typeof ref.getStage === "function") {
-    return ref.getStage();
-  }
-  // 如果 ref 本身就是节点
-  if (ref.findOne) {
-    return ref;
-  }
-  return null;
-};
 
 // 导出画布为图片
 const exportAsImage = async (format: "png" | "svg"): Promise<string> => {
@@ -641,174 +516,6 @@ const exportAsImage = async (format: "png" | "svg"): Promise<string> => {
   });
 };
 
-// 画布配置
-const canvasState = computed(() => mapEditorStore.canvasState);
-
-/**
- * Konva 坐标轴层 —— 模型坐标轴（X/Y）以及原点标注。
- * 这些元素属于 Stage 内的 Konva Layer，随漫游/缩放统一变换，无需 CSS 定位。
- * 轴线长度跟随视口动态扩展，保证始终延伸到视口边缘之外。
- */
-/**
- * ─── 坐标轴视觉系统 ────────────────────────────────────────────────────────────
- * 只保留原点处的短臂坐标轴指示器（不铺满视口），与参考图一致：
- *   · 场景/工厂原点 O(0,0)：实线臂 + 实心三角箭头
- *   · 地图/导航原点 M(x,y)：虚线臂 + 实心三角箭头（同色）
- *   · 重合时实线覆盖虚线，只看到实线
- *   · 蓝色 X + 红色 Y；所有尺寸屏幕固定
- */
-const AXIS_COLOR_X = "#2563eb";
-const AXIS_COLOR_Y = "#dc2626";
-
-/**
- * 所有尺寸使用**固定模型坐标**，与点、路径等地图元素一致，
- * 由 Stage 的 scaleX/scaleY 统一缩放。放大时坐标轴和点一起变大。
- */
-// 与控制台保持一致：1mm = 1px（默认缩放 100% 时）
-const AXIS_W = 2; // 线宽（模型单位，=px）
-const AXIS_ARM = 120; // 臂长（模型单位，=mm）
-const AXIS_ARROW_L = 8; // 箭头长度
-const AXIS_ARROW_H = 5; // 箭头半宽
-const MAP_DASH = [8, 5]; // 虚线 pattern
-
-// ═══════ 场景/工厂原点（实线） ═══════════════════════════════════════════════
-const axisXLineConfig = {
-  points: [0, 0, AXIS_ARM, 0],
-  stroke: AXIS_COLOR_X,
-  strokeWidth: AXIS_W,
-  opacity: 0.9,
-};
-
-const axisYLineConfig = {
-  points: [0, 0, 0, -AXIS_ARM],
-  stroke: AXIS_COLOR_Y,
-  strokeWidth: AXIS_W,
-  opacity: 0.9,
-};
-
-const axisXArrowConfig = {
-  points: [
-    AXIS_ARM - AXIS_ARROW_L,
-    -AXIS_ARROW_H,
-    AXIS_ARM,
-    0,
-    AXIS_ARM - AXIS_ARROW_L,
-    AXIS_ARROW_H,
-  ],
-  stroke: AXIS_COLOR_X,
-  fill: AXIS_COLOR_X,
-  strokeWidth: AXIS_W,
-  closed: true,
-  lineCap: "round" as const,
-  lineJoin: "round" as const,
-  opacity: 1,
-};
-
-const axisYArrowConfig = {
-  points: [
-    -AXIS_ARROW_H,
-    -(AXIS_ARM - AXIS_ARROW_L),
-    0,
-    -AXIS_ARM,
-    AXIS_ARROW_H,
-    -(AXIS_ARM - AXIS_ARROW_L),
-  ],
-  stroke: AXIS_COLOR_Y,
-  fill: AXIS_COLOR_Y,
-  strokeWidth: AXIS_W,
-  closed: true,
-  lineCap: "round" as const,
-  lineJoin: "round" as const,
-  opacity: 1,
-};
-
-// ═══════ 地图/导航原点（虚线，始终渲染；重合时被实线覆盖） ════════════════════
-/** 当前地图的 originX/Y（模型坐标 mm） */
-const mapOriginCoord = computed(() => ({
-  x: mapEditorStore.mapData?.mapInfo?.originX ?? 0,
-  // 与控制台拓扑视图保持一致：Konva 的 y 轴向下为正，
-  // 后端/控制台的 originY 约定为“向上为正”，因此需要取反。
-  y: -(mapEditorStore.mapData?.mapInfo?.originY ?? 0),
-}));
-
-const mapOriginXLineConfig = computed(() => {
-  const { x, y } = mapOriginCoord.value;
-  return {
-    points: [x, y, x + AXIS_ARM, y],
-    stroke: AXIS_COLOR_X,
-    strokeWidth: AXIS_W,
-    dash: MAP_DASH,
-    opacity: 0.9,
-  };
-});
-
-const mapOriginYLineConfig = computed(() => {
-  const { x, y } = mapOriginCoord.value;
-  return {
-    points: [x, y, x, y - AXIS_ARM],
-    stroke: AXIS_COLOR_Y,
-    strokeWidth: AXIS_W,
-    dash: MAP_DASH,
-    opacity: 0.9,
-  };
-});
-
-const mapOriginXArrowConfig = computed(() => {
-  const { x, y } = mapOriginCoord.value;
-  const tip = x + AXIS_ARM;
-  return {
-    points: [
-      tip - AXIS_ARROW_L,
-      y - AXIS_ARROW_H,
-      tip,
-      y,
-      tip - AXIS_ARROW_L,
-      y + AXIS_ARROW_H,
-    ],
-    stroke: AXIS_COLOR_X,
-    fill: AXIS_COLOR_X,
-    strokeWidth: AXIS_W,
-    closed: true,
-    lineCap: "round" as const,
-    lineJoin: "round" as const,
-    opacity: 1,
-  };
-});
-
-const mapOriginYArrowConfig = computed(() => {
-  const { x, y } = mapOriginCoord.value;
-  const tip = y - AXIS_ARM;
-  return {
-    points: [
-      x - AXIS_ARROW_H,
-      tip + AXIS_ARROW_L,
-      x,
-      tip,
-      x + AXIS_ARROW_H,
-      tip + AXIS_ARROW_L,
-    ],
-    stroke: AXIS_COLOR_Y,
-    fill: AXIS_COLOR_Y,
-    strokeWidth: AXIS_W,
-    closed: true,
-    lineCap: "round" as const,
-    lineJoin: "round" as const,
-    opacity: 1,
-  };
-});
-
-/** 地图数据加载或重置为 (0,0) 后，将默认视口置于左下角原点 */
-watch(
-  () =>
-    [
-      mapEditorStore.canvasState.offsetX,
-      mapEditorStore.canvasState.offsetY,
-    ] as const,
-  () => {
-    nextTick(() => tryApplyViewportOriginBottomLeft());
-  },
-);
-
 const currentTool = computed(() => mapEditorStore.currentTool);
 
 /**
@@ -859,289 +566,7 @@ const isSelectInteractionTool = computed(
 /** 漫游：仅画布拖拽 */
 const isPanInteractionTool = computed(() => currentTool.value === ToolMode.PAN);
 
-// 容器视口尺寸（仅用于 Stage 显示大小，与模型空间 canvasState.width/height 分离，避免拖拽左侧面板时覆盖逻辑画布导致点位偏移）
-const containerSize = ref({ width: 1920, height: 1080 });
 
-const stageConfig = computed(() => {
-  const MIN_STAGE = 400;
-  const containerWidth = Math.max(MIN_STAGE, containerSize.value.width || 1920);
-  const containerHeight = Math.max(
-    MIN_STAGE,
-    containerSize.value.height || 1080,
-  );
-
-  return {
-    width: containerWidth,
-    height: containerHeight,
-    scaleX: canvasState.value.scale,
-    scaleY: canvasState.value.scale,
-    x: canvasState.value.offsetX,
-    y: canvasState.value.offsetY,
-    draggable: false, // Stage 本身不可拖拽，通过平移工具控制
-  };
-});
-
-/**
- * 无限画布矩形：极大静态区域覆盖模型坐标系，保证漫游/绘图工具在任意平移位置下都能命中空白。
- * 大小选 200 000 × 200 000（相当于 100 000 px/方向），远超实际使用范围。
- */
-const INFINITE_CANVAS_HALF = 100_000;
-const stageAreaRectConfig = {
-  x: -INFINITE_CANVAS_HALF,
-  y: -INFINITE_CANVAS_HALF,
-  width: INFINITE_CANVAS_HALF * 2,
-  height: INFINITE_CANVAS_HALF * 2,
-  fill: "transparent",
-  listening: true,
-};
-
-// 栅格底图（导入的 map.yaml + map.pgm）：比例尺 m/单位，用于将 origin 转为模型坐标
-const rasterScaleM = computed(() => {
-  const scaleX =
-    mapEditorStore.mapData?.mapInfo?.scaleX ??
-    mapEditorStore.mapData?.visualLayout?.scaleX;
-  const v =
-    typeof scaleX === "number"
-      ? scaleX
-      : scaleX != null
-        ? parseFloat(String(scaleX))
-        : 50;
-  return (v || 50) / 1000; // mm/unit -> m/unit，默认 50mm/unit = 0.05
-});
-
-// 栅格底图：手动加载图片，避免 useImage 返回不稳定导致 .value 报错
-const rasterLoadedImage = ref<HTMLImageElement | null>(null);
-watch(
-  () => mapEditorStore.rasterBackground?.imageDataUrl,
-  (dataUrl) => {
-    rasterLoadedImage.value = null;
-    if (!dataUrl) return;
-    const img = new Image();
-    img.onload = () => {
-      rasterLoadedImage.value = img;
-      nextTick(() => {
-        const layer = getKonvaNode(rasterLayerRef.value);
-        if (layer) layer.batchDraw?.();
-      });
-    };
-    img.onerror = () => {
-      rasterLoadedImage.value = null;
-    };
-    img.src = dataUrl;
-  },
-  { immediate: true },
-);
-
-const rasterBackgroundConfig = computed(() => {
-  const raster = mapEditorStore.rasterBackground;
-  if (!raster) return null;
-  const img = rasterLoadedImage.value;
-  if (!img) return null;
-  // 将导航栅格地图整体居中放置在当前主工作区中心
-  const canvasWidth = canvasState.value.width || 1920;
-  const canvasHeight = canvasState.value.height || 1080;
-  const h = raster.heightPx;
-  const w = raster.widthPx;
-  const x = (canvasWidth - w) / 2;
-  const y = (canvasHeight - h) / 2;
-  return {
-    x,
-    y,
-    width: w,
-    height: h,
-    image: img,
-    listening: false,
-  };
-});
-
-// 网格配置：画布上按固定步长绘制，保证网格线密度可见；比例尺由 scaleX/scaleY 在状态栏换算
-const gridSize = ref(18);
-
-const gridLines = computed(() => {
-  const lines: any[] = [];
-  const width = canvasState.value.width || 1920;
-  const height = canvasState.value.height || 1080;
-  const size = gridSize.value;
-  const padding = size * 20;
-  const startX = Math.floor(-padding / size) * size;
-  const endX = Math.ceil((width + padding) / size) * size;
-  const startY = Math.floor(-padding / size) * size;
-  const endY = Math.ceil((height + padding) / size) * size;
-
-  for (let x = startX; x <= endX; x += size) {
-    const isMajor = size > 0 && x !== 0 && x % (size * 5) === 0;
-    lines.push({
-      points: [x, startY, x, endY],
-      stroke: isMajor ? "#b0b0b0" : "#cccccc",
-      strokeWidth: isMajor ? 1.2 : 1,
-      listening: false,
-      perfectDrawEnabled: false,
-      hitStrokeWidth: 0,
-    });
-  }
-  for (let y = startY; y <= endY; y += size) {
-    const isMajor = size > 0 && y !== 0 && y % (size * 5) === 0;
-    lines.push({
-      points: [startX, y, endX, y],
-      stroke: isMajor ? "#b0b0b0" : "#cccccc",
-      strokeWidth: isMajor ? 1.2 : 1,
-      listening: false,
-      perfectDrawEnabled: false,
-      hitStrokeWidth: 0,
-    });
-  }
-  return lines;
-});
-
-// ==================== 视口与按需渲染 ====================
-
-// 计算当前视口在模型坐标系的范围（用于按需渲染）
-const viewportBounds = computed(() => {
-  const scale = canvasState.value.scale || 1;
-  const offsetX = canvasState.value.offsetX || 0;
-  const offsetY = canvasState.value.offsetY || 0;
-  const containerWidth = containerSize.value.width || 1920;
-  const containerHeight = containerSize.value.height || 1080;
-
-  // 视口边界的模型坐标（增加缓冲区域）
-  const padding = 200; // 200像素的缓冲
-  const minX = (0 - offsetX) / scale - padding;
-  const maxX = (containerWidth - offsetX) / scale + padding;
-  const minY = (0 - offsetY) / scale - padding;
-  const maxY = (containerHeight - offsetY) / scale + padding;
-
-  return { minX, maxX, minY, maxY };
-});
-
-// 可见元素（根据图层可见性和视口范围过滤 - 按需渲染）
-const visiblePoints = computed(() => {
-  const bounds = viewportBounds.value;
-  const padding = 100; // 点位周围100像素缓冲
-
-  return mapEditorStore.points.filter((point) => {
-    const layer = mapEditorStore.layers.find((l) => l.id === point.layerId);
-    // 只渲染在视口范围内的点（带缓冲）
-    if (layer?.visible !== false) {
-      return (
-        point.x >= bounds.minX - padding &&
-        point.x <= bounds.maxX + padding &&
-        point.y >= bounds.minY - padding &&
-        point.y <= bounds.maxY + padding
-      );
-    }
-    return false;
-  });
-});
-
-const visiblePaths = computed(() => {
-  const bounds = viewportBounds.value;
-  const padding = 100;
-
-  return mapEditorStore.paths.filter((path) => {
-    const layer = mapEditorStore.layers.find((l) => l.id === path.layerId);
-    if (layer?.visible !== false) {
-      const controlPoints = path.geometry.controlPoints || [];
-      return controlPoints.some(
-        (cp) =>
-          cp.x >= bounds.minX - padding &&
-          cp.x <= bounds.maxX + padding &&
-          cp.y >= bounds.minY - padding &&
-          cp.y <= bounds.maxY + padding,
-      );
-    }
-    return false;
-  });
-});
-
-const visibleLocations = computed(() => {
-  const bounds = viewportBounds.value;
-  const padding = 100;
-
-  return mapEditorStore.locations.filter((location) => {
-    const layer = mapEditorStore.layers.find((l) => l.id === location.layerId);
-    if (layer?.visible !== false) {
-      // 检查位置区域的顶点是否在视口范围内
-      const vertices = location.geometry.vertices || [];
-      if (vertices.length > 0) {
-        return vertices.some(
-          (v) =>
-            v.x >= bounds.minX - padding &&
-            v.x <= bounds.maxX + padding &&
-            v.y >= bounds.minY - padding &&
-            v.y <= bounds.maxY + padding,
-        );
-      }
-      // 如果没有顶点，检查中心点
-      if (location.x !== undefined && location.y !== undefined) {
-        return (
-          location.x >= bounds.minX - padding &&
-          location.x <= bounds.maxX + padding &&
-          location.y >= bounds.minY - padding &&
-          location.y <= bounds.maxY + padding
-        );
-      }
-    }
-    return false;
-  });
-});
-
-const shouldRenderPointGlyph = (point: MapPoint) =>
-  Boolean(getPointVisualMeta(point).glyph);
-
-// 判断是否显示点标签
-const shouldShowPointLabel = (point: MapPoint) => {
-  const labelVisible = point.editorProps?.labelVisible !== false; // 默认为 true
-  return labelVisible && (point.name || point.id);
-};
-
-// 获取点标签配置
-const getPointLabelConfig = (point: MapPoint) => {
-  const visual = getPointVisualMeta(point);
-  const labelText = point.name || point.id;
-  const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
-
-  return {
-    x: point.x,
-    y: point.y + visual.radius + 8, // 标签显示在点下方
-    text: labelText,
-    fontSize: 12,
-    fontFamily: "Arial, sans-serif",
-    fill: isSelected ? "#ff4d4f" : "#303133",
-    align: "center",
-    verticalAlign: "top",
-    padding: 2,
-    listening: false,
-    perfectDrawEnabled: false,
-  };
-};
-
-const getPointGlyphConfig = (point: MapPoint) => {
-  const visual = getPointVisualMeta(point);
-  if (!visual.glyph) {
-    return {};
-  }
-  const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
-  const isPathStart =
-    currentTool.value === ToolMode.PATH &&
-    pathDragState.startPoint?.id === point.id;
-  const highlighted = isSelected || isPathStart;
-
-  return {
-    x: point.x,
-    y: point.y,
-    text: visual.glyph,
-    fontSize: Math.max(10, visual.radius * 1.8),
-    fontStyle: "bold",
-    fill: highlighted ? "#ffffff" : visual.glyphColor,
-    align: "center",
-    verticalAlign: "middle",
-    width: visual.radius * 2,
-    height: visual.radius * 2,
-    offsetX: visual.radius,
-    offsetY: visual.radius,
-    listening: false,
-  };
-};
 
 // ==================== 仿真功能 ====================
 
@@ -1294,41 +719,6 @@ const mapIssueMarkers = computed(() => {
     .filter(Boolean);
 });
 
-const buildPointEditorProps = (type: string): MapPoint["editorProps"] => {
-  if (type === POINT_TYPE.PARK) {
-    return {
-      radius: POINT_TYPE_RADIUS[POINT_TYPE.PARK],
-      color: "#409eff",
-      strokeColor: "#1d6fd6",
-      textColor: "#ffffff",
-      labelVisible: true,
-    };
-  }
-  return {
-    radius: POINT_TYPE_RADIUS[POINT_TYPE.HALT],
-    color: "#8c8c8c",
-    strokeColor: "#d9d9d9",
-    textColor: "#595959",
-    labelVisible: true,
-  };
-};
-
-const createPointPayload = (x: number, y: number): Omit<MapPoint, "id"> => {
-  const nextName =
-    typeof mapEditorStore.generatePointName === "function"
-      ? mapEditorStore.generatePointName()
-      : `Point-${Date.now()}`;
-
-  return {
-    layerId: getDefaultLayerId("point"),
-    name: nextName,
-    x,
-    y,
-    status: "0",
-    type: mapEditorStore.pointType,
-    editorProps: buildPointEditorProps(mapEditorStore.pointType),
-  };
-};
 
 // 鼠标位置
 const mousePosition = ref({ x: 0, y: 0 });
@@ -1357,49 +747,6 @@ const pathDragState = reactive<{
   pathType: "direct",
 });
 
-const PATH_ARROW = {
-  radius: 6,
-  color: "#409eff",
-};
-
-/**
- * 橡皮筋预览：与正式路径同宽，用略低不透明度区分（勿用粗虚线：Konva 圆端帽 + 宽描边会在虚线段端叠成圆斑/扇贝纹）。
- */
-const PATH_PREVIEW_STROKE = "rgba(59, 130, 246, 0.42)";
-
-const tempPathPreview = computed(() => {
-  if (!pathDragState.startPoint) return null;
-  const start = pathDragState.startPoint;
-  let end = { x: pathDragState.currentPos.x, y: pathDragState.currentPos.y };
-  // 起点与当前点重合时线段长度为 0，Konva 不显示；给 1px 占位，鼠标一动即被真实坐标覆盖
-  if (Math.hypot(end.x - start.x, end.y - start.y) < 0.5) {
-    end = { x: start.x + 1, y: start.y };
-  }
-  const controlPoints = buildConnectionControlPoints(
-    start,
-    end,
-    pathDragState.pathType,
-  );
-  const points: number[] = [];
-  controlPoints.forEach((cp) => {
-    points.push(cp.x, cp.y);
-  });
-  const isCurvePreview = pathDragState.pathType === "curve";
-  const line = {
-    points,
-    stroke: PATH_PREVIEW_STROKE,
-    strokeWidth: PATH_RIBBON_STROKE_WIDTH,
-    lineCap: "round",
-    lineJoin: "round",
-    tension: isCurvePreview ? 0.5 : 0,
-    /** 实线带状，避免虚线扇贝纹；与正式路径区分靠透明度与色相 */
-    listening: false,
-    opacity: 1,
-    shadowBlur: 0,
-    shadowOpacity: 0,
-  };
-  return { line };
-});
 
 /** 拖动地图点时，实时同步所有以该点为端点的路径控制点，避免描边透明时只见箭头、线不跟随 */
 const syncPathControlPointsForPointMove = (
@@ -1435,20 +782,6 @@ const syncPathControlPointsForPointMove = (
   });
 };
 
-const findPointAtPosition = (
-  x: number,
-  y: number,
-  toleranceMultiplier = 1.6,
-) => {
-  for (const point of visiblePoints.value) {
-    const radius = point.editorProps?.radius || DEFAULT_POINT_OUTER_RADIUS;
-    const distance = Math.hypot(point.x - x, point.y - y);
-    if (distance <= radius * toleranceMultiplier) {
-      return point;
-    }
-  }
-  return null;
-};
 
 const cancelPathDrag = (stage?: any) => {
   // 不要手动 destroy/clear 整个 tempLayer：子节点由 vue-konva 管理，destroy 会导致预览线等无法再次挂载
@@ -1590,802 +923,102 @@ const resizeStartPos = ref({ x: 0, y: 0 });
 const resizeElementId = ref<string | null>(null);
 const resizeHandleType = ref<string | null>(null);
 
-// 判断点是否被连线
-const isPointConnected = (point: MapPoint): boolean => {
-  return mapEditorStore.paths.some((path) => {
-    const startId = String(path.startPointId || "");
-    const endId = String(path.endPointId || "");
-    const pointId = String(point.id);
-    return startId === pointId || endId === pointId;
-  });
-};
-
-/** 路网点靶心：外白底蓝边、内类型色、中心白点（与参考图一致的分层圆） */
-type PointBullseyeStyle = {
-  outerStroke: string;
-  outerStrokeWidth: number;
-  coreFill: string;
-  coreStroke: string;
-  coreStrokeWidth: number;
-  shadow: Record<string, unknown>;
-};
-
-const resolvePointBullseyeStyle = (point: MapPoint): PointBullseyeStyle => {
-  const isSelected = mapEditorStore.selection.selectedIds.has(point.id);
-  const isPathStart =
-    currentTool.value === ToolMode.PATH &&
-    pathDragState.startPoint?.id === point.id;
-  const isPathHovered =
-    currentTool.value === ToolMode.PATH &&
-    hoveredPointId.value === point.id &&
-    !isPathStart;
-  const isDashedLinkTarget =
-    currentTool.value === ToolMode.DASHED_LINK &&
-    dashedLinkDragState.startLocation &&
-    hoveredPointId.value === point.id;
-  const isConnected = isPointConnected(point);
-  const visual = getPointVisualMeta(point);
-
-  const baseFill = "#2563EB";
-  let coreFill = visual.fill || baseFill;
-  let coreStroke = "transparent";
-  let coreStrokeWidth = 0;
-  let outerStroke = "#2563EB";
-  const outerStrokeWidth = 2.4;
-
-  if (isSelected) {
-    coreFill = "#ff4d4f";
-    coreStroke = "#ff7875";
-    coreStrokeWidth = 2;
-    outerStroke = "#ff4d4f";
-  } else if (isPathStart) {
-    coreFill = "#409eff";
-    coreStroke = "#73c0ff";
-    coreStrokeWidth = 2;
-    outerStroke = "#2563EB";
-  } else if (isPathHovered) {
-    coreFill = "#73c0ff";
-    outerStroke = "#60a5fa";
-  } else if (isDashedLinkTarget) {
-    coreFill = "#f7ba2a";
-    coreStroke = "#f5d48f";
-    coreStrokeWidth = 1.5;
-    outerStroke = "#e6a23c";
-  } else if (isConnected) {
-    coreFill = "#4c8dff";
-    outerStroke = "#2563EB";
+// 获取默认图层ID
+const getDefaultLayerId = (type: "point" | "path" | "location"): string => {
+  // 使用激活的图层，如果没有则使用第一个可用图层
+  if (
+    mapEditorStore.activeLayerId &&
+    mapEditorStore.layers.some((l) => l.id === mapEditorStore.activeLayerId)
+  ) {
+    return mapEditorStore.activeLayerId;
   }
 
-  const shadow = isSelected
-    ? {
-        shadowColor: "#ff4d4f",
-        shadowBlur: 12,
-        shadowOpacity: 0.6,
-        shadowOffset: { x: 0, y: 0 },
-      }
-    : {};
-
-  return {
-    outerStroke,
-    outerStrokeWidth,
-    coreFill,
-    coreStroke,
-    coreStrokeWidth,
-    shadow,
-  };
-};
-
-const getPointBullseyeOuterConfig = (point: MapPoint) => {
-  const visual = getPointVisualMeta(point);
-  const st = resolvePointBullseyeStyle(point);
-  return {
-    id: `${point.id}-bull-outer`,
-    x: point.x,
-    y: point.y,
-    radius: visual.radius,
-    fill: "#ffffff",
-    stroke: st.outerStroke,
-    strokeWidth: st.outerStrokeWidth,
-    listening: false,
-    perfectDrawEnabled: true,
-    ...st.shadow,
-  };
-};
-
-const getPointBullseyeCoreConfig = (point: MapPoint) => {
-  const visual = getPointVisualMeta(point);
-  const st = resolvePointBullseyeStyle(point);
-  return {
-    id: `${point.id}-bull-core`,
-    x: point.x,
-    y: point.y,
-    radius: visual.radius * 0.66,
-    fill: st.coreFill,
-    stroke: st.coreStroke,
-    strokeWidth: st.coreStrokeWidth,
-    listening: false,
-    perfectDrawEnabled: true,
-  };
-};
-
-const getPointBullseyeDotVisible = (point: MapPoint) =>
-  !shouldRenderPointGlyph(point);
-
-const getPointBullseyeDotConfig = (point: MapPoint) => {
-  const visual = getPointVisualMeta(point);
-  return {
-    id: `${point.id}-bull-dot`,
-    x: point.x,
-    y: point.y,
-    radius: Math.max(1.2, visual.radius * 0.22),
-    fill: "#ffffff",
-    listening: false,
-  };
-};
-
-/** 略大于外圈，透明填充，便于命中（Konva 需非全透明填充才能稳定命中时可改用极小 alpha） */
-const getPointHitConfig = (point: MapPoint) => {
-  const visual = getPointVisualMeta(point);
-  return {
-    id: point.id,
-    x: point.x,
-    y: point.y,
-    radius: visual.radius + 2,
-    fill: "rgba(0, 0, 0, 0.0001)",
-    stroke: undefined,
-    strokeWidth: 0,
-    draggable: false,
-    listening: true,
-    hitStrokeWidth: 14,
-  };
-};
-
-/** 路径描边是否为透明/近透明（用户可把路径设为不可见，仅保留箭头） */
-const isColorEffectivelyInvisible = (
-  color: string | undefined | null,
-): boolean => {
-  if (color == null) return false;
-  const s = String(color).trim().toLowerCase();
-  if (s === "" || s === "transparent" || s === "none") return true;
-  const m = s.match(
-    /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/,
+  // 如果没有激活图层，尝试找默认图层
+  const defaultLayer = mapEditorStore.layers.find(
+    (l) => l.name === "Default layer",
   );
-  if (m) {
-    const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
-    return a < 0.06;
-  }
-  if (/^#([0-9a-f]{8})$/i.test(s)) {
-    return parseInt(s.slice(7, 9), 16) / 255 < 0.06;
-  }
-  return false;
-};
+  if (defaultLayer) return defaultLayer.id;
 
-/** 方向箭头填充：浅色带状描边（#d8e6ff 等）上若与线同色，箭头在浅灰网格上几乎不可见 */
-const PATH_DIRECTION_ARROW_FILL = "#2563EB";
-
-const getPathArrowFillColor = (strokeFromLine: string): string => {
-  if (isColorEffectivelyInvisible(strokeFromLine))
-    return PATH_DIRECTION_ARROW_FILL;
-  const s = String(strokeFromLine).trim().toLowerCase();
-  const rgba = s.match(
-    /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/,
-  );
-  if (rgba) {
-    const r = parseFloat(rgba[1]);
-    const g = parseFloat(rgba[2]);
-    const b = parseFloat(rgba[3]);
-    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    if (lum > 0.72) return PATH_DIRECTION_ARROW_FILL;
-  }
-  if (s.startsWith("#") && (s.length === 7 || s.length === 9)) {
-    const r = parseInt(s.slice(1, 3), 16);
-    const g = parseInt(s.slice(3, 5), 16);
-    const b = parseInt(s.slice(5, 7), 16);
-    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    if (lum > 0.82) return PATH_DIRECTION_ARROW_FILL;
-  }
-  return strokeFromLine;
-};
-
-const pathConnectsPointId = (
-  path: MapPath,
-  pointId: string | undefined | null,
-): boolean => {
-  if (pointId == null) return false;
-  const pid = String(pointId);
-  return (
-    String(path.startPointId ?? "") === pid ||
-    String(path.endPointId ?? "") === pid
-  );
-};
-
-/** 选中、拖控制点、拖关联路网点时，透明路径需显示临时描边，避免只见箭头不见线 */
-const pathNeedsVisibleStrokeWhileEditing = (path: MapPath): boolean => {
-  if (mapEditorStore.selection.selectedIds.has(path.id)) return true;
-  if (pathControlPointDragPathId.value === path.id) return true;
-  const md = manualDragState.value;
-  if (md?.kind === "point" && pathConnectsPointId(path, md.pointId))
-    return true;
-  return false;
-};
-
-/** 正式路径默认：半透明天蓝带状（工业图面：统一透明度层级，避免杂乱） */
-const PATH_DISPLAY_BASE_STROKE = "rgba(147, 197, 253, 0.78)";
-const PATH_DISPLAY_SELECTED_STROKE = "rgba(37, 99, 235, 0.94)";
-/** 箭头延迟到“选中终点”的路径：默认用实色，避免淡色/透明在画布上像看不见 */
-const PATH_DEFERRED_ARROW_DEFAULT_STROKE = "#2563EB";
-
-/** 选中集合里是否包含某点 id（兼容 number / string） */
-const selectionHasPointId = (
-  pointId: string | number | undefined | null,
-): boolean => {
-  if (pointId == null) return false;
-  const key = String(pointId);
-  for (const id of mapEditorStore.selection.selectedIds) {
-    if (String(id) === key) return true;
-  }
-  return false;
-};
-
-/** 实际绘制用的路径描边颜色 */
-const getPathDisplayStroke = (path: MapPath): string => {
-  const isSelected = mapEditorStore.selection.selectedIds.has(path.id);
-  const raw = path.editorProps?.strokeColor;
-
-  if (isSelected) return PATH_DISPLAY_SELECTED_STROKE;
-
-  // 箭头延迟生成（arrowVisible=false）：线必须肉眼可见
-  const deferredArrow = path.editorProps?.arrowVisible === false;
-  if (deferredArrow) {
-    if (raw && !isColorEffectivelyInvisible(raw)) return raw;
-    return PATH_DEFERRED_ARROW_DEFAULT_STROKE;
+  // 如果都没有，使用第一个可用图层
+  if (mapEditorStore.layers.length > 0) {
+    return mapEditorStore.layers[0].id;
   }
 
-  if (isColorEffectivelyInvisible(raw)) {
-    if (pathNeedsVisibleStrokeWhileEditing(path))
-      return PATH_DISPLAY_BASE_STROKE;
-    return raw || "transparent";
-  }
-  return raw || PATH_DISPLAY_BASE_STROKE;
+  // 如果没有任何图层，抛出错误（图层应该由后端创建）
+  throw new Error("没有可用的图层，请先在后端创建地图模型");
 };
 
-// 获取路径的 Konva 配置
-const getPathConfig = (path: MapPath) => {
-  const isSelected = mapEditorStore.selection.selectedIds.has(path.id);
-  const points: number[] = [];
+// ========== 组合式函数（渲染逻辑） ==========
+const {
+  locationTypeList, loadLocationTypes, getSymbolForLocationTypeId, locationIconImageCache,
+} = useLocationTypes(mapEditorStore)
 
-  path.geometry.controlPoints.forEach((cp) => {
-    points.push(cp.x, cp.y);
-  });
+const {
+  axisXLineConfig, axisYLineConfig, axisXArrowConfig, axisYArrowConfig,
+  mapOriginCoord, mapOriginXLineConfig, mapOriginYLineConfig,
+  mapOriginXArrowConfig, mapOriginYArrowConfig,
+} = useCanvasAxis(mapEditorStore)
 
-  const connectionType = path.type as
-    | "direct"
-    | "orthogonal"
-    | "curve"
-    | undefined;
-  const isCurve =
-    path.geometry.pathType === "curve" || connectionType === "curve";
-  const isOrthogonal = connectionType === "orthogonal";
+const {
+  containerSize, canvasState, gridSize, gridColor, snapEnabled,
+  stageConfig, stageAreaRectConfig, rasterBackgroundConfig,
+  gridLines, viewportBounds, visiblePoints, visiblePaths, visibleLocations,
+  setGridSize, setGridColor, setSnapEnabled, tryApplyViewportOriginBottomLeft,
+} = useCanvasViewport(mapEditorStore, containerRef, rasterLayerRef)
 
-  // 选中状态添加发光效果
-  const shadowConfig = isSelected
-    ? {
-        shadowColor: "#ff4d4f",
-        shadowBlur: 8,
-        shadowOpacity: 0.5,
-      }
-    : {};
+const {
+  shouldRenderPointGlyph, shouldShowPointLabel, getPointLabelConfig, getPointGlyphConfig,
+  isPointConnected, resolvePointBullseyeStyle,
+  getPointBullseyeOuterConfig, getPointBullseyeCoreConfig,
+  getPointBullseyeDotVisible, getPointBullseyeDotConfig, getPointHitConfig,
+  findPointAtPosition, buildPointEditorProps, createPointPayload,
+} = usePointRendering(mapEditorStore, {
+  currentTool,
+  pathDragState,
+  dashedLinkDragState,
+  hoveredPointId,
+  visiblePoints,
+  getDefaultLayerId,
+})
 
-  const stroke = getPathDisplayStroke(path);
-  const deferredArrow = path.editorProps?.arrowVisible === false;
-  const forceEditVisibility =
-    pathNeedsVisibleStrokeWhileEditing(path) &&
-    isColorEffectivelyInvisible(path.editorProps?.strokeColor);
-  const sw = path.editorProps?.strokeWidth;
-  const isDashedLine = path.editorProps?.lineStyle === "dashed";
-  /** 带状路径与虚线链接分开：虚线 strokeWidth 常为 1.5～8，若仍用「≥8 才采纳」会误用带状默认 18px */
-  const strokeWidth = isDashedLine
-    ? typeof sw === "number" && sw >= 1 && sw <= 16
-      ? sw
-      : DASHED_LINK_STROKE_WIDTH
-    : typeof sw === "number" && sw >= 8 && sw <= 48
-      ? sw
-      : PATH_RIBBON_STROKE_WIDTH;
+const {
+  isColorEffectivelyInvisible, getPathArrowFillColor, pathConnectsPointId,
+  selectionHasPointId, pathNeedsVisibleStrokeWhileEditing, getPathDisplayStroke,
+  getPathConfig, shouldShowPathArrow, buildChevronConfig, getPathArrowConfigs,
+  buildConnectionControlPoints, tempPathPreview, createConnectionBetweenPoints,
+  getPathControlPointConfig,
+} = usePathRendering(mapEditorStore, {
+  pathDragState,
+  pathControlPointDragPathId,
+  manualDragState,
+  getDefaultLayerId,
+  isSelectInteractionTool,
+})
 
-  return {
-    id: path.id,
-    points,
-    stroke,
-    strokeWidth,
-    opacity: isSelected || forceEditVisibility || deferredArrow ? 1 : 0.86,
-    lineCap: "round",
-    lineJoin: isOrthogonal ? "miter" : "round",
-    tension: isCurve ? 0.5 : 0,
-    dash: isDashedLine ? DASHED_LINK_DASH_PATTERN : undefined,
-    listening: true,
-    ...shadowConfig,
-  };
-};
-
-const shouldShowPathArrow = (path: MapPath) => {
-  // 箭头显示规则：
-  // 1) 如果明确开启（arrowVisible!==false），直接显示
-  // 2) 如果明确关闭（arrowVisible===false），则只有当“终点点位被选中”时才显示（用于生成起点->终点方向箭头）
-  const arrowFlag = path.editorProps?.arrowVisible;
-  if (arrowFlag !== false) return true;
-
-  return selectionHasPointId(path.endPointId);
-};
-
-/** 在指定位置和方向绘制一个 chevron 箭头的 Konva 配置 */
-const buildChevronConfig = (
-  cx: number,
-  cy: number,
-  angle: number,
-  opts: {
-    arrowColor: string;
-    len: number;
-    w: number;
-    opacity: number;
-    listening?: boolean;
-  },
-) => {
-  const { arrowColor, len, w, opacity, listening = true } = opts;
-  const localPoints: [number, number][] = [
-    [len / 2, 0],
-    [-len / 2, w / 2],
-    [-len / 2, 0],
-    [-len / 2, -w / 2],
-  ];
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  const points: number[] = [];
-  for (const [lx, ly] of localPoints) {
-    points.push(cx + lx * cos - ly * sin, cy + lx * sin + ly * cos);
-  }
-  return {
-    points,
-    closed: true,
-    fill: arrowColor,
-    stroke: undefined,
-    lineCap: "round",
-    lineJoin: "round",
-    opacity,
-    listening,
-  };
-};
-
-const getPathArrowConfigs = (path: MapPath) => {
-  const controlPoints = path.geometry.controlPoints;
-  if (!controlPoints || controlPoints.length < 2) {
-    return [];
-  }
-  const isSelected = mapEditorStore.selection.selectedIds.has(path.id);
-  const lineStroke = getPathDisplayStroke(path);
-  const arrowColor = getPathArrowFillColor(lineStroke);
-  const isEndSelected = selectionHasPointId(path.endPointId);
-  const opacity = isSelected || isEndSelected ? 0.98 : 0.92;
-  /** 与带状宽度匹配；略大于线宽比例，工业可读性优先 */
-  const len = Math.max(10, PATH_RIBBON_STROKE_WIDTH * 0.52);
-  const w = Math.max(4, PATH_RIBBON_STROKE_WIDTH * 0.26);
-
-  /** 默认单向车道：箭头沿控制点顺序（与起点→终点一致）；双向则每段再绘反向一枚 */
-  const laneMode = path.editorProps?.laneMode ?? "one-way";
-
-  const configs: ReturnType<typeof buildChevronConfig>[] = [];
-  for (let i = 0; i < controlPoints.length - 1; i++) {
-    const a = controlPoints[i];
-    const b = controlPoints[i + 1];
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const segLen = Math.hypot(dx, dy) || 1;
-    const angleForward = Math.atan2(dy, dx);
-
-    if (laneMode === "two-way") {
-      // 短段：两枚箭头略靠近中点，避免飞出带状区域
-      const tBack = segLen < 40 ? 0.44 : 0.38;
-      const tFwd = segLen < 40 ? 0.56 : 0.62;
-      configs.push(
-        buildChevronConfig(
-          a.x + dx * tBack,
-          a.y + dy * tBack,
-          angleForward + Math.PI,
-          {
-            arrowColor,
-            len,
-            w,
-            opacity,
-          },
-        ),
-      );
-      configs.push(
-        buildChevronConfig(a.x + dx * tFwd, a.y + dy * tFwd, angleForward, {
-          arrowColor,
-          len,
-          w,
-          opacity,
-        }),
-      );
-    } else {
-      const t = 0.72;
-      const cx = a.x + dx * t;
-      const cy = a.y + dy * t;
-      configs.push(
-        buildChevronConfig(cx, cy, angleForward, {
-          arrowColor,
-          len,
-          w,
-          opacity,
-        }),
-      );
-    }
-  }
-  return configs;
-};
-
-type PointLike = { x: number; y: number };
-
-const buildConnectionControlPoints = (
-  start: PointLike,
-  end: PointLike,
-  type: PathConnectionType,
-) => {
-  const timestamp = Date.now();
-  let index = 0;
-  const createControlPoint = (x: number, y: number) => ({
-    id: `cp_${timestamp}_${index++}`,
-    x,
-    y,
-  });
-
-  const points = [createControlPoint(start.x, start.y)];
-
-  if (type === "orthogonal" && start.x !== end.x && start.y !== end.y) {
-    points.push(createControlPoint(start.x, end.y));
-  } else if (type === "curve") {
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const length = Math.hypot(dx, dy) || 1;
-    const normalX = -dy / length;
-    const normalY = dx / length;
-    const offset = Math.min(80, length / 3);
-    const midX = (start.x + end.x) / 2 + normalX * offset;
-    const midY = (start.y + end.y) / 2 + normalY * offset;
-    points.push(createControlPoint(midX, midY));
-  }
-
-  points.push(createControlPoint(end.x, end.y));
-  return points;
-};
+const layerVisibilityRef = computed(() => props.layerVisibility)
+const {
+  getLocationCentroid, isRuleRegionLocation, visibleLocationsLayer,
+  getLocationVisualConfig, getLocationRectConfig, getLocationDragOverlayConfig,
+  getLocationSymbolConfig, getLocationSymbol, getLocationIconConfig,
+  shouldShowLocationLabel, getLocationLabelConfig, findLocationAtPosition,
+  tempDashedLinkPreview, boxSelectConfig,
+} = useLocationRendering(mapEditorStore, {
+  currentTool,
+  isSelectInteractionTool,
+  isDragging,
+  dashedLinkDragState,
+  hoveredLocationId,
+  visibleLocations,
+  isBoxSelecting,
+  boxSelectStart,
+  boxSelectEnd,
+  layerVisibility: layerVisibilityRef,
+  getSymbolForLocationTypeId,
+  locationIconImageCache,
+})
 
 const formatPointLabel = (point: MapPoint) => point.name || point.id;
 
-const createConnectionBetweenPoints = (start: MapPoint, end: MapPoint) => {
-  const connectionType = mapEditorStore.pathConnectionType;
-  const controlPoints = buildConnectionControlPoints(
-    start,
-    end,
-    connectionType,
-  );
-  const startLabel = formatPointLabel(start);
-  const endLabel = formatPointLabel(end);
-  const pathName = `Path ${startLabel} --- ${endLabel}`;
-
-  const newPath = mapEditorStore.addPath({
-    layerId: getDefaultLayerId("path"),
-    name: pathName,
-    startPointId: start.id,
-    endPointId: end.id,
-    status: "0",
-    type: connectionType,
-    geometry: {
-      controlPoints,
-      pathType: connectionType === "curve" ? "curve" : "line",
-    },
-    editorProps: {
-      strokeColor: "#d8e6ff", // 淡蓝；画布上由 getPathDisplayStroke 带状配色覆盖
-      strokeWidth: PATH_RIBBON_STROKE_WIDTH,
-      lineStyle: "solid",
-      // 方向由交互顺序唯一决定：先点起点、再点终点 → 箭头沿起点→终点；无需在属性里选手动方向
-      arrowVisible: true,
-      laneMode: "one-way",
-      labelVisible: true,
-    },
-  });
-
-  return newPath.id;
-};
-
-const getLocationCentroid = (location: MapLocation) => {
-  const vertices = location.geometry.vertices || [];
-  if (!vertices.length) {
-    return {
-      x: location.x ?? 0,
-      y: location.y ?? 0,
-    };
-  }
-  const sum = vertices.reduce(
-    (acc, vertex) => {
-      acc.x += vertex.x;
-      acc.y += vertex.y;
-      return acc;
-    },
-    { x: 0, y: 0 },
-  );
-  return {
-    x: sum.x / vertices.length,
-    y: sum.y / vertices.length,
-  };
-};
-
-// 判断该 Location 是否为规则区域（使用规则区域的颜色样式）
-const isRuleRegionLocation = (location: MapLocation) => {
-  const stroke = location.editorProps?.strokeColor;
-  const fill = location.editorProps?.fillColor;
-  return stroke === "#ff7d00" || fill === "#ffedd9";
-};
-
-/** 按图层显隐过滤后的业务/管控区位置（与模板一致） */
-/** 站点关闭时仅隐藏业务位置；管控区始终显示 */
-const visibleLocationsLayer = computed(() => {
-  return visibleLocations.value.filter((loc) => {
-    const rule = isRuleRegionLocation(loc);
-    if (rule) return true;
-    return props.layerVisibility.station;
-  });
-});
-
-// ==================== 位置类型配置 ====================
-const LOCATION_TYPE_CONFIG: Record<
-  string,
-  { fill: string; stroke: string; symbol: string }
-> = {
-  default: {
-    fill: "#ffffff",
-    stroke: "#409EFF",
-    symbol: "L",
-  },
-  loading: {
-    fill: "#E6A23C",
-    stroke: "#D48806",
-    symbol: "↓",
-  },
-  unloading: {
-    fill: "#67C23A",
-    stroke: "#529B2E",
-    symbol: "↑",
-  },
-  charge: {
-    fill: "#F56C6C",
-    stroke: "#C21F1F",
-    symbol: "⚡",
-  },
-  storage: {
-    fill: "#909399",
-    stroke: "#606266",
-    symbol: "□",
-  },
-};
-
-/** 业务位置默认方形边长（画布坐标）；新建、命中检测、渲染、缩放手柄须与此一致 */
-const BUSINESS_LOCATION_BOX_SIZE = 28;
-/** 透明拖拽层边长（略大于方框，便于点击） */
-const BUSINESS_LOCATION_OVERLAY_SIZE = BUSINESS_LOCATION_BOX_SIZE + 4;
-const BUSINESS_LOCATION_OVERLAY_HALF = BUSINESS_LOCATION_OVERLAY_SIZE / 2;
-
-// 获取位置类型的视觉配置
-const getLocationVisualConfig = (location: MapLocation) => {
-  const locationTypeId = String(location.locationTypeId || "").toLowerCase();
-  return (
-    LOCATION_TYPE_CONFIG[locationTypeId] || LOCATION_TYPE_CONFIG["default"]
-  );
-};
-
-// 获取业务位置的小正方形方框配置
-const getLocationRectConfig = (location: MapLocation) => {
-  const centroid = getLocationCentroid(location);
-  const isSelected = mapEditorStore.selection.selectedIds.has(location.id);
-  const size = BUSINESS_LOCATION_BOX_SIZE;
-  const half = size / 2;
-
-  const visualConfig = getLocationVisualConfig(location);
-
-  return {
-    id: `${location.id}-rect`,
-    x: centroid.x - half,
-    y: centroid.y - half,
-    width: size,
-    height: size,
-    stroke: isSelected ? "#ff4d4f" : visualConfig.stroke,
-    strokeWidth: isSelected ? 3 : 2,
-    fill: location.editorProps?.fillColor || visualConfig.fill,
-    listening: true,
-    draggable: false,
-    opacity: location.editorProps?.fillOpacity || 0.9,
-  };
-};
-
-// 业务位置透明拖拽层（盖在方框/图标/文字之上，便于点击拖拽）
-const getLocationDragOverlayConfig = (location: MapLocation) => {
-  if (isRuleRegionLocation(location)) return null;
-  const centroid = getLocationCentroid(location);
-  const size = BUSINESS_LOCATION_OVERLAY_SIZE;
-  const half = size / 2;
-  return {
-    id: `${location.id}-drag-overlay`,
-    x: centroid.x - half,
-    y: centroid.y - half,
-    width: size,
-    height: size,
-    fill: "transparent",
-    listening: isSelectInteractionTool.value && !isDragging.value,
-    draggable: false,
-  };
-};
-
-// 获取位置中心 symbol 文本的配置（无图标时用文本占位）
-const getLocationSymbolConfig = (location: MapLocation) => {
-  const centroid = getLocationCentroid(location);
-  const isSelected = mapEditorStore.selection.selectedIds.has(location.id);
-
-  // 优先使用位置类型的symbol，否则使用默认配置
-  const customSymbol = getSymbolForLocationTypeId(location.locationTypeId);
-  const visualConfig = getLocationVisualConfig(location);
-
-  const text =
-    customSymbol || visualConfig.symbol || location.editorProps?.label || "L";
-
-  return {
-    x: centroid.x,
-    y: centroid.y,
-    text,
-    fontSize: customSymbol ? 20 : 16,
-    fontStyle: "bold",
-    fill: isSelected ? "#ff4d4f" : "#ffffff",
-    align: "center",
-    verticalAlign: "middle",
-    listening: false,
-    shadowColor: "#000",
-    shadowBlur: 2,
-    shadowOpacity: 0.3,
-  };
-};
-
-// 当前 Location 对应的图标 symbol（来自位置类型 properties.name===symbol 的 value）
-const getLocationSymbol = (location: MapLocation) =>
-  getSymbolForLocationTypeId(location.locationTypeId);
-
-// 位置方框内嵌图标的配置（Konva.Image），仅当该 symbol 已加载时有效
-const getLocationIconConfig = (location: MapLocation) => {
-  const symbol = getLocationSymbol(location);
-  const img = symbol ? locationIconImageCache.value[symbol] : null;
-  if (!img) return null;
-  const centroid = getLocationCentroid(location);
-  const size = 20; // 图标在业务位置方框内居中
-  const half = size / 2;
-  return {
-    x: centroid.x - half,
-    y: centroid.y - half,
-    width: size,
-    height: size,
-    image: img,
-    listening: false,
-  };
-};
-
-// 判断是否显示位置标签
-const shouldShowLocationLabel = (location: MapLocation) => {
-  const labelVisible = location.editorProps?.labelVisible !== false; // 默认为 true
-  return labelVisible && (location.name || location.id);
-};
-
-// 获取位置标签配置
-const getLocationLabelConfig = (location: MapLocation) => {
-  const centroid = getLocationCentroid(location);
-  const labelText = location.name || location.id;
-  const isSelected = mapEditorStore.selection.selectedIds.has(location.id);
-
-  // 对于规则区域，标签显示在多边形中心下方
-  // 对于业务位置，标签显示在矩形中心下方
-  const offsetY = isRuleRegionLocation(location) ? 15 : 16;
-
-  return {
-    x: centroid.x,
-    y: centroid.y + offsetY,
-    text: labelText,
-    fontSize: 12,
-    fontFamily: "Arial, sans-serif",
-    fill: isSelected ? "#ff4d4f" : "#303133",
-    align: "center",
-    verticalAlign: "top",
-    padding: 2,
-    listening: false,
-    perfectDrawEnabled: false,
-  };
-};
-
-// 查找位置（通过检查点是否在位置区域内）
-const findLocationAtPosition = (x: number, y: number) => {
-  for (const location of visibleLocationsLayer.value) {
-    // 对于业务位置（正方形），检查点是否在矩形内
-    if (!isRuleRegionLocation(location)) {
-      const centroid = getLocationCentroid(location);
-      const size = BUSINESS_LOCATION_BOX_SIZE;
-      const half = size / 2;
-
-      if (
-        x >= centroid.x - half &&
-        x <= centroid.x + half &&
-        y >= centroid.y - half &&
-        y <= centroid.y + half
-      ) {
-        return location;
-      }
-    } else {
-      // 对于规则区域（多边形），使用点在多边形内的算法
-      const vertices = location.geometry.vertices || [];
-      if (vertices.length < 3) continue;
-
-      let inside = false;
-      for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
-        const xi = vertices[i].x;
-        const yi = vertices[i].y;
-        const xj = vertices[j].x;
-        const yj = vertices[j].y;
-
-        const intersect =
-          yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
-        if (intersect) inside = !inside;
-      }
-
-      if (inside) {
-        return location;
-      }
-    }
-  }
-  return null;
-};
-
-// 虚线链接预览
-const tempDashedLinkPreview = computed(() => {
-  if (!dashedLinkDragState.startLocation) return null;
-
-  const centroid = getLocationCentroid(dashedLinkDragState.startLocation);
-  const end = {
-    x: dashedLinkDragState.currentPos.x,
-    y: dashedLinkDragState.currentPos.y,
-  };
-
-  return {
-    points: [centroid.x, centroid.y, end.x, end.y],
-    stroke: "#909399",
-    strokeWidth: DASHED_LINK_STROKE_WIDTH,
-    lineCap: "round",
-    lineJoin: "round",
-    dash: DASHED_LINK_DASH_PATTERN,
-    listening: false,
-  };
-});
-
-// 框选矩形配置
-const boxSelectConfig = computed(() => {
-  const x = Math.min(boxSelectStart.value.x, boxSelectEnd.value.x);
-  const y = Math.min(boxSelectStart.value.y, boxSelectEnd.value.y);
-  const width = Math.abs(boxSelectEnd.value.x - boxSelectStart.value.x);
-  const height = Math.abs(boxSelectEnd.value.y - boxSelectStart.value.y);
-
-  return {
-    x,
-    y,
-    width,
-    height,
-    fill: "rgba(64, 158, 255, 0.2)",
-    stroke: "#409eff",
-    strokeWidth: 1,
-    dash: [5, 5],
-    listening: false,
-  };
-});
 
 // 创建从 location 到 point 的虚线链接
 const createDashedLinkBetweenLocationAndPoint = (
@@ -3793,6 +2426,30 @@ const handlePointDragMove = (point: MapPoint, e: any) => {
   node.y(snapped.y);
 };
 
+const syncPathControlPoints = (pointId: string, x: number, y: number) => {
+  mapEditorStore.paths.forEach((path) => {
+    const cps = path.geometry.controlPoints;
+    if (!cps.length) return;
+    const startId = path.startPointId != null ? String(path.startPointId) : null;
+    const endId = path.endPointId != null ? String(path.endPointId) : null;
+    const pid = String(pointId);
+    let updated: typeof cps | null = null;
+    if (startId === pid) {
+      updated = [...cps];
+      updated[0] = { ...updated[0], x, y };
+    }
+    if (endId === pid) {
+      updated = updated ?? [...cps];
+      updated[updated.length - 1] = { ...updated[updated.length - 1], x, y };
+    }
+    if (updated) {
+      mapEditorStore.updatePath(path.id, {
+        geometry: { ...path.geometry, controlPoints: updated },
+      });
+    }
+  });
+};
+
 const handlePointDragEnd = (point: MapPoint) => {
   isDragging.value = false;
   const layer = getKonvaNode(pointLayerRef.value);
@@ -3801,35 +2458,21 @@ const handlePointDragEnd = (point: MapPoint) => {
   if (!node) return;
   const newX = node.x();
   const newY = node.y();
-  mapEditorStore.updatePoint(point.id, { x: newX, y: newY });
-  // 同步以该点为端点的连线：更新路径的首/末控制点
-  const paths = mapEditorStore.paths;
-  paths.forEach((path) => {
-    const cps = path.geometry.controlPoints;
-    if (!cps.length) return;
-    const startId =
-      path.startPointId != null ? String(path.startPointId) : null;
-    const endId = path.endPointId != null ? String(path.endPointId) : null;
-    const pointId = String(point.id);
-    let updated: typeof cps | null = null;
-    if (startId === pointId) {
-      updated = [...cps];
-      updated[0] = { ...updated[0], x: newX, y: newY };
-    }
-    if (endId === pointId) {
-      updated = updated ?? [...cps];
-      updated[updated.length - 1] = {
-        ...updated[updated.length - 1],
-        x: newX,
-        y: newY,
-      };
-    }
-    if (updated) {
-      mapEditorStore.updatePath(path.id, {
-        geometry: { ...path.geometry, controlPoints: updated },
-      });
-    }
-  });
+
+  // 位置未变化时不记录命令
+  if (newX === point.x && newY === point.y) return;
+
+  const command = new MovePointCommand(
+    point.id,
+    { x: point.x, y: point.y },
+    { x: newX, y: newY },
+    (id, pos) => {
+      mapEditorStore.updatePoint(id, { x: pos.x, y: pos.y });
+      syncPathControlPoints(id, pos.x, pos.y);
+    },
+    '移动点'
+  );
+  mapEditorStore.executeCommand(command);
 };
 
 // 路径点击
@@ -4068,23 +2711,6 @@ const handlePointContextMenu = (point: MapPoint, e: any) => {
 
 // ==================== 路径控制点编辑 ====================
 
-// 获取路径控制点配置
-const getPathControlPointConfig = (path: MapPath, cp: any, index: number) => {
-  const isSelected = mapEditorStore.selection.selectedIds.has(path.id);
-  return {
-    id: `${path.id}-cp-${index}`,
-    x: cp.x,
-    y: cp.y,
-    radius: isSelected ? 6 : 4,
-    fill: isSelected ? "#ff4d4f" : "#52c41a",
-    stroke: "#ffffff",
-    strokeWidth: 1,
-    draggable: isSelected && isSelectInteractionTool.value,
-    listening: true,
-    opacity: isSelected ? 1 : 0.7,
-  };
-};
-
 // 路径控制点点击
 const handlePathControlPointClick = (
   path: MapPath,
@@ -4316,52 +2942,6 @@ const getLinksLayerId = (): string => {
 
   // 如果找不到 Links 图层组或图层，使用默认图层（不创建新图层）
   return getDefaultLayerId("path");
-};
-
-// 获取默认图层ID
-const getDefaultLayerId = (type: "point" | "path" | "location"): string => {
-  // 使用激活的图层，如果没有则使用第一个可用图层
-  if (
-    mapEditorStore.activeLayerId &&
-    mapEditorStore.layers.some((l) => l.id === mapEditorStore.activeLayerId)
-  ) {
-    return mapEditorStore.activeLayerId;
-  }
-
-  // 如果没有激活图层，尝试找默认图层
-  const defaultLayer = mapEditorStore.layers.find(
-    (l) => l.name === "Default layer",
-  );
-  if (defaultLayer) return defaultLayer.id;
-
-  // 如果都没有，使用第一个可用图层
-  if (mapEditorStore.layers.length > 0) {
-    return mapEditorStore.layers[0].id;
-  }
-
-  // 如果没有任何图层，抛出错误（图层应该由后端创建）
-  throw new Error("没有可用的图层，请先在后端创建地图模型");
-};
-
-// 设置网格大小（供父组件调用）
-const setGridSize = (size: number) => {
-  gridSize.value = Math.max(5, Math.min(100, size)); // 限制在 5-100 之间
-};
-
-// 网格颜色
-const gridColor = ref("#dcdfe6");
-
-// 设置网格颜色（供父组件调用）
-const setGridColor = (color: string) => {
-  gridColor.value = color;
-};
-
-// 吸附功能
-const snapEnabled = ref(true);
-
-// 设置吸附功能开关（供父组件调用）
-const setSnapEnabled = (enabled: boolean) => {
-  snapEnabled.value = enabled;
 };
 
 // 监听画布状态变化，更新网格

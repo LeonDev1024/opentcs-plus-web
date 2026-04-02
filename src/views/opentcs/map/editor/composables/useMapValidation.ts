@@ -63,8 +63,7 @@ export function useMapValidation() {
 
         // 检测线段相交
         if (doLinesIntersect(pathAPoints.start, pathAPoints.end, pathBPoints.start, pathBPoints.end)) {
-          const intersectX = (pathAPoints.end.x + pathBPoints.end.x) / 2;
-          const intersectY = (pathAPoints.end.y + pathBPoints.end.y) / 2;
+          const intersect = getLineIntersection(pathAPoints.start, pathAPoints.end, pathBPoints.start, pathBPoints.end);
 
           issues.push({
             type: 'error',
@@ -72,7 +71,7 @@ export function useMapValidation() {
             message: `路径 "${pathA.name || pathA.id}" 与 "${pathB.name || pathB.id}" 存在交叉`,
             elementId: pathA.id,
             elementType: 'path',
-            position: { x: intersectX, y: intersectY }
+            position: intersect ?? { x: pathAPoints.start.x, y: pathAPoints.start.y }
           });
         }
       }
@@ -144,6 +143,21 @@ export function useMapValidation() {
       CCW(p1, p3, p4) !== CCW(p2, p3, p4) &&
       CCW(p1, p2, p3) !== CCW(p1, p2, p4)
     );
+  };
+
+  // 辅助函数：计算两线段的实际交点（参数方程法）
+  const getLineIntersection = (
+    p1: { x: number; y: number },
+    p2: { x: number; y: number },
+    p3: { x: number; y: number },
+    p4: { x: number; y: number }
+  ): { x: number; y: number } | null => {
+    const d1x = p2.x - p1.x, d1y = p2.y - p1.y;
+    const d2x = p4.x - p3.x, d2y = p4.y - p3.y;
+    const denom = d1x * d2y - d1y * d2x;
+    if (Math.abs(denom) < 1e-10) return null; // 平行或共线
+    const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / denom;
+    return { x: p1.x + t * d1x, y: p1.y + t * d1y };
   };
 
   // 获取问题图标配置
