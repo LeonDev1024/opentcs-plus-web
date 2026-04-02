@@ -257,69 +257,79 @@
       </div>
     </div>
 
-    <!-- 主内容区 -->
+    <!-- 主内容区：Activity Bar + 可折叠侧栏 | 画布 | 属性 -->
     <div class="editor-content">
-      <!-- 左侧面板：视图、属性 -->
-      <div class="left-panels" :style="{ width: leftPanelWidth + 'px' }">
-        <!-- 视图面板 -->
-        <div class="panel-container view-panel-container">
-          <div class="panel-header">
-            <span class="canval-title">视图</span>
-          </div>
-          <div class="panel-content">
-            <ComponentsPanel />
-          </div>
-        </div>
+      <!-- 左侧 Activity Bar（面板入口，非绘图工具） -->
+      <div class="map-editor-activity-bar">
+        <el-tooltip content="视图" placement="right" :show-after="300">
+          <button
+            type="button"
+            class="activity-bar-item"
+            :class="{
+              'is-active':
+                leftSidebarOpen && activeSidebarTab === 'view',
+            }"
+            @click="onActivityView"
+          >
+            <el-icon :size="20"><Grid /></el-icon>
+          </button>
+        </el-tooltip>
+        <el-tooltip content="图层" placement="right" :show-after="300">
+          <button
+            type="button"
+            class="activity-bar-item"
+            :class="{
+              'is-active':
+                leftSidebarOpen && activeSidebarTab === 'layers',
+            }"
+            @click="onActivityLayers"
+          >
+            <img class="activity-bar-icon-img" :src="layerIconUrl" alt="" />
+          </button>
+        </el-tooltip>
+        <div class="activity-bar-spacer" />
+        <el-tooltip
+          :content="isRightPanelCollapsed ? '展开属性' : '收起属性'"
+          placement="right"
+          :show-after="300"
+        >
+          <button
+            type="button"
+            class="activity-bar-item"
+            :class="{ 'is-active': !isRightPanelCollapsed }"
+            @click="toggleRightPanelCollapsed"
+          >
+            <img
+              class="activity-bar-icon-img"
+              :src="propertyPanelIconUrl"
+              alt=""
+            />
+          </button>
+        </el-tooltip>
+      </div>
 
-        <!-- 属性面板顶部拖拽条 -->
-        <div
-          v-show="!isPropertyPanelCollapsed"
-          class="panel-horizontal-resizer"
-          @mousedown="handlePanelResizeStart('property', $event)"
-        ></div>
-
-        <!-- 属性面板 -->
-        <div class="panel-container property-panel-container">
-          <div class="panel-header" @click="togglePropertyPanelCollapse">
-            <span class="canvas-title">属性</span>
-            <el-icon
-              class="collapse-icon"
-              :class="{ collapsed: isPropertyPanelCollapsed }"
-            >
-              <ArrowDown />
-            </el-icon>
+      <!-- 可折叠侧栏：视图 / 图层二选一 -->
+      <div
+        v-show="leftSidebarOpen"
+        class="left-panels"
+        :style="{ width: leftPanelWidth + 'px' }"
+      >
+        <div class="panel-container sidebar-panel-container">
+          <div class="panel-header sidebar-panel-header">
+            <span class="canval-title">{{
+              activeSidebarTab === "layers" ? "图层" : "视图"
+            }}</span>
           </div>
-          <div v-show="!isPropertyPanelCollapsed" class="panel-content">
-            <PropertyPanel />
-          </div>
-        </div>
-
-        <!-- 图层面板顶部拖拽条 -->
-        <div
-          v-show="!isLayerPanelCollapsed"
-          class="panel-horizontal-resizer"
-          @mousedown="handlePanelResizeStart('layer', $event)"
-        ></div>
-
-        <!-- 图层面板 -->
-        <div class="panel-container layer-panel-container">
-          <div class="panel-header" @click="toggleLayerPanelCollapse">
-            <span class="canvas-title">图层</span>
-            <el-icon
-              class="collapse-icon"
-              :class="{ collapsed: isLayerPanelCollapsed }"
-            >
-              <ArrowDown />
-            </el-icon>
-          </div>
-          <div v-show="!isLayerPanelCollapsed" class="panel-content">
-            <LayerPanel />
+          <div class="panel-content panel-content--sidebar-fill">
+            <ComponentsPanel v-if="activeSidebarTab === 'view'" />
+            <LayerPanel v-else />
           </div>
         </div>
       </div>
 
-      <!-- 左侧可拖拽的分隔条 -->
+      <!-- 侧栏与画布之间的拖拽条 -->
       <div
+        v-show="leftSidebarOpen"
         class="panel-resizer"
         @mousedown="handleResizeStart"
         :class="{ resizing: isResizing }"
@@ -344,7 +354,11 @@
                   :class="{ 'is-active': !layerAllVisible }"
                   size="small"
                 >
-                  <img class="floating-layer-icon" :src="layerIconUrl" alt="" />
+                  <img
+                    class="floating-layer-icon"
+                    :src="layerIconUrl"
+                    alt=""
+                  />
                 </el-button>
               </template>
               <ul class="layer-visibility-menu" @click.stop>
@@ -384,6 +398,36 @@
           <span class="zoom-indicator" @click="resetZoom">
             {{ zoomPercent }}%
           </span>
+        </div>
+      </div>
+
+      <!-- 属性面板左侧拖拽条 -->
+      <div
+        v-show="!isRightPanelCollapsed"
+        class="panel-resizer panel-resizer-right"
+        @mousedown="handleRightResizeStart"
+        :class="{ resizing: isRightResizing }"
+      ></div>
+
+      <!-- 右侧属性 Inspector -->
+      <div
+        v-show="!isRightPanelCollapsed"
+        class="right-panel"
+        :style="{ width: rightPanelWidth + 'px' }"
+      >
+        <div class="panel-header right-panel-header">
+          <span class="canvas-title">属性</span>
+          <button
+            type="button"
+            class="right-panel-collapse-btn"
+            title="收起"
+            @click="toggleRightPanelCollapsed"
+          >
+            <el-icon><DArrowRight /></el-icon>
+          </button>
+        </div>
+        <div class="right-panel-body">
+          <PropertyPanel />
         </div>
       </div>
     </div>
@@ -988,6 +1032,7 @@ import { ElMessage, ElMessageBox } from "element-plus";
 import type { MapLayerVisibility } from "@/types/mapEditor";
 import { defaultMapLayerVisibility } from "@/types/mapEditor";
 import layerIconUrl from "@/assets/icons/svg/图层.svg?url";
+import propertyPanelIconUrl from "@/assets/icons/svg/属性管理.svg?url";
 import MapCanvas from "./components/MapCanvas.vue";
 import LayerPanel from "./components/LayerPanel.vue";
 import ComponentsPanel from "./components/ComponentsPanel.vue";
@@ -1016,6 +1061,8 @@ import {
   Clock,
   View,
   Hide,
+  Grid,
+  DArrowRight,
 } from "@element-plus/icons-vue";
 import { parsePgmToDataUrl } from "@/utils/mapEditor/pgmParser";
 import type { RasterBackground } from "@/types/mapEditor";
@@ -1143,20 +1190,88 @@ const csvParsedData = ref<
   }[]
 >([]);
 
-// 图层面板折叠状态（默认收起）
-const isLayerPanelCollapsed = ref(true);
+// 左侧 Activity Bar：侧栏开关与当前 Tab（视图 | 图层）
+const activeSidebarTab = ref<"view" | "layers">("view");
+const leftSidebarOpen = ref(true);
+const LEFT_SIDEBAR_OPEN_KEY = "map-editor-left-sidebar-open";
+const ACTIVE_SIDEBAR_TAB_KEY = "map-editor-active-sidebar-tab";
 
-// 属性面板折叠状态（默认展开）
-const isPropertyPanelCollapsed = ref(false);
+function persistSidebarPrefs() {
+  localStorage.setItem(LEFT_SIDEBAR_OPEN_KEY, leftSidebarOpen.value ? "1" : "0");
+  localStorage.setItem(ACTIVE_SIDEBAR_TAB_KEY, activeSidebarTab.value);
+}
 
-// 面板折叠状态与高度（支持记忆）
-const PROPERTY_PANEL_HEIGHT_KEY = "map-editor-property-panel-height";
-const LAYER_PANEL_HEIGHT_KEY = "map-editor-layer-panel-height";
-const PROPERTY_PANEL_COLLAPSED_KEY = "map-editor-property-panel-collapsed";
-const LAYER_PANEL_COLLAPSED_KEY = "map-editor-layer-panel-collapsed";
-const DEFAULT_LAYER_PANEL_HEIGHT = 200; // 图层面板默认展开高度，避免占满左侧
-const propertyPanelHeight = ref<number | null>(null);
-const layerPanelHeight = ref<number | null>(null);
+/** 再点同一图标可收起侧栏（类 VS Code） */
+function onActivityView() {
+  if (leftSidebarOpen.value && activeSidebarTab.value === "view") {
+    leftSidebarOpen.value = false;
+  } else {
+    activeSidebarTab.value = "view";
+    leftSidebarOpen.value = true;
+  }
+  persistSidebarPrefs();
+}
+
+function onActivityLayers() {
+  if (leftSidebarOpen.value && activeSidebarTab.value === "layers") {
+    leftSidebarOpen.value = false;
+  } else {
+    activeSidebarTab.value = "layers";
+    leftSidebarOpen.value = true;
+  }
+  persistSidebarPrefs();
+}
+
+// 右侧属性面板宽度与收起
+const isRightPanelCollapsed = ref(false);
+const RIGHT_PANEL_COLLAPSED_KEY = "map-editor-right-panel-collapsed";
+const RIGHT_PANEL_MIN_WIDTH = 240;
+const RIGHT_PANEL_MAX_WIDTH = 520;
+const RIGHT_PANEL_DEFAULT_WIDTH = 300;
+const RIGHT_PANEL_WIDTH_KEY = "map-editor-right-panel-width";
+const rightPanelWidth = ref(RIGHT_PANEL_DEFAULT_WIDTH);
+const isRightResizing = ref(false);
+const rightResizeStartX = ref(0);
+const rightResizeStartWidth = ref(0);
+
+function toggleRightPanelCollapsed() {
+  isRightPanelCollapsed.value = !isRightPanelCollapsed.value;
+  localStorage.setItem(
+    RIGHT_PANEL_COLLAPSED_KEY,
+    isRightPanelCollapsed.value ? "1" : "0",
+  );
+}
+
+const handleRightResizeStart = (e: MouseEvent) => {
+  isRightResizing.value = true;
+  rightResizeStartX.value = e.clientX;
+  rightResizeStartWidth.value = rightPanelWidth.value;
+  document.addEventListener("mousemove", handleRightResizeMove);
+  document.addEventListener("mouseup", handleRightResizeEnd);
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
+  e.preventDefault();
+};
+
+const handleRightResizeMove = (e: MouseEvent) => {
+  if (!isRightResizing.value) return;
+  const deltaX = rightResizeStartX.value - e.clientX;
+  const newWidth = rightResizeStartWidth.value + deltaX;
+  rightPanelWidth.value = Math.max(
+    RIGHT_PANEL_MIN_WIDTH,
+    Math.min(RIGHT_PANEL_MAX_WIDTH, newWidth),
+  );
+};
+
+const handleRightResizeEnd = () => {
+  if (!isRightResizing.value) return;
+  isRightResizing.value = false;
+  document.removeEventListener("mousemove", handleRightResizeMove);
+  document.removeEventListener("mouseup", handleRightResizeEnd);
+  document.body.style.cursor = "";
+  document.body.style.userSelect = "";
+  localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, rightPanelWidth.value.toString());
+};
 
 // 仿真与地图检测相关状态（已下线仿真与检测功能，保留接口方便后续扩展）
 const isSimulating = ref(false);
@@ -1498,134 +1613,6 @@ const handlePointDropdownVisible = (visible: boolean) => {
   }
 };
 
-// 图层面板折叠/展开（带状态记忆）
-const toggleLayerPanelCollapse = () => {
-  isLayerPanelCollapsed.value = !isLayerPanelCollapsed.value;
-  localStorage.setItem(
-    LAYER_PANEL_COLLAPSED_KEY,
-    isLayerPanelCollapsed.value ? "1" : "0",
-  );
-
-  nextTick(() => {
-    const layerEl = document.querySelector(
-      ".left-panels .layer-panel-container",
-    ) as HTMLElement | null;
-    if (!layerEl) return;
-    // 收起时让高度回到 header 自身高度，展开时恢复为记忆高度或默认高度
-    if (isLayerPanelCollapsed.value) {
-      layerEl.style.height = "";
-    } else {
-      const h = layerPanelHeight.value ?? DEFAULT_LAYER_PANEL_HEIGHT;
-      layerEl.style.height = `${h}px`;
-    }
-  });
-};
-
-// 属性面板折叠/展开（带状态记忆）
-const togglePropertyPanelCollapse = () => {
-  isPropertyPanelCollapsed.value = !isPropertyPanelCollapsed.value;
-  localStorage.setItem(
-    PROPERTY_PANEL_COLLAPSED_KEY,
-    isPropertyPanelCollapsed.value ? "1" : "0",
-  );
-
-  nextTick(() => {
-    const propertyEl = document.querySelector(
-      ".left-panels .property-panel-container",
-    ) as HTMLElement | null;
-    if (!propertyEl) return;
-    // 收起时让高度回到 header 自身高度，展开时恢复为记忆高度
-    if (isPropertyPanelCollapsed.value) {
-      propertyEl.style.height = "";
-    } else if (propertyPanelHeight.value !== null) {
-      propertyEl.style.height = `${propertyPanelHeight.value}px`;
-    }
-  });
-};
-
-// 单个面板高度拖拽
-const isVerticalResizing = ref(false);
-const verticalResizeStartY = ref(0);
-const verticalResizeTarget = ref<"property" | "layer" | null>(null);
-const startPanelHeight = ref(0);
-
-const handlePanelResizeStart = (
-  target: "property" | "layer",
-  e: MouseEvent,
-) => {
-  // 未展开时不允许拖动
-  if (target === "property" && isPropertyPanelCollapsed.value) return;
-  if (target === "layer" && isLayerPanelCollapsed.value) return;
-
-  const selector =
-    target === "property"
-      ? ".left-panels .property-panel-container"
-      : ".left-panels .layer-panel-container";
-  const panelEl = document.querySelector(selector) as HTMLElement | null;
-  if (!panelEl) return;
-
-  isVerticalResizing.value = true;
-  verticalResizeTarget.value = target;
-  verticalResizeStartY.value = e.clientY;
-  startPanelHeight.value = panelEl.getBoundingClientRect().height;
-
-  document.addEventListener("mousemove", handlePanelResizeMove);
-  document.addEventListener("mouseup", handlePanelResizeEnd);
-  document.body.style.cursor = "row-resize";
-  document.body.style.userSelect = "none";
-
-  e.preventDefault();
-};
-
-const handlePanelResizeMove = (e: MouseEvent) => {
-  if (!isVerticalResizing.value || !verticalResizeTarget.value) return;
-
-  const selector =
-    verticalResizeTarget.value === "property"
-      ? ".left-panels .property-panel-container"
-      : ".left-panels .layer-panel-container";
-  const panelEl = document.querySelector(selector) as HTMLElement | null;
-  if (!panelEl) return;
-
-  const minHeight = 80;
-  const deltaY = e.clientY - verticalResizeStartY.value;
-  // 鼠标向上拖动时面板变大，向下拖动时面板变小
-  let newHeight = startPanelHeight.value - deltaY;
-  if (newHeight < minHeight) newHeight = minHeight;
-
-  panelEl.style.height = `${newHeight}px`;
-
-  if (verticalResizeTarget.value === "property") {
-    propertyPanelHeight.value = newHeight;
-  } else {
-    layerPanelHeight.value = newHeight;
-  }
-};
-
-const handlePanelResizeEnd = () => {
-  if (!isVerticalResizing.value) return;
-
-  isVerticalResizing.value = false;
-  verticalResizeTarget.value = null;
-  document.removeEventListener("mousemove", handlePanelResizeMove);
-  document.removeEventListener("mouseup", handlePanelResizeEnd);
-  document.body.style.cursor = "";
-  document.body.style.userSelect = "";
-
-  if (propertyPanelHeight.value !== null) {
-    localStorage.setItem(
-      PROPERTY_PANEL_HEIGHT_KEY,
-      propertyPanelHeight.value.toString(),
-    );
-  }
-  if (layerPanelHeight.value !== null) {
-    localStorage.setItem(
-      LAYER_PANEL_HEIGHT_KEY,
-      layerPanelHeight.value.toString(),
-    );
-  }
-};
-
 // 撤销/重做
 const undo = () => {
   mapEditorStore.undo();
@@ -1745,60 +1732,26 @@ onMounted(async () => {
     }
   }
 
-  // 从 localStorage 加载属性/图层面板折叠状态
-  const savedPropertyCollapsed = localStorage.getItem(
-    PROPERTY_PANEL_COLLAPSED_KEY,
-  );
-  const savedLayerCollapsed = localStorage.getItem(LAYER_PANEL_COLLAPSED_KEY);
-  if (savedPropertyCollapsed !== null) {
-    isPropertyPanelCollapsed.value = savedPropertyCollapsed === "1";
+  const savedSidebarOpen = localStorage.getItem(LEFT_SIDEBAR_OPEN_KEY);
+  if (savedSidebarOpen !== null) {
+    leftSidebarOpen.value = savedSidebarOpen === "1";
   }
-  if (savedLayerCollapsed !== null) {
-    isLayerPanelCollapsed.value = savedLayerCollapsed === "1";
+  const savedTab = localStorage.getItem(ACTIVE_SIDEBAR_TAB_KEY);
+  if (savedTab === "view" || savedTab === "layers") {
+    activeSidebarTab.value = savedTab;
   }
 
-  // 从 localStorage 加载属性/图层面板高度
-  const savedPropertyHeight = localStorage.getItem(PROPERTY_PANEL_HEIGHT_KEY);
-  const savedLayerHeight = localStorage.getItem(LAYER_PANEL_HEIGHT_KEY);
-  if (savedPropertyHeight) {
-    const p = parseInt(savedPropertyHeight, 10);
-    if (!Number.isNaN(p)) {
-      propertyPanelHeight.value = p;
+  const savedRightCollapsed = localStorage.getItem(RIGHT_PANEL_COLLAPSED_KEY);
+  if (savedRightCollapsed !== null) {
+    isRightPanelCollapsed.value = savedRightCollapsed === "1";
+  }
+  const savedRightW = localStorage.getItem(RIGHT_PANEL_WIDTH_KEY);
+  if (savedRightW) {
+    const w = parseInt(savedRightW, 10);
+    if (!Number.isNaN(w) && w >= RIGHT_PANEL_MIN_WIDTH && w <= RIGHT_PANEL_MAX_WIDTH) {
+      rightPanelWidth.value = w;
     }
   }
-  if (savedLayerHeight) {
-    const l = parseInt(savedLayerHeight, 10);
-    if (!Number.isNaN(l)) {
-      layerPanelHeight.value = l;
-    }
-  }
-
-  // 根据折叠状态应用高度
-  nextTick(() => {
-    const propertyEl = document.querySelector(
-      ".left-panels .property-panel-container",
-    ) as HTMLElement | null;
-    const layerEl = document.querySelector(
-      ".left-panels .layer-panel-container",
-    ) as HTMLElement | null;
-
-    if (propertyEl) {
-      if (isPropertyPanelCollapsed.value) {
-        propertyEl.style.height = "";
-      } else if (propertyPanelHeight.value !== null) {
-        propertyEl.style.height = `${propertyPanelHeight.value}px`;
-      }
-    }
-
-    if (layerEl) {
-      if (isLayerPanelCollapsed.value) {
-        layerEl.style.height = "";
-      } else {
-        const h = layerPanelHeight.value ?? DEFAULT_LAYER_PANEL_HEIGHT;
-        layerEl.style.height = `${h}px`;
-      }
-    }
-  });
 
   // 加载地图数据：
   // - 如果带有 mapId（从地图列表”编辑”跳转），则从后端加载对应地图
@@ -3074,6 +3027,13 @@ const handleKeyDown = (e: KeyboardEvent) => {
     mapEditorStore.clearSelection();
   }
 
+  // Ctrl+B 切换左侧视图/图层面板展开
+  if (e.ctrlKey && !e.shiftKey && (e.key === "b" || e.key === "B")) {
+    e.preventDefault();
+    leftSidebarOpen.value = !leftSidebarOpen.value;
+    persistSidebarPrefs();
+  }
+
   // Delete / Backspace 删除选中元素
   if (
     !e.ctrlKey &&
@@ -3111,6 +3071,8 @@ onUnmounted(() => {
   // 清理拖拽事件
   document.removeEventListener("mousemove", handleResizeMove);
   document.removeEventListener("mouseup", handleResizeEnd);
+  document.removeEventListener("mousemove", handleRightResizeMove);
+  document.removeEventListener("mouseup", handleRightResizeEnd);
   document.body.style.cursor = "";
   document.body.style.userSelect = "";
 
@@ -3616,7 +3578,63 @@ onUnmounted(() => {
     overflow: hidden;
     min-width: 0;
 
-    // 左侧面板组
+    .map-editor-activity-bar {
+      width: 44px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 0;
+      gap: 4px;
+      background: #f0f2f5;
+      border-right: 1px solid #e4e7ed;
+      z-index: 20;
+
+      .activity-bar-spacer {
+        flex: 1;
+        min-height: 8px;
+      }
+
+      .activity-bar-item {
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: #606266;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition:
+          background 0.15s,
+          color 0.15s;
+
+        &:hover {
+          background: rgba(64, 158, 255, 0.12);
+          color: #409eff;
+        }
+
+        &.is-active {
+          background: rgba(64, 158, 255, 0.18);
+          color: #409eff;
+        }
+
+        .activity-bar-icon-img {
+          width: 20px;
+          height: 20px;
+          display: block;
+          object-fit: contain;
+          opacity: 0.85;
+        }
+
+        &.is-active .activity-bar-icon-img {
+          opacity: 1;
+        }
+      }
+    }
+
+    // 可折叠侧栏（视图 | 图层）
     .left-panels {
       background: #fff;
       border-right: 1px solid #e4e7ed;
@@ -3626,48 +3644,23 @@ onUnmounted(() => {
       flex-shrink: 0;
       min-width: 0;
 
+      .sidebar-panel-container {
+        flex: 1;
+        min-height: 0;
+        border-bottom: none;
+      }
+
+      .sidebar-panel-header {
+        cursor: default;
+      }
+
       .panel-container {
         display: flex;
         flex-direction: column;
-        border-bottom: 1px solid #e4e7ed;
         min-height: 0;
 
-        // 视图面板始终占据剩余空间
-        &:first-child {
-          flex: 1;
-          min-height: 150px;
-        }
-
-        // 属性面板可调整高度（通过自定义拖拽条）
-        &.property-panel-container {
-          flex-shrink: 0;
-          overflow: hidden;
-
-          .panel-content {
-            min-height: 80px;
-            max-height: none;
-          }
-        }
-
-        // 图层面板可调整高度（通过自定义拖拽条），默认高度由 JS 设置，限制最大高度避免占满
-        &.layer-panel-container {
-          flex-shrink: 0;
-          overflow: hidden;
-          max-height: 50vh;
-
-          .panel-content {
-            min-height: 60px;
-            max-height: none;
-          }
-        }
-
-        // 最后一个面板没有底部边框
-        &:last-child {
-          border-bottom: none;
-        }
-
         .panel-header {
-          height: 30px;
+          height: 32px;
           padding: 0 12px;
           background: #fff;
           border-bottom: 1px solid #e4e7ed;
@@ -3675,21 +3668,8 @@ onUnmounted(() => {
           align-items: center;
           justify-content: space-between;
           box-sizing: border-box;
-          cursor: pointer;
           user-select: none;
-          transition: background-color 0.2s;
           flex-shrink: 0;
-
-          &:hover {
-            background: #f5f7fa;
-          }
-
-          .version-tag {
-            font-size: 10px;
-            padding: 0 4px;
-            height: 16px;
-            line-height: 14px;
-          }
 
           .panel-title,
           .canval-title,
@@ -3699,16 +3679,6 @@ onUnmounted(() => {
             line-height: 1;
             font-weight: 500;
           }
-
-          .collapse-icon {
-            font-size: 14px;
-            color: #909399;
-            transition: transform 0.3s ease;
-
-            &.collapsed {
-              transform: rotate(-90deg);
-            }
-          }
         }
 
         .panel-content {
@@ -3716,6 +3686,12 @@ onUnmounted(() => {
           overflow-y: auto;
           overflow-x: hidden;
           padding: 8px;
+        }
+
+        .panel-content--sidebar-fill {
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
         }
       }
     }
@@ -3747,34 +3723,6 @@ onUnmounted(() => {
         bottom: 0;
         cursor: col-resize;
       }
-    }
-
-    // 属性/图层之间的水平分隔条
-    .panel-horizontal-resizer {
-      height: 4px;
-      background: transparent;
-      cursor: row-resize;
-      position: relative;
-      z-index: 5;
-
-      &:hover {
-        background: #409eff;
-      }
-
-      &::before {
-        content: "";
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: -2px;
-        bottom: -2px;
-        cursor: row-resize;
-      }
-    }
-
-    // 右侧分隔条
-    .panel-resizer-right {
-      order: 3;
     }
 
     // 画布区域
@@ -3892,7 +3840,6 @@ onUnmounted(() => {
       }
     }
 
-    // 右侧面板
     .right-panel {
       background: #fff;
       border-left: 1px solid #e4e7ed;
@@ -3900,7 +3847,70 @@ onUnmounted(() => {
       flex-direction: column;
       overflow: hidden;
       flex-shrink: 0;
-      order: 4;
+      min-width: 0;
+
+      .panel-header {
+        height: 32px;
+        padding: 0 12px;
+        background: #fff;
+        border-bottom: 1px solid #e4e7ed;
+        box-sizing: border-box;
+
+        .canvas-title {
+          font-size: 12px;
+          color: #606266;
+          font-weight: 500;
+        }
+      }
+
+      .right-panel-header {
+        cursor: default;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-right: 4px;
+
+        .right-panel-collapse-btn {
+          border: none;
+          background: transparent;
+          padding: 4px;
+          border-radius: 4px;
+          color: #909399;
+          cursor: pointer;
+          line-height: 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          &:hover {
+            background: #f5f7fa;
+            color: #409eff;
+          }
+        }
+      }
+
+      .right-panel-body {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+
+        :deep(.property-panel) {
+          flex: 1;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+
+        :deep(.property-panel .panel-content) {
+          flex: 1;
+          min-height: 0;
+          overflow-y: auto;
+        }
+      }
     }
   }
 
