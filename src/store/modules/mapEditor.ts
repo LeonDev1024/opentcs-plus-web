@@ -1113,6 +1113,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       // 保存成功后不更新前端版本号，避免循环引用问题
       // 用户可以手动刷新页面查看新版本，或者重新加载地图
 
+      // 清空 undo/redo 历史：保存后不应再能撤销到保存前的状态
+      commandManager.clear();
       isDirty.value = false;
 
       return mapData.value;
@@ -1851,6 +1853,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
 
     // 清除选择
     clearSelection();
+
+    // 版本回滚后清空 undo/redo 栈，避免与快照状态不一致
+    commandManager.clear();
 
     // 标记为已修改
     isDirty.value = true;
