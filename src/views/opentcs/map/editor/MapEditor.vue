@@ -234,6 +234,14 @@
       </div>
       <div class="toolbar-right">
         <el-button
+          type="warning"
+          size="small"
+          icon="Upload"
+          @click="handleImportBaseLayer"
+        >
+          导入底图
+        </el-button>
+        <el-button
           v-if="mapEditorStore.mapData?.mapInfo?.status !== '1'"
           type="success"
           size="small"
@@ -1012,8 +1020,13 @@
       :point="currentEditPoint"
       @updated="handlePointUpdated"
     />
-  </div>
-</template>
+
+    <!-- 导入底图对话框 -->
+    <ImportBaseLayerDialog
+      ref="importBaseLayerDialogRef"
+      v-model="showImportBaseLayerDialog"
+      @import="handleBaseLayerImport"
+    />
 
 <script setup lang="ts">
 import {
@@ -1038,6 +1051,7 @@ import LayerPanel from "./components/LayerPanel.vue";
 import ComponentsPanel from "./components/ComponentsPanel.vue";
 import PropertyPanel from "./components/PropertyPanel.vue";
 import PointEditDialog from "./components/PointEditDialog.vue";
+import ImportBaseLayerDialog from "./components/ImportBaseLayerDialog.vue";
 import { useMapEditorStore } from "@/store/modules/mapEditor";
 import { useMapEditorTabsStore } from "@/store/modules/mapEditorTabs";
 import { ToolMode, LayerType } from "@/types/mapEditor";
@@ -1063,10 +1077,12 @@ import {
   Hide,
   Grid,
   DArrowRight,
+  Upload,
 } from "@element-plus/icons-vue";
 import { parsePgmToDataUrl } from "@/utils/mapEditor/pgmParser";
 import type { RasterBackground } from "@/types/mapEditor";
 import request from "@/utils/request";
+import { uploadOss } from "@/api/system/oss/upload";
 
 // Props
 const props = defineProps<{
@@ -1117,10 +1133,9 @@ const mousePosition = ref({ x: 0, y: 0 });
 const showPointEditDialog = ref(false);
 const currentEditPoint = ref<MapPoint | null>(null);
 
-// 导入栅格地图
-const importRasterDialogVisible = ref(false);
-const yamlInputRef = ref<HTMLInputElement | null>(null);
-const pgmInputRef = ref<HTMLInputElement | null>(null);
+// 导入底图对话框
+const showImportBaseLayerDialog = ref(false);
+const importBaseLayerDialogRef = ref();
 const rasterYamlFile = ref<File | null>(null);
 const rasterPgmFile = ref<File | null>(null);
 const rasterYamlFileName = ref("");
@@ -1875,6 +1890,96 @@ const validateBeforePublish = (): string | null => {
   const errors = collectModelValidationErrors();
   if (errors.length === 0) return null;
   return `发布前校验失败：${errors[0]}`;
+};
+
+// 导入底图
+const handleImportBaseLayer = () => {
+  importBaseLayerDialogRef.value?.open();
+};
+
+// 处理底图导入事件
+const handleBaseLayerImport = async (data: {
+  yamlFile: File;
+  pgmFile: File;
+  yamlInfo: {
+    resolution: number;
+    origin: number[];
+    width: number;
+    height: number;
+    imageName: string;
+  };
+}) => {
+  try {
+    ElMessage.info('正在处理底图...');
+
+    // 1. 将 PGM 转换为图片 Data URL
+    const pgmArrayBuffer = await data.pgmFile.arrayBuffer();
+    const pgmResult = await parsePgmToDataUrl(pgmArrayBuffer);
+
+    // 2. 上传到 OSS（PGM 转成的 PNG）
+    // 先将 Data URL 转成 File
+    const pngDataUrl = pgmResult.dataUrl;
+    const pngBase64 = pngDataUrl.split(',')[1];
+    const pngBinary = atob(pngBase64);
+    const pngArray = new Uint8Array(pngBinary.length);
+    for (let i = 0; i < pngBinary.length; i++) {
+      pngArray[i] = pngBinary.charCodeAt(i);
+    }
+    const pngBlob = new Blob([pngArray], { type: 'image/png' });
+    const pngFile = new File([pngBlob], `${data.yamlInfo.imageName.replace('.pgm', '')}.png`, { type: 'image/png' });
+
+    // 上传 PGM 图片
+    const pgmUploadResult = await uploadOss(pngFile);
+
+    // 3. 上传 YAML 文件
+    const yamlUploadResult = await uploadOss(data.yamlFile);
+
+    // 4. 计算比例尺：scale = resolution × 1000 (mm/模型单位)
+    const scale = data.yamlInfo.resolution * 1000;
+
+    // 5. 更新地图的比例尺
+    if (mapEditorStore.mapData?.visualLayout) {
+      mapEditorStore.mapData.visualLayout.scaleX = scale;
+      mapEditorStore.mapData.visualLayout.scaleY = scale;
+    }
+
+    // 6. 设置底图数据到 store
+    const rasterBackground: RasterBackground = {
+      imageDataUrl: pgmResult.dataUrl,
+      originX: data.yamlInfo.origin[0],
+      originY: data.yamlInfo.origin[1],
+      resolution: data.yamlInfo.resolution,
+      widthPx: pgmResult.width,
+      heightPx: pgmResult.height,
+    };
+    mapEditorStore.setRasterBackground(rasterBackground);
+
+    // 7. 保存到数据库
+    const dbId = mapEditorStore.mapData?.mapInfo?.id;
+    if (dbId) {
+      // 构建 yamlOrigin JSON 字符串
+      const yamlOrigin = JSON.stringify(data.yamlInfo.origin);
+      // 构建 mapOrigin JSON 字符串（初始为 0,0,0，后续可在地图管理控制台调整）
+      const mapOrigin = JSON.stringify([0, 0, data.yamlInfo.origin[2] || 0]);
+
+      await updateNavigationMap({
+        id: Number(dbId),
+        rasterUrl: pgmUploadResult.data.url,
+        rasterVersion: 1,
+        rasterWidth: pgmResult.width,
+        rasterHeight: pgmResult.height,
+        rasterResolution: data.yamlInfo.resolution,
+        yamlOrigin: yamlOrigin,
+        yamlUrl: yamlUploadResult.data.url,
+        mapOrigin: mapOrigin,
+      } as any);
+    }
+
+    ElMessage.success('底图导入成功');
+  } catch (error) {
+    console.error('导入底图失败:', error);
+    ElMessage.error('导入底图失败');
+  }
 };
 
 const showValidationErrorSummary = (errors: string[], title: string) => {

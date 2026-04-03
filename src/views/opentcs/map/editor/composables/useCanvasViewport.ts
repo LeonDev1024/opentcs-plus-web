@@ -127,15 +127,37 @@ export function useCanvasViewport(
     if (!raster) return null
     const img = rasterLoadedImage.value
     if (!img) return null
-    const canvasWidth = canvasState.value.width || 1920
-    const canvasHeight = canvasState.value.height || 1080
+
+    // 获取比例尺（mm/模型单位）
+    const scaleX =
+      mapEditorStore.mapData?.mapInfo?.scaleX ?? mapEditorStore.mapData?.visualLayout?.scaleX
+    const v = typeof scaleX === 'number' ? scaleX : scaleX != null ? parseFloat(String(scaleX)) : 50
+    const mmPerUnit = (v || 50) / 1000 // 模型单位（米）
+
+    // 获取画布缩放
+    const scale = canvasState.value.scale || 1
+
+    // 获取画布偏移
+    const offsetX = canvasState.value.offsetX || 0
+    const offsetY = canvasState.value.offsetY || 0
+
+    // 计算底图在画布中的位置
+    // 底图偏移（模型单位）= -originX / resolution
+    // originX 是米，resolution 是米/像素，所以结果直接是像素数（因为 resolution=0.05 意味着 1像素=0.05米）
+    const offsetModelX = -raster.originX / raster.resolution
+    const offsetModelY = -raster.originY / raster.resolution
+
+    // 转换为画布坐标：modelX * mmPerUnit * scale + offsetX
+    const canvasX = offsetModelX * mmPerUnit * scale + offsetX
+    const canvasY = offsetModelY * mmPerUnit * scale + offsetY
+
     const h = raster.heightPx
     const w = raster.widthPx
     return {
-      x: (canvasWidth - w) / 2,
-      y: (canvasHeight - h) / 2,
-      width: w,
-      height: h,
+      x: canvasX,
+      y: canvasY,
+      width: w * mmPerUnit * scale,
+      height: h * mmPerUnit * scale,
       image: img,
       listening: false,
     }

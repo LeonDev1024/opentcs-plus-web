@@ -52,6 +52,11 @@ export interface NavigationMapForm {
   rasterWidth?: number;
   rasterHeight?: number;
   rasterResolution?: number;
+  // YAML 相关字段
+  yamlOrigin?: string;
+  yamlUrl?: string;
+  // 地图原点偏移 [x, y, angle]
+  mapOrigin?: string;
 }
 
 export interface NavigationMapQuery {
