@@ -1,10 +1,11 @@
 <template>
   <el-dialog
-    v-model="dialogVisible"
+    :model-value="dialogVisible"
     title="导入栅格底图"
     width="500px"
     :close-on-click-modal="false"
     @close="handleClose"
+    @update:model-value="(val: boolean) => emit('update:modelValue', val)"
   >
     <div class="import-tip">
       <p>请同时选择 <strong>map.yaml</strong> 和 <strong>map.pgm</strong> 两个文件</p>
@@ -102,7 +103,7 @@ const canImport = computed(() => {
 });
 
 const open = () => {
-  dialogVisible.value = true;
+  emit('update:modelValue', true);
   resetForm();
 };
 
@@ -115,7 +116,7 @@ const resetForm = () => {
 };
 
 const handleClose = () => {
-  dialogVisible.value = false;
+  emit('update:modelValue', false);
   resetForm();
 };
 
