@@ -96,10 +96,34 @@ export interface MapEditorMapInfoApi {
   layoutWidth?: string | number;
   layoutHeight?: string | number;
   scale?: string | number;
+  /** 毫米/模型单位，与 visualLayout.scaleX 一致；与栅格对齐时必须与 resolution×1000 一致或落在合理区间 */
+  scaleX?: number | string;
+  scaleY?: number | string;
   /** 画布快照 JSON */
   data?: string;
   createTime?: string;
   updateTime?: string;
+
+  // ==================== 栅格底图相关字段 ====================
+  /** 栅格地图OSS存储路径 */
+  rasterUrl?: string;
+  /** 栅格地图版本号 */
+  rasterVersion?: number;
+  /** 栅格地图宽度（像素） */
+  rasterWidth?: number;
+  /** 栅格地图高度（像素） */
+  rasterHeight?: number;
+  /** 栅格地图分辨率（米/像素） */
+  rasterResolution?: number;
+  /** YAML原始origin参数 [ox, oy, angle]（米，度） */
+  yamlOrigin?: string;
+  yaml_origin?: string;
+  /** YAML文件OSS存储路径 */
+  yamlUrl?: string;
+  /** 地图在工厂坐标系下的原点偏移 [x, y, angle]（毫米，度） */
+  mapOrigin?: string;
+  /** 与 mapOrigin 同义（部分接口返回 snake_case） */
+  map_origin?: string;
 }
 
 /**

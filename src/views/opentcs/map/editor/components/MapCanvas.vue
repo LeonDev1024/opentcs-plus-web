@@ -966,6 +966,47 @@ const {
   setGridSize, setGridColor, setSnapEnabled, tryApplyViewportOriginBottomLeft,
 } = useCanvasViewport(mapEditorStore, containerRef, rasterLayerRef)
 
+/** 画布漫游：与路径预览相同，Stage 上 @mousemove 常收不到，必须用 window 才能保证平移 */
+let canvasPanWindowMove: ((ev: MouseEvent) => void) | null = null;
+
+const stopCanvasPanWindowListeners = () => {
+  if (canvasPanWindowMove) {
+    window.removeEventListener("mousemove", canvasPanWindowMove);
+    canvasPanWindowMove = null;
+  }
+};
+
+const startCanvasPanWindowListeners = () => {
+  stopCanvasPanWindowListeners();
+  canvasPanWindowMove = (ev: MouseEvent) => {
+    const stage = getKonvaNode(stageRef.value);
+    if (!stage?.container()) return;
+    const isCanvasPanDrag =
+      isDragging.value &&
+      !isBoxSelecting.value &&
+      !manualDragState.value &&
+      (currentTool.value === ToolMode.PAN ||
+        isSpacePressed.value ||
+        currentTool.value === ToolMode.SELECT);
+    if (!isCanvasPanDrag) return;
+    const rect = stage.container().getBoundingClientRect();
+    const currentPos = {
+      x: ev.clientX - rect.left,
+      y: ev.clientY - rect.top,
+    };
+    const dx = currentPos.x - dragStartPos.value.x;
+    const dy = currentPos.y - dragStartPos.value.y;
+    mapEditorStore.updateCanvasState({
+      offsetX: canvasState.value.offsetX + dx,
+      offsetY: canvasState.value.offsetY + dy,
+    });
+    dragStartPos.value = { x: currentPos.x, y: currentPos.y };
+  };
+  window.addEventListener("mousemove", canvasPanWindowMove, {
+    passive: true,
+  });
+};
+
 const {
   shouldRenderPointGlyph, shouldShowPointLabel, getPointLabelConfig, getPointGlyphConfig,
   isPointConnected, resolvePointBullseyeStyle,
@@ -1228,11 +1269,15 @@ const getPolygonPersistStyles = (tool: ToolMode | null) => {
 
 // Stage 全局 mousedown：在选择工具下识别点/位置并开始手动拖拽（不依赖 Konva draggable）
 const handleStageMouseDown = (e: any) => {
-  if (!isSelectInteractionTool.value || isDragging.value) return;
   const stage = e.target?.getStage?.();
   if (!stage) return;
   const target = e.target;
-  if (target === stage) return; // 空白处由 handleStageAreaMouseDown 处理
+  // 透明底未命中时事件会落在 Stage，需与空白层一致处理（漫游/选框/绘制点等）
+  if (target === stage) {
+    handleStageAreaMouseDown(e);
+    return;
+  }
+  if (!isSelectInteractionTool.value || isDragging.value) return;
   const layer = target.getLayer?.();
   if (!layer) return;
   const layerName = (layer.getAttr?.("name") ?? layer.name?.()) || "";
@@ -1311,7 +1356,14 @@ const handleStageMouseDown = (e: any) => {
 const handleStageAreaMouseDown = (e: any) => {
   const stage = e.target.getStage();
   if (!stage) return;
-  const pointerPos = stage.getPointerPosition();
+  let pointerPos = stage.getPointerPosition();
+  if (!pointerPos) {
+    const evt = e.evt ?? e.nativeEvent ?? e;
+    if (evt?.clientX != null && stage.container()) {
+      const rect = stage.container().getBoundingClientRect();
+      pointerPos = { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+    }
+  }
   if (!pointerPos) return;
   const x =
     (pointerPos.x - canvasState.value.offsetX) / canvasState.value.scale;
@@ -1319,24 +1371,32 @@ const handleStageAreaMouseDown = (e: any) => {
     (pointerPos.y - canvasState.value.offsetY) / canvasState.value.scale;
   mousePosition.value = { x, y };
 
+  // 兼容 Konva 事件对象确保有 evt
+  const evt = e.evt || e;
+
   if (currentTool.value === ToolMode.PAN || isSpacePressed.value) {
     isDragging.value = true;
     dragStartPos.value = { x: pointerPos.x, y: pointerPos.y };
     stage.container().style.cursor = "grabbing";
-    e.evt.preventDefault();
+    evt.preventDefault?.();
+    startCanvasPanWindowListeners();
   } else if (currentTool.value === ToolMode.SELECT) {
-    // 选择工具：空白拖拽为框选（Shift 追加）
-    if (!e.evt.shiftKey) {
+    // 选择工具：空白点击拖拽为平移画布，Shift+拖拽为框选
+    if (evt.shiftKey) {
       mapEditorStore.clearSelection();
-    }
-    {
       isBoxSelecting.value = true;
-      boxSelectAppend.value = e.evt.shiftKey;
+      boxSelectAppend.value = true;
       boxSelectStart.value = { x, y };
       boxSelectEnd.value = { x, y };
       stage.container().style.cursor = "crosshair";
-      e.evt.preventDefault();
+    } else {
+      // 默认支持平移画布
+      isDragging.value = true;
+      dragStartPos.value = { x: pointerPos.x, y: pointerPos.y };
+      stage.container().style.cursor = "grabbing";
+      startCanvasPanWindowListeners();
     }
+    evt.preventDefault?.();
   } else if (currentTool.value === ToolMode.POINT) {
     // 绘制点
     const pointPayload = createPointPayload(x, y);
@@ -1460,15 +1520,13 @@ const handleMouseMove = (e: any) => {
   if (!stage) return;
 
   const model = pointerToModelFromStageEvent(stage, e);
-  if (!model) return;
-  const { x, y } = model;
 
-  // 使用节流更新鼠标位置
-  updateMousePosition(x, y);
-
-  // 手动拖拽：实时更新节点位置
+  // 手动拖拽：实时更新节点位置（依赖模型坐标）
   const drag = manualDragState.value;
   if (drag) {
+    if (!model) return;
+    const { x, y } = model;
+    updateMousePosition(x, y);
     if (drag.kind === "point") {
       const snapped = snapPoint(
         { x, y },
@@ -1496,34 +1554,13 @@ const handleMouseMove = (e: any) => {
     return;
   }
 
-  // 平移模式
-  if (
-    (currentTool.value === ToolMode.PAN || isSpacePressed.value) &&
-    isDragging.value
-  ) {
-    let currentPos = stage.getPointerPosition?.();
-    if (!currentPos) {
-      const ev = e?.evt ?? e?.nativeEvent ?? e;
-      if (ev?.clientX != null && stage.container()) {
-        const rect = stage.container().getBoundingClientRect();
-        currentPos = { x: ev.clientX - rect.left, y: ev.clientY - rect.top };
-      }
-    }
-    if (!currentPos) return;
+  // 画布漫游由 window mousemove（startCanvasPanWindowListeners）驱动，此处不再依赖 Stage 的 mousemove
 
-    // 计算鼠标移动的距离
-    const dx = currentPos.x - dragStartPos.value.x;
-    const dy = currentPos.y - dragStartPos.value.y;
+  if (!model) return;
+  const { x, y } = model;
 
-    // 更新画布偏移
-    mapEditorStore.updateCanvasState({
-      offsetX: canvasState.value.offsetX + dx,
-      offsetY: canvasState.value.offsetY + dy,
-    });
-
-    // 更新起始位置
-    dragStartPos.value = { x: currentPos.x, y: currentPos.y };
-  }
+  // 使用节流更新鼠标位置
+  updateMousePosition(x, y);
 
   // 框选模式
   if (isBoxSelecting.value) {
@@ -1717,11 +1754,15 @@ const handleMouseUp = (e: any) => {
   // 不再在 PATH/LOCATION/DASHED_LINK/RULE_REGION 下因"未设置 shouldSwitchToSelectAfterOther"就 100ms 后强切回选择工具，
   // 否则点击工具栏切换到连线后，任意 mouseup 都会很快把工具切回选择，导致点对点连线无法使用。
 
-  // 平移模式结束
+  // 平移模式结束（漫游 / 空格 / 选择工具空白拖拽）
   if (
-    (currentTool.value === ToolMode.PAN || isSpacePressed.value) &&
-    isDragging.value
+    isDragging.value &&
+    !isBoxSelecting.value &&
+    (currentTool.value === ToolMode.PAN ||
+      isSpacePressed.value ||
+      currentTool.value === ToolMode.SELECT)
   ) {
+    stopCanvasPanWindowListeners();
     isDragging.value = false;
     if (stage) {
       stage.container().style.cursor =
@@ -1833,33 +1874,19 @@ const handleMouseUp = (e: any) => {
       }
     }
 
-    // 无论是否创建成功，都清除路径拖拽状态和预览
-    cancelPathDrag(stage);
-
-    // 如果路径创建成功，切换回选择模式（使用和绘制点完全相同的逻辑）
-    if (pathCreated) {
-      // 标记需要在鼠标松开时切换工具（双重保险）
-      shouldSwitchToSelectAfterOther.value = { tool: ToolMode.PATH };
-
-      requestAnimationFrame(() => {
-        setTimeout(() => {
-          if (
-            mapEditorStore.currentTool === ToolMode.PATH &&
-            shouldAutoSwitchTool.value
-          ) {
-            mapEditorStore.setTool(ToolMode.SELECT);
-            // setTool 会 clearSelection；选中终点后箭头才会显示（arrowVisible=false）
-            if (createdEndPoint) {
-              nextTick(() => {
-                mapEditorStore.selectElement(
-                  String(createdEndPoint!.id),
-                  "point",
-                );
-              });
-            }
-          }
-        }, 50);
-      });
+    // 连续画线：创建成功后更新起点为终点并保留预览
+    if (pathCreated && createdEndPoint) {
+      pathDragState.startPoint = createdEndPoint;
+      pathDragState.currentPos = {
+        x: createdEndPoint.x,
+        y: createdEndPoint.y,
+      };
+      pathDragState.pathType = mapEditorStore.pathConnectionType;
+      hoveredPointId.value = String(createdEndPoint.id);
+      stage.container().style.cursor = "crosshair";
+    } else {
+      // 失败则清空路径预览
+      cancelPathDrag(stage);
     }
   } else if (
     currentTool.value === ToolMode.PATH &&
@@ -2349,21 +2376,12 @@ const handlePointClick = (point: MapPoint, e: any) => {
       return;
     }
     createConnectionBetweenPoints(pathDragState.startPoint, point);
-    cancelPathDrag(stage);
-    shouldSwitchToSelectAfterOther.value = { tool: ToolMode.PATH };
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        if (
-          mapEditorStore.currentTool === ToolMode.PATH &&
-          shouldAutoSwitchTool.value
-        ) {
-          mapEditorStore.setTool(ToolMode.SELECT);
-          nextTick(() => {
-            mapEditorStore.selectElement(String(point.id), "point");
-          });
-        }
-      }, 50);
-    });
+    // 连续画线：创建完成后直接把起点切到终点，保持 PATH 不退出
+    pathDragState.startPoint = point;
+    pathDragState.currentPos = { x: point.x, y: point.y };
+    pathDragState.pathType = mapEditorStore.pathConnectionType;
+    hoveredPointId.value = String(point.id);
+    stage.container().style.cursor = "crosshair";
     return;
   }
 
@@ -3076,6 +3094,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   stopPathPreviewGlobalMove();
+  stopCanvasPanWindowListeners();
   const stage = getKonvaNode(stageRef.value);
   if (stage && typeof stage.off === "function") {
     stage.off("mousedown", handleStageMouseDown);

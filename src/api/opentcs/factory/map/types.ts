@@ -11,6 +11,10 @@ export interface NavigationMapVO {
   // 车辆类型ID（必填，对应 vehicle_type.id）
   vehicleTypeId?: number;
   // 地图定位参数（相对于场景原点，用于多地图统一显示）
+  /** 主字段：工厂位姿 JSON `[x,y,θ]`（毫米、度）。新接口仅保证此字段 */
+  mapOrigin?: string;
+  map_origin?: string;
+  /** @deprecated 后端可能不再返回；请用 `parseNavigationMapOrigin` / `parseMapOriginFields` 解析 */
   originX?: number;
   originY?: number;
   rotation?: number;
@@ -25,6 +29,8 @@ export interface NavigationMapVO {
   rasterWidth?: number;
   rasterHeight?: number;
   rasterResolution?: number;
+  /** 栅格 yaml 原点 JSON（米），与 mapInfo.yamlOrigin 一致；列表接口可选返回 */
+  yamlOrigin?: string;
   // 关联的点数、路径数等统计信息
   pointCount?: number;
   pathCount?: number;
@@ -38,7 +44,9 @@ export interface NavigationMapForm {
   floorNumber?: number | null;
   // 车辆类型ID（必填，对应 vehicle_type.id）
   vehicleTypeId?: number;
-  // 地图定位参数（相对于场景原点）
+  // 地图定位参数（相对于场景原点，保存时建议带 mapOrigin）
+  mapOrigin?: string;
+  /** @deprecated 与 mapOrigin 二选一迁移期兼容 */
   originX?: number;
   originY?: number;
   rotation?: number;
@@ -52,11 +60,6 @@ export interface NavigationMapForm {
   rasterWidth?: number;
   rasterHeight?: number;
   rasterResolution?: number;
-  // YAML 相关字段
-  yamlOrigin?: string;
-  yamlUrl?: string;
-  // 地图原点偏移 [x, y, angle]
-  mapOrigin?: string;
 }
 
 export interface NavigationMapQuery {
