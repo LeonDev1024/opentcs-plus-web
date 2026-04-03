@@ -2,8 +2,11 @@ import { ref, computed, watch, nextTick } from 'vue'
 import type { Ref } from 'vue'
 import { AXIS_ARM } from './useCanvasAxis'
 import type { useMapEditorStore } from '@/store/modules/mapEditor'
-
-const DEFAULT_VIEWPORT_ORIGIN_PAD = 48
+import {
+  computeRasterModelLayout,
+  resolveScaleMmPerUnitForRaster,
+  MAP_EDITOR_VIEWPORT_ORIGIN_PAD,
+} from '@/utils/mapEditor/rasterAlignment'
 const INFINITE_CANVAS_HALF = 100_000
 
 /** 辅助：获取 Konva 节点（兼容不同版本的 vue-konva） */
@@ -32,7 +35,10 @@ export function useCanvasViewport(
     const el = containerRef.value
     if (!el) return
     const cs = mapEditorStore.canvasState
-    if (cs.offsetX !== 0 || cs.offsetY !== 0) return
+    // 如果已有自定义偏移（非初始化状态），认为用户已经通过拖拽/交互调整过视口，不再自动重置
+    if (cs.offsetX !== 0 || cs.offsetY !== 0) {
+      return
+    }
     const h = el.clientHeight || 1080
     const w = el.clientWidth || 1920
     if (h < 80 || w < 80) return
@@ -42,7 +48,7 @@ export function useCanvasViewport(
     const mapOriginY = -originY
 
     if (originX !== 0 || originY !== 0) {
-      const pad = DEFAULT_VIEWPORT_ORIGIN_PAD
+      const pad = MAP_EDITOR_VIEWPORT_ORIGIN_PAD
       const minXModel = Math.min(0, originX)
       const maxXModel = Math.max(AXIS_ARM, originX + AXIS_ARM)
       const minYModel = Math.min(-AXIS_ARM, mapOriginY - AXIS_ARM)
@@ -56,8 +62,8 @@ export function useCanvasViewport(
       return
     }
     mapEditorStore.updateCanvasState({
-      offsetX: DEFAULT_VIEWPORT_ORIGIN_PAD,
-      offsetY: h - DEFAULT_VIEWPORT_ORIGIN_PAD,
+      offsetX: MAP_EDITOR_VIEWPORT_ORIGIN_PAD,
+      offsetY: h - MAP_EDITOR_VIEWPORT_ORIGIN_PAD,
     })
   }
 
@@ -84,22 +90,15 @@ export function useCanvasViewport(
   })
 
   // 无限画布占位矩形配置（静态）
+  // 需可被 Konva 命中：纯 transparent 在部分环境下不参与拾取，导致事件落到 Stage 且未走空白层逻辑
   const stageAreaRectConfig = {
     x: -INFINITE_CANVAS_HALF,
     y: -INFINITE_CANVAS_HALF,
     width: INFINITE_CANVAS_HALF * 2,
     height: INFINITE_CANVAS_HALF * 2,
-    fill: 'transparent',
+    fill: 'rgba(0,0,0,0.01)',
     listening: true,
   }
-
-  // 栅格底图：比例尺（m/单位）
-  const rasterScaleM = computed(() => {
-    const scaleX =
-      mapEditorStore.mapData?.mapInfo?.scaleX ?? mapEditorStore.mapData?.visualLayout?.scaleX
-    const v = typeof scaleX === 'number' ? scaleX : scaleX != null ? parseFloat(String(scaleX)) : 50
-    return (v || 50) / 1000
-  })
 
   // 栅格底图图片
   const rasterLoadedImage = ref<HTMLImageElement | null>(null)
@@ -127,15 +126,26 @@ export function useCanvasViewport(
     if (!raster) return null
     const img = rasterLoadedImage.value
     if (!img) return null
-    const canvasWidth = canvasState.value.width || 1920
-    const canvasHeight = canvasState.value.height || 1080
-    const h = raster.heightPx
-    const w = raster.widthPx
+
+    const scaleMm = resolveScaleMmPerUnitForRaster({
+      mapInfo: mapEditorStore.mapData?.mapInfo,
+      visualLayout: mapEditorStore.mapData?.visualLayout,
+      rasterResolutionMPerPx: raster.resolution || 0.05,
+    })
+    const layout = computeRasterModelLayout({
+      originXm: raster.originX,
+      originYm: raster.originY,
+      resolutionMPerPx: raster.resolution || 0.05,
+      widthPx: raster.widthPx,
+      heightPx: raster.heightPx,
+      scaleMmPerUnit: scaleMm,
+    })
+
     return {
-      x: (canvasWidth - w) / 2,
-      y: (canvasHeight - h) / 2,
-      width: w,
-      height: h,
+      x: layout.x,
+      y: layout.y,
+      width: layout.widthModel,
+      height: layout.heightModel,
       image: img,
       listening: false,
     }
@@ -279,7 +289,6 @@ export function useCanvasViewport(
     snapEnabled,
     stageConfig,
     stageAreaRectConfig,
-    rasterScaleM,
     rasterBackgroundConfig,
     gridLines,
     viewportBounds,

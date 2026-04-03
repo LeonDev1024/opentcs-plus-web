@@ -234,6 +234,14 @@
       </div>
       <div class="toolbar-right">
         <el-button
+          type="warning"
+          size="small"
+          icon="Upload"
+          @click="handleImportBaseLayer"
+        >
+          导入底图
+        </el-button>
+        <el-button
           v-if="mapEditorStore.mapData?.mapInfo?.status !== '1'"
           type="success"
           size="small"
@@ -1012,6 +1020,13 @@
       :point="currentEditPoint"
       @updated="handlePointUpdated"
     />
+
+    <!-- 导入底图对话框 -->
+    <ImportBaseLayerDialog
+      ref="importBaseLayerDialogRef"
+      v-model="showImportBaseLayerDialog"
+      @import="handleBaseLayerImport"
+    />
   </div>
 </template>
 
@@ -1038,6 +1053,7 @@ import LayerPanel from "./components/LayerPanel.vue";
 import ComponentsPanel from "./components/ComponentsPanel.vue";
 import PropertyPanel from "./components/PropertyPanel.vue";
 import PointEditDialog from "./components/PointEditDialog.vue";
+import ImportBaseLayerDialog from "./components/ImportBaseLayerDialog.vue";
 import { useMapEditorStore } from "@/store/modules/mapEditor";
 import { useMapEditorTabsStore } from "@/store/modules/mapEditorTabs";
 import { ToolMode, LayerType } from "@/types/mapEditor";
@@ -1063,10 +1079,17 @@ import {
   Hide,
   Grid,
   DArrowRight,
+  Upload,
 } from "@element-plus/icons-vue";
 import { parsePgmToDataUrl } from "@/utils/mapEditor/pgmParser";
+import {
+  computeRasterModelLayout,
+  resolveScaleMmPerUnitForRaster,
+  viewportOffsetForModelOrigin,
+} from "@/utils/mapEditor/rasterAlignment";
 import type { RasterBackground } from "@/types/mapEditor";
 import request from "@/utils/request";
+import { uploadOss } from "@/api/system/oss/upload";
 
 // Props
 const props = defineProps<{
@@ -1117,10 +1140,9 @@ const mousePosition = ref({ x: 0, y: 0 });
 const showPointEditDialog = ref(false);
 const currentEditPoint = ref<MapPoint | null>(null);
 
-// 导入栅格地图
-const importRasterDialogVisible = ref(false);
-const yamlInputRef = ref<HTMLInputElement | null>(null);
-const pgmInputRef = ref<HTMLInputElement | null>(null);
+// 导入底图对话框
+const showImportBaseLayerDialog = ref(false);
+const importBaseLayerDialogRef = ref();
 const rasterYamlFile = ref<File | null>(null);
 const rasterPgmFile = ref<File | null>(null);
 const rasterYamlFileName = ref("");
@@ -1887,6 +1909,118 @@ const showValidationErrorSummary = (errors: string[], title: string) => {
   });
 };
 
+// 导入底图
+const handleImportBaseLayer = () => {
+  importBaseLayerDialogRef.value?.open();
+};
+
+// 处理底图导入事件
+const handleBaseLayerImport = async (data: {
+  yamlFile: File;
+  pgmFile: File;
+  yamlInfo: {
+    resolution: number;
+    origin: number[];
+    width: number;
+    height: number;
+    imageName: string;
+  };
+}) => {
+  try {
+    ElMessage.info('正在处理底图...');
+
+    // 1. 将 PGM 转换为图片 Data URL
+    const pgmArrayBuffer = await data.pgmFile.arrayBuffer();
+    const pgmResult = await parsePgmToDataUrl(pgmArrayBuffer);
+
+    // 2. 上传到 OSS（PGM 转成的 PNG）
+    const pngDataUrl = pgmResult.dataUrl;
+    const pngBase64 = pngDataUrl.split(',')[1];
+    const pngBinary = atob(pngBase64);
+    const pngArray = new Uint8Array(pngBinary.length);
+    for (let i = 0; i < pngBinary.length; i++) {
+      pngArray[i] = pngBinary.charCodeAt(i);
+    }
+    const pngBlob = new Blob([pngArray], { type: 'image/png' });
+    const pngFile = new File([pngBlob], `${data.yamlInfo.imageName.replace('.pgm', '')}.png`, { type: 'image/png' });
+
+    // 上传 PGM 图片
+    const pgmUploadResult = await uploadOss(pngFile);
+
+    // 3. 上传 YAML 文件
+    const yamlUploadResult = await uploadOss(data.yamlFile);
+
+    // 4. Layout 比例尺与 yaml 一致：mm/单位 = resolution × 1000（此时 1 像素 ≈ 1 模型单位）
+    const scaleMm = data.yamlInfo.resolution * 1000;
+    if (mapEditorStore.mapData?.visualLayout) {
+      mapEditorStore.mapData.visualLayout.scaleX = scaleMm;
+      mapEditorStore.mapData.visualLayout.scaleY = scaleMm;
+    }
+    if (mapEditorStore.mapData?.mapInfo) {
+      mapEditorStore.mapData.mapInfo.scaleX = scaleMm;
+      mapEditorStore.mapData.mapInfo.scaleY = scaleMm;
+    }
+
+    const rasterBackground: RasterBackground = {
+      imageDataUrl: pgmResult.dataUrl,
+      originX: data.yamlInfo.origin[0],
+      originY: data.yamlInfo.origin[1],
+      resolution: data.yamlInfo.resolution,
+      widthPx: pgmResult.width,
+      heightPx: pgmResult.height,
+    };
+
+    const cw = mapEditorStore.canvasState.width || 1920;
+    const ch = mapEditorStore.canvasState.height || 1080;
+    const { offsetX: viewOx, offsetY: viewOy } = viewportOffsetForModelOrigin(
+      cw,
+      ch,
+    );
+
+    mapEditorStore.setRasterBackground(rasterBackground);
+    mapEditorStore.updateCanvasState({
+      scale: 1,
+      offsetX: viewOx,
+      offsetY: viewOy,
+      width: cw,
+      height: ch,
+    });
+
+    // 8. 保存到底图元数据：需要有效的导航地图 ID
+    const rawDbId = mapEditorStore.mapData?.mapInfo?.id;
+    const dbId = rawDbId != null ? Number(rawDbId) : NaN;
+    if (Number.isFinite(dbId)) {
+      const yamlOrigin = JSON.stringify(data.yamlInfo.origin);
+      const mapOrigin = JSON.stringify([0, 0, data.yamlInfo.origin[2] || 0]);
+
+      await updateNavigationMap({
+        id: dbId,
+        rasterUrl: pgmUploadResult.data.url,
+        rasterVersion: 1,
+        rasterWidth: pgmResult.width,
+        rasterHeight: pgmResult.height,
+        rasterResolution: data.yamlInfo.resolution,
+        yamlOrigin: yamlOrigin,
+        yamlUrl: yamlUploadResult.data.url,
+        mapOrigin: mapOrigin,
+      } as any);
+    } else {
+      console.error(
+        "[ImportBaseLayer] 无法更新导航地图：mapInfo.id 为空或无效",
+        rawDbId,
+      );
+      ElMessage.warning(
+        "底图已导入当前会话，但地图ID无效，未写入数据库（请重新打开地图后再导入）",
+      );
+    }
+
+    ElMessage.success('底图导入成功');
+  } catch (error) {
+    console.error('导入底图失败:', error);
+    ElMessage.error('导入底图失败');
+  }
+};
+
 // 发布地图
 const handlePublish = async () => {
   try {
@@ -2501,16 +2635,35 @@ const confirmImportRaster = async () => {
       }
     }
 
-    // PGM 仅作为背景参考，原点固定在画布 (0,0)
+    const scaleMm = parsed.resolution * 1000;
+    if (mapEditorStore.mapData?.visualLayout) {
+      mapEditorStore.mapData.visualLayout.scaleX = scaleMm;
+      mapEditorStore.mapData.visualLayout.scaleY = scaleMm;
+    }
+    if (mapEditorStore.mapData?.mapInfo) {
+      mapEditorStore.mapData.mapInfo.scaleX = scaleMm;
+      mapEditorStore.mapData.mapInfo.scaleY = scaleMm;
+    }
+    const cw = mapEditorStore.canvasState.width || 1920;
+    const ch = mapEditorStore.canvasState.height || 1080;
+    const { offsetX: vox, offsetY: voy } = viewportOffsetForModelOrigin(cw, ch);
+
     const payload: RasterBackground = {
       imageDataUrl: dataUrl,
-      originX: 0,
-      originY: 0,
+      originX: parsed.originX,
+      originY: parsed.originY,
       resolution: parsed.resolution,
       widthPx: width,
       heightPx: height,
     };
     mapEditorStore.setRasterBackground(payload);
+    mapEditorStore.updateCanvasState({
+      scale: 1,
+      offsetX: vox,
+      offsetY: voy,
+      width: cw,
+      height: ch,
+    });
     importRasterDialogVisible.value = false;
     resetImportRasterState();
     ElMessage.success("栅格地图已导入，底图加载中… 若未看到请平移/缩放画布");
@@ -2558,22 +2711,33 @@ const resetRasterOrigin = () => {
 
 const centerRasterInView = () => {
   const raster = mapEditorStore.rasterBackground;
-  if (!raster) return;
+  if (!raster || !mapEditorStore.mapData) return;
 
-  // 计算栅格中心在地图坐标中的位置
-  const centerX = raster.originX + (raster.widthPx * raster.resolution) / 2;
-  const centerY = raster.originY + (raster.heightPx * raster.resolution) / 2;
+  const scaleMm = resolveScaleMmPerUnitForRaster({
+    mapInfo: mapEditorStore.mapData.mapInfo,
+    visualLayout: mapEditorStore.mapData.visualLayout,
+    rasterResolutionMPerPx: raster.resolution || 0.05,
+  });
+  const layout = computeRasterModelLayout({
+    originXm: raster.originX,
+    originYm: raster.originY,
+    resolutionMPerPx: raster.resolution,
+    widthPx: raster.widthPx,
+    heightPx: raster.heightPx,
+    scaleMmPerUnit: scaleMm,
+  });
+  const cx = layout.x + layout.widthModel / 2;
+  const cy = layout.y + layout.heightModel / 2;
 
-  // 获取画布尺寸
   const canvasState = mapEditorStore.canvasState || {
     width: 1920,
     height: 1080,
+    scale: 1,
   };
-
-  // 将视图中心移动到栅格中心
+  const s = canvasState.scale || 1;
   mapEditorStore.updateCanvasState({
-    offsetX: canvasState.width / 2 - centerX,
-    offsetY: canvasState.height / 2 - centerY,
+    offsetX: (canvasState.width || 1920) / 2 - cx * s,
+    offsetY: (canvasState.height || 1080) / 2 - cy * s,
   });
   ElMessage.success("已定位到栅格中心");
 };

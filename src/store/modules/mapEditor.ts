@@ -22,6 +22,7 @@ import { loadMapEditorData, saveMapEditorData, saveMap as saveMapApi } from '@/a
 import { getLocationTypeListForSelect } from '@/api/opentcs/map/location';
 import type { MapEditorResponse, VisualLayoutData } from '@/api/opentcs/map/types';
 import type { LocationVO } from '@/api/opentcs/map/location/types';
+import { parseMapOriginFields } from '@/utils/mapEditor/navigationMapOrigin';
 
 export const useMapEditorStore = defineStore('mapEditor', () => {
   // ==================== 状态 ====================
@@ -705,8 +706,11 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             : raw;
 
         const mi = apiData.mapInfo;
+        // id 是数据库数字主键，mapId 是业务标识字符串
+        // 接口返回 { id: 3, mapId: "map_03", ... }
         const flatHeader = {
-          mapId: mi?.mapId ?? apiData.mapId,
+          id: mi?.id ?? apiData.id,  // 数据库主键（数字）
+          mapId: mi?.mapId ?? apiData.mapId,  // 业务标识（字符串）
           name: mi?.name ?? apiData.name,
           mapVersion: mi?.mapVersion ?? apiData.modelVersion,
           status: mi?.status ?? apiData.status,
@@ -716,6 +720,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           createTime: mi?.createTime ?? apiData.createTime,
           updateTime: mi?.updateTime ?? apiData.updateTime
         };
+
+        console.log('[MapEditor] flatHeader.id:', flatHeader.id, 'flatHeader.mapId:', flatHeader.mapId)
 
         if (
           apiData &&
@@ -753,9 +759,18 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           const rawPaths = Array.isArray(apiData.paths) ? apiData.paths : (apiData.paths ? Array.from(apiData.paths) : []);
           const rawLocations = Array.isArray(apiData.locations) ? apiData.locations : (apiData.locations ? Array.from(apiData.locations) : []);
 
+          const miOrigin = parseMapOriginFields({
+            mapOrigin: mi?.mapOrigin,
+            map_origin: (mi as { map_origin?: string })?.map_origin,
+            originX: flatHeader.originX ?? mi?.originX,
+            originY: flatHeader.originY ?? mi?.originY,
+            rotation: flatHeader.rotation ?? mi?.rotation,
+          });
+
           data = {
             mapInfo: {
-              id: flatHeader.mapId || mapId,
+              id: flatHeader.id ?? mapId,  // 数据库主键优先
+              mapId: flatHeader.mapId || mapId,  // 业务标识
               name: flatHeader.name || '新地图',
               mapVersion: flatHeader.mapVersion || '1.0',
               description: apiData.description || '',
@@ -767,9 +782,18 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               offsetY: 0,
               scaleX: parseFloat(String(visualLayout.scaleX)) || 50.0,
               scaleY: parseFloat(String(visualLayout.scaleY)) || 50.0,
-              originX: flatHeader.originX != null ? Number(flatHeader.originX) : 0,
-              originY: flatHeader.originY != null ? Number(flatHeader.originY) : 0,
-              rotation: flatHeader.rotation != null ? Number(flatHeader.rotation) : 0
+              originX: miOrigin.originX,
+              originY: miOrigin.originY,
+              rotation: miOrigin.rotation,
+              // 栅格底图相关字段
+              rasterUrl: mi?.rasterUrl,
+              rasterVersion: mi?.rasterVersion,
+              rasterWidth: mi?.rasterWidth,
+              rasterHeight: mi?.rasterHeight,
+              rasterResolution: mi?.rasterResolution,
+              yamlOrigin: mi?.yamlOrigin,
+              yamlUrl: mi?.yamlUrl,
+              mapOrigin: mi?.mapOrigin
             },
             layerGroups: normalizedGroups,
             layers: normalizedLayers,
@@ -801,6 +825,14 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           const rp = Array.isArray(apiData.elements?.points) ? apiData.elements.points : (Array.isArray(apiData.points) ? apiData.points : []);
           const rpath = Array.isArray(apiData.elements?.paths) ? apiData.elements.paths : (Array.isArray(apiData.paths) ? apiData.paths : []);
           const rloc = Array.isArray(apiData.elements?.locations) ? apiData.elements.locations : (Array.isArray(apiData.locations) ? apiData.locations : []);
+          const miOnly = apiData.mapInfo;
+          const legacyOrigin = parseMapOriginFields({
+            mapOrigin: miOnly?.mapOrigin,
+            map_origin: (miOnly as { map_origin?: string })?.map_origin,
+            originX: apiData.originX ?? miOnly?.originX,
+            originY: apiData.originY ?? miOnly?.originY,
+            rotation: apiData.rotation ?? miOnly?.rotation,
+          });
           data = {
             mapInfo: {
               // id 保留数据库主键兼容；编辑器主标识统一使用 mapId
@@ -815,9 +847,17 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               offsetY: 0,
               scaleX: 50.0,
               scaleY: 50.0,
-              originX: apiData.originX != null ? Number(apiData.originX) : (apiData.mapInfo.originX != null ? Number(apiData.mapInfo.originX) : 0),
-              originY: apiData.originY != null ? Number(apiData.originY) : (apiData.mapInfo.originY != null ? Number(apiData.mapInfo.originY) : 0),
-              rotation: apiData.rotation != null ? Number(apiData.rotation) : 0
+              originX: legacyOrigin.originX,
+              originY: legacyOrigin.originY,
+              rotation: legacyOrigin.rotation,
+              mapOrigin: miOnly?.mapOrigin,
+              yamlOrigin: miOnly?.yamlOrigin,
+              yamlUrl: miOnly?.yamlUrl,
+              rasterUrl: miOnly?.rasterUrl,
+              rasterVersion: miOnly?.rasterVersion,
+              rasterWidth: miOnly?.rasterWidth,
+              rasterHeight: miOnly?.rasterHeight,
+              rasterResolution: miOnly?.rasterResolution,
             },
             layerGroups: legGroups,
             layers: legLayers,
@@ -851,7 +891,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       }
       
       mapData.value = data;
-      
+
+      console.log('[MapEditor] mapInfo:', JSON.stringify(data.mapInfo, null, 2))
+
       // 更新图层组与图层；若新创建的地图没有图层，则自动创建默认图层组和图层
       const hasLayerGroups = (data.layerGroups || []).length > 0;
       const hasLayers = (data.layers || []).length > 0;
@@ -885,13 +927,29 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         canvasState.scale = data.mapInfo.scale || 1;
         canvasState.offsetX = data.mapInfo.offsetX || 0;
         canvasState.offsetY = data.mapInfo.offsetY || 0;
-        
+
         // 设置默认的 scaleX 和 scaleY（如果不存在）
         if (data.mapInfo.scaleX === undefined) {
           data.mapInfo.scaleX = 50.0;
         }
         if (data.mapInfo.scaleY === undefined) {
           data.mapInfo.scaleY = 50.0;
+        }
+
+        // 如果有栅格底图数据，加载到底图
+        console.log('[MapEditor] 检查栅格底图条件 - rasterUrl:', data.mapInfo.rasterUrl, 'rasterResolution:', data.mapInfo.rasterResolution);
+        if (data.mapInfo.rasterUrl && data.mapInfo.rasterResolution) {
+          const originArr = data.mapInfo.yamlOrigin ? JSON.parse(data.mapInfo.yamlOrigin) : [0, 0, 0];
+          setRasterBackground({
+            imageDataUrl: data.mapInfo.rasterUrl,  // 实际应该从OSS加载，这里先存URL
+            originX: originArr[0] || 0,
+            originY: originArr[1] || 0,
+            resolution: Number(data.mapInfo.rasterResolution),
+            widthPx: data.mapInfo.rasterWidth || 0,
+            heightPx: data.mapInfo.rasterHeight || 0,
+          });
+          console.log('[MapEditor] 已加载栅格底图:', data.mapInfo.rasterUrl);
+          console.log('[MapEditor] rasterBackground:', JSON.stringify(rasterBackground.value));
         }
       }
       

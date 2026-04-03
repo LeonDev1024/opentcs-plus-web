@@ -43,9 +43,11 @@
               v-if="
                 !isEditingOrigin &&
                 activeMap?.rasterUrl &&
-                layerVisibility.raster
+                layerVisibility.raster &&
+                previewMapEditorMeta?.mapInfo
               "
               class="map-layer-image"
+              :style="rasterPreviewLayoutStyle"
             >
               <img
                 class="canvas-img"
@@ -73,9 +75,9 @@
               :locations="rendererLocationsVisible"
               :width="previewCanvasSize.w"
               :height="previewCanvasSize.h"
-              :scale="canvasScale"
-              :offset-x="konvaStageOffsetX"
-              :offset-y="konvaStageOffsetY"
+              :scale="1"
+              :offset-x="0"
+              :offset-y="0"
               :readonly="true"
               :auto-center="false"
             />
@@ -501,7 +503,11 @@ import type { FactoryModelVO } from "@/api/opentcs/factory/model/types";
 import { listType } from "@/api/opentcs/vehicle/type";
 import type { TypeVO } from "@/api/opentcs/vehicle/type/types";
 import { loadMapEditorData } from "@/api/opentcs/map";
-import type { MapEditorResponse } from "@/api/opentcs/map/types";
+import type {
+  MapEditorResponse,
+  MapEditorMapInfoApi,
+  VisualLayoutData,
+} from "@/api/opentcs/map/types";
 import MapRenderer from "@/components/map/MapRenderer.vue";
 import MapManagementCanvasAxes from "@/components/map/MapManagementCanvasAxes.vue";
 import type { MapLayerVisibility } from "@/types/mapEditor";
@@ -511,6 +517,14 @@ import {
   clearPointVisualMetaCache,
   updateConnectedPointIds,
 } from "@/utils/mapEditor/pointStyle";
+import {
+  computeRasterModelLayout,
+  resolveScaleMmPerUnitForRaster,
+} from "@/utils/mapEditor/rasterAlignment";
+import {
+  parseNavigationMapOrigin,
+  serializeNavigationMapOrigin,
+} from "@/utils/mapEditor/navigationMapOrigin";
 import { useMapEditorTabsStore } from "@/store/modules/mapEditorTabs";
 import { useAppStore } from "@/store/modules/app";
 import { ElMessage, ElMessageBox } from "element-plus";
@@ -534,6 +548,12 @@ const mapElements = ref<{
   paths: any[];
   locations: any[];
 }>({ points: [], paths: [], locations: [] });
+
+/** 与地图编辑器 load 一致：用于底图与模型坐标对齐（yamlOrigin、layout scale） */
+const previewMapEditorMeta = ref<{
+  mapInfo: MapEditorMapInfoApi | null;
+  visualLayout: VisualLayoutData | null;
+} | null>(null);
 const layerVisibility = reactive<MapLayerVisibility>(
   defaultMapLayerVisibility(),
 );
@@ -712,13 +732,33 @@ function mapOriginOffset(ox: number, oy: number) {
   };
 }
 
-const mapOriginLayerStyle = computed(() => {
-  if (!activeMap.value) return {};
-  return mapOriginOffset(
-    activeMap.value.originX ?? 0,
-    activeMap.value.originY ?? 0,
-  );
-});
+/**
+ * 预览模式：点/线/底图与地图编辑器一致，使用「地图坐标系」+ 负坐标裁切补偿。
+ * 地图在工厂中的位姿优先来自 mapOrigin / map_origin（见 parseNavigationMapOrigin），
+ * 扁平 originX/originY 为兼容回退；仅用于虚线轴与原点编辑，不在此把几何再平移一次。
+ */
+function mapOriginOffsetWithClip(
+  ox: number,
+  oy: number,
+  clip: { x: number; y: number },
+) {
+  return {
+    left: `${ox * SCALE + clip.x}px`,
+    top: `${-oy * SCALE + clip.y}px`,
+  };
+}
+
+/** 预览 Konva：地图模型坐标 + 负坐标裁切补偿（与编辑器一致，不叠加工厂 origin 平移） */
+function mapModelWithClip(
+  mx: number,
+  my: number,
+  clip: { x: number; y: number },
+) {
+  return {
+    x: mx + clip.x,
+    y: my + clip.y,
+  };
+}
 
 // 滚轮缩放（指针锚点）
 function handleCanvasWheel(e: WheelEvent) {
@@ -797,17 +837,16 @@ const originEditingMapName = computed(() => {
 /** 普通模式：当前选中地图的原点是否与工厂原点重合 */
 const isMapOriginAtFactory = computed(() => {
   if (!activeMap.value) return true;
-  return (
-    Number(activeMap.value.originX || 0) === 0 &&
-    Number(activeMap.value.originY || 0) === 0
-  );
+  const o = parseNavigationMapOrigin(activeMap.value);
+  return o.originX === 0 && o.originY === 0;
 });
 
 function getMapLayerOffset(m: NavigationMapVO) {
   const draft = originDrafts.value.get(String(m.mapId));
-  const ox = draft?.originX ?? m.originX ?? 0;
-  const oy = draft?.originY ?? m.originY ?? 0;
-  return mapOriginOffset(ox, oy);
+  const r = parseNavigationMapOrigin(m);
+  const ox = draft?.originX ?? r.originX;
+  const oy = draft?.originY ?? r.originY;
+  return mapOriginOffsetWithClip(ox, oy, rendererClipCompensation.value);
 }
 
 /**
@@ -816,10 +855,16 @@ function getMapLayerOffset(m: NavigationMapVO) {
  */
 function getHandleScreenStyle(m: NavigationMapVO) {
   const draft = originDrafts.value.get(String(m.mapId));
-  const ox = draft?.originX ?? m.originX ?? 0;
-  const oy = draft?.originY ?? m.originY ?? 0;
+  const r = parseNavigationMapOrigin(m);
+  const ox = draft?.originX ?? r.originX;
+  const oy = draft?.originY ?? r.originY;
+  const { x: sx } = rendererClipCompensation.value;
   return {
-    left: 170 + viewOffset.x + ox * SCALE * canvasScale.value + "px",
+    left:
+      170 +
+      viewOffset.x +
+      (ox * SCALE + sx) * canvasScale.value +
+      "px",
     bottom: viewOffset.y + oy * SCALE * canvasScale.value + "px",
   };
 }
@@ -835,9 +880,10 @@ function toggleOriginEditing() {
   // 初始化每张地图的草稿
   const drafts = new Map<string, { originX: number; originY: number }>();
   filteredMaps.value.forEach((m) => {
+    const r = parseNavigationMapOrigin(m);
     drafts.set(String(m.mapId), {
-      originX: m.originX ?? 0,
-      originY: m.originY ?? 0,
+      originX: r.originX,
+      originY: r.originY,
     });
   });
   originDrafts.value = drafts;
@@ -864,7 +910,8 @@ function onOriginInputChange() {
 
 function getMapDraftOrigin(m: NavigationMapVO) {
   const draft = originDrafts.value.get(String(m.mapId));
-  return draft ?? { originX: m.originX ?? 0, originY: m.originY ?? 0 };
+  const r = parseNavigationMapOrigin(m);
+  return draft ?? { originX: r.originX, originY: r.originY };
 }
 
 async function saveAllOrigins() {
@@ -874,11 +921,18 @@ async function saveAllOrigins() {
     originDrafts.value.forEach((draft, mapId) => {
       const m = filteredMaps.value.find((m) => String(m.mapId) === mapId);
       if (!m) return;
+      const resolved = parseNavigationMapOrigin(m);
       if (
-        draft.originX === (m.originX ?? 0) &&
-        draft.originY === (m.originY ?? 0)
+        draft.originX === resolved.originX &&
+        draft.originY === resolved.originY
       )
         return;
+      const rot = resolved.rotation;
+      const mapOrigin = serializeNavigationMapOrigin(
+        draft.originX,
+        draft.originY,
+        rot,
+      );
       promises.push(
         updateNavigationMap({
           id: m.id,
@@ -887,6 +941,8 @@ async function saveAllOrigins() {
           name: m.name,
           originX: draft.originX,
           originY: draft.originY,
+          rotation: rot,
+          mapOrigin,
         }),
       );
       // 同步本地数据
@@ -894,6 +950,8 @@ async function saveAllOrigins() {
       if (idx >= 0) {
         mapList.value[idx].originX = draft.originX;
         mapList.value[idx].originY = draft.originY;
+        mapList.value[idx].rotation = rot;
+        mapList.value[idx].mapOrigin = mapOrigin;
       }
     });
     if (promises.length > 0) {
@@ -1079,6 +1137,80 @@ const previewUseRenderer = true;
 const PREVIEW_SCENE_PADDING = 96;
 const PREVIEW_CANVAS_MAX_DIM = 16384;
 
+/**
+ * 从 mapInfo / 导航地图 VO 解析 yaml 原点（米）。须与编辑器 store 中逻辑一致。
+ */
+function parseYamlOriginMeters(
+  mi: MapEditorMapInfoApi | null | undefined,
+  navMap: NavigationMapVO | null | undefined,
+): { originXm: number; originYm: number } {
+  const tryOne = (raw: string | undefined): { ox: number; oy: number } | null => {
+    if (typeof raw !== "string" || !raw.trim()) return null;
+    try {
+      const arr = JSON.parse(raw) as unknown;
+      if (Array.isArray(arr) && arr.length >= 2) {
+        return {
+          ox: Number(arr[0]) || 0,
+          oy: Number(arr[1]) || 0,
+        };
+      }
+    } catch {
+      /* ignore */
+    }
+    return null;
+  };
+  const fromMi = tryOne(
+    mi?.yamlOrigin ??
+      (mi as { yaml_origin?: string } | null | undefined)?.yaml_origin,
+  );
+  if (fromMi) return { originXm: fromMi.ox, originYm: fromMi.oy };
+  const fromNav = tryOne(
+    (navMap as { yamlOrigin?: string } | undefined)?.yamlOrigin,
+  );
+  if (fromNav) return { originXm: fromNav.ox, originYm: fromNav.oy };
+  return { originXm: 0, originYm: 0 };
+}
+
+/** 栅格在「地图坐标系」下的布局（不含裁切补偿），供裁切范围与底图定位共用 */
+const rasterLayoutRaw = computed(() => {
+  const m = activeMap.value;
+  const meta = previewMapEditorMeta.value;
+  const mi = meta?.mapInfo;
+  const wPx = m?.rasterWidth ?? mi?.rasterWidth;
+  const hPx = m?.rasterHeight ?? mi?.rasterHeight;
+  if (!m?.rasterUrl || !wPx || !hPx) return null;
+  // 须等 loadMapEditorData 写入 mapInfo（含 yamlOrigin），否则用 (0,0) 会整体错位
+  if (!mi) return null;
+
+  const { originXm, originYm } = parseYamlOriginMeters(mi, m);
+
+  const resRaw = m.rasterResolution ?? mi.rasterResolution ?? 0.05;
+  const resNum =
+    Number.parseFloat(String(resRaw)) || 0.05;
+  // 与 useCanvasViewport.rasterBackgroundConfig 同一套比例解析，避免与编辑器底图错位
+  const scaleMmPerUnit = resolveScaleMmPerUnitForRaster({
+    mapInfo: {
+      scaleX: (mi as { scaleX?: number | string }).scaleX,
+    },
+    visualLayout: meta?.visualLayout ?? undefined,
+    rasterResolutionMPerPx: resNum,
+  });
+
+  try {
+    const layout = computeRasterModelLayout({
+      originXm,
+      originYm,
+      resolutionMPerPx: resNum,
+      widthPx: wPx,
+      heightPx: hPx,
+      scaleMmPerUnit,
+    });
+    return { layout };
+  } catch {
+    return null;
+  }
+});
+
 const rendererClipCompensation = computed(() => {
   let minX = 0;
   let minY = 0;
@@ -1110,13 +1242,35 @@ const rendererClipCompensation = computed(() => {
     }
   }
 
+  const rl = rasterLayoutRaw.value;
+  if (rl) {
+    const { layout } = rl;
+    const w = layout.widthModel;
+    const h = layout.heightModel;
+    push(layout.x, layout.y);
+    push(layout.x + w, layout.y);
+    push(layout.x, layout.y + h);
+    push(layout.x + w, layout.y + h);
+  }
+
   return {
     x: minX < 0 ? Math.ceil(-minX) + 8 : 0,
     y: minY < 0 ? Math.ceil(-minY) + 8 : 0,
   };
 });
 
-/** 与 rendererPoints 同坐标系：负坐标补偿后的场景最大范围，用于撑大 Konva 画布避免裁切 */
+/** 地图导航原点虚线轴：与 Konva 内容同一工厂图层坐标（含裁切补偿） */
+const mapOriginLayerStyle = computed(() => {
+  if (!activeMap.value) return {};
+  const o = parseNavigationMapOrigin(activeMap.value);
+  return mapOriginOffsetWithClip(
+    o.originX,
+    o.originY,
+    rendererClipCompensation.value,
+  );
+});
+
+/** 与 rendererPoints 同坐标系：负坐标补偿后的场景最大范围 */
 const rendererSceneExtentMax = computed(() => {
   const { x: sx, y: sy } = rendererClipCompensation.value;
   let maxX = 0;
@@ -1180,34 +1334,59 @@ const previewCanvasSize = computed(() => {
 });
 
 /**
- * Konva Stage 偏移：仅对齐「负坐标裁切」与 Stage 缩放，使场景 (0,0) 落在地图层本地 (0,0)，
- * 与 .layer-axis 工厂原点重合。平移视口只由外层 mapLayerStyle 的 translate(viewOffset) 负责，
- * 不可再叠加 viewOffset 到 Stage（否则会与坐标轴错位，量距原点不准）。
+ * 栅格底图：与编辑器 computeRasterModelLayout 一致，仅叠加裁切补偿（地图坐标系）。
  */
-const konvaStageOffsetX = computed(() => {
-  const s = canvasScale.value;
-  const sx = rendererClipCompensation.value.x;
-  return sx * (1 - s);
-});
-const konvaStageOffsetY = computed(() => {
-  const s = canvasScale.value;
-  const sy = rendererClipCompensation.value.y;
-  return sy * (1 - s);
+const rasterPreviewLayoutStyle = computed(() => {
+  const fallback = {
+    position: "absolute" as const,
+    left: "0",
+    top: "0",
+    width: "800px",
+    height: "600px",
+    transform: "translate(-50%, -50%)",
+  };
+  const m = activeMap.value;
+  const rl = rasterLayoutRaw.value;
+  if (!m?.rasterUrl || !rl) {
+    return fallback;
+  }
+  const { layout } = rl;
+  const { x: sx, y: sy } = rendererClipCompensation.value;
+  return {
+    position: "absolute" as const,
+    left: `${layout.x + sx}px`,
+    top: `${layout.y + sy}px`,
+    width: `${layout.widthModel}px`,
+    height: `${layout.heightModel}px`,
+    transform: "none",
+  };
 });
 
+/**
+ * Konva Stage：外层 canvas-map-layer 已对整层做 scale(canvasScale)，此处不可再缩放 Stage，
+ * 否则双重缩放且 offset 补偿易错位，缩放后元素会「消失」。
+ */
+
 const rendererPoints = computed(() => {
-  const { x: sx, y: sy } = rendererClipCompensation.value;
-  return (mapElements.value.points || []).map((p: any) => ({
-    ...p,
-    x: Number(p.x ?? p.xPosition ?? 0) + sx,
-    y: Number(p.y ?? p.yPosition ?? 0) + sy,
-    editorProps: {
-      ...p.editorProps,
-      radius: p.editorProps?.radius ?? getDefaultPointRadiusForType(p.type),
-      color: p.editorProps?.color,
-      labelVisible: p.editorProps?.labelVisible ?? true,
-    },
-  }));
+  const clip = rendererClipCompensation.value;
+  return (mapElements.value.points || []).map((p: any) => {
+    const o = mapModelWithClip(
+      Number(p.x ?? p.xPosition ?? 0),
+      Number(p.y ?? p.yPosition ?? 0),
+      clip,
+    );
+    return {
+      ...p,
+      x: o.x,
+      y: o.y,
+      editorProps: {
+        ...p.editorProps,
+        radius: p.editorProps?.radius ?? getDefaultPointRadiusForType(p.type),
+        color: p.editorProps?.color,
+        labelVisible: p.editorProps?.labelVisible ?? true,
+      },
+    };
+  });
 });
 
 const rendererPointsVisible = computed(() =>
@@ -1215,30 +1394,44 @@ const rendererPointsVisible = computed(() =>
 );
 
 const rendererPaths = computed(() => {
-  const { x: sx, y: sy } = rendererClipCompensation.value;
+  const clip = rendererClipCompensation.value;
   return processedPaths.value.map((path: any) => {
     const cps = extractPathControlPoints(path);
     let controlPoints = Array.isArray(cps)
-      ? cps.map((cp: any) => ({
-          ...cp,
-          x: Number(cp.x ?? cp.xPosition ?? 0) + sx,
-          y: Number(cp.y ?? cp.yPosition ?? 0) + sy,
-        }))
+      ? cps.map((cp: any) => {
+          const o = mapModelWithClip(
+            Number(cp.x ?? cp.xPosition ?? 0),
+            Number(cp.y ?? cp.yPosition ?? 0),
+            clip,
+          );
+          return {
+            ...cp,
+            x: o.x,
+            y: o.y,
+          };
+        })
       : [];
     if (controlPoints.length < 2 && path.startPoint && path.endPoint) {
+      const s0 = mapModelWithClip(
+        Number(path.startPoint.x ?? path.startPoint.xPosition ?? 0),
+        Number(path.startPoint.y ?? path.startPoint.yPosition ?? 0),
+        clip,
+      );
+      const s1 = mapModelWithClip(
+        Number(path.endPoint.x ?? path.endPoint.xPosition ?? 0),
+        Number(path.endPoint.y ?? path.endPoint.yPosition ?? 0),
+        clip,
+      );
       controlPoints = [
         {
           id: `cp_${path.id}_0`,
-          x:
-            Number(path.startPoint.x ?? path.startPoint.xPosition ?? 0) + sx,
-          y:
-            Number(path.startPoint.y ?? path.startPoint.yPosition ?? 0) + sy,
+          x: s0.x,
+          y: s0.y,
         },
         {
           id: `cp_${path.id}_1`,
-          x: Number(path.endPoint.x ?? path.endPoint.xPosition ?? 0) + sx,
-          y:
-            Number(path.endPoint.y ?? path.endPoint.yPosition ?? 0) + sy,
+          x: s1.x,
+          y: s1.y,
         },
       ];
     }
@@ -1276,30 +1469,44 @@ const rendererPathsVisible = computed(() =>
 );
 
 const rendererLocations = computed(() => {
-  const { x: sx, y: sy } = rendererClipCompensation.value;
-  return (mapElements.value.locations || []).map((l: any) => ({
-    ...l,
-    x: Number(l.x ?? l.xPosition ?? 0) + sx,
-    y: Number(l.y ?? l.yPosition ?? 0) + sy,
-    geometry:
-      l.geometry && Array.isArray(l.geometry.vertices)
-        ? {
-            ...l.geometry,
-            vertices: l.geometry.vertices.map((v: any) => ({
-              ...v,
-              x: Number(v.x ?? v.xPosition ?? 0) + sx,
-              y: Number(v.y ?? v.yPosition ?? 0) + sy,
-            })),
-          }
-        : l.geometry,
-    editorProps: {
-      ...l.editorProps,
-      width: l.editorProps?.width ?? 24,
-      height: l.editorProps?.height ?? 24,
-      color: l.editorProps?.color ?? "#67c23a",
-      labelVisible: l.editorProps?.labelVisible ?? true,
-    },
-  }));
+  const clip = rendererClipCompensation.value;
+  return (mapElements.value.locations || []).map((l: any) => {
+    const c = mapModelWithClip(
+      Number(l.x ?? l.xPosition ?? 0),
+      Number(l.y ?? l.yPosition ?? 0),
+      clip,
+    );
+    return {
+      ...l,
+      x: c.x,
+      y: c.y,
+      geometry:
+        l.geometry && Array.isArray(l.geometry.vertices)
+          ? {
+              ...l.geometry,
+              vertices: l.geometry.vertices.map((v: any) => {
+                const o = mapModelWithClip(
+                  Number(v.x ?? v.xPosition ?? 0),
+                  Number(v.y ?? v.yPosition ?? 0),
+                  clip,
+                );
+                return {
+                  ...v,
+                  x: o.x,
+                  y: o.y,
+                };
+              }),
+            }
+          : l.geometry,
+      editorProps: {
+        ...l.editorProps,
+        width: l.editorProps?.width ?? 24,
+        height: l.editorProps?.height ?? 24,
+        color: l.editorProps?.color ?? "#67c23a",
+        labelVisible: l.editorProps?.labelVisible ?? true,
+      },
+    };
+  });
 });
 
 const rendererLocationsVisible = computed(() =>
@@ -1889,6 +2096,23 @@ const loadMapElements = async (
       typeof mapIdOrMap === "object" ? mapIdOrMap.mapId : mapIdOrMap;
 
     const primaryRes = await loadMapEditorData(mapId);
+    const payloadForMeta = unwrapAjaxMapPayload(primaryRes) as Record<
+      string,
+      unknown
+    >;
+    const rawMapInfo = payloadForMeta.mapInfo as
+      | MapEditorMapInfoApi
+      | undefined;
+    const vlFromPayload = payloadForMeta.visualLayout as
+      | VisualLayoutData
+      | undefined;
+    const vlFromMapInfo = (rawMapInfo as { visualLayout?: VisualLayoutData })
+      ?.visualLayout;
+    previewMapEditorMeta.value = {
+      mapInfo: rawMapInfo ?? null,
+      visualLayout: vlFromPayload ?? vlFromMapInfo ?? null,
+    };
+
     const { pointsRaw, pathsRaw, locationsRaw } = normalizePayload(primaryRes);
 
     mapElements.value = {
@@ -1901,6 +2125,7 @@ const loadMapElements = async (
   } catch (error) {
     console.error("加载地图元素失败:", error);
     mapElements.value = { points: [], paths: [], locations: [] };
+    previewMapEditorMeta.value = null;
   } finally {
     elementsLoading.value = false;
   }
@@ -1912,8 +2137,9 @@ const selectMap = (row: NavigationMapVO) => {
   viewOffset.y = 150;
   canvasScale.value = 1;
   isEditingOrigin.value = false;
-  editOriginX.value = row.originX ?? 0;
-  editOriginY.value = row.originY ?? 0;
+  const ro = parseNavigationMapOrigin(row);
+  editOriginX.value = ro.originX;
+  editOriginY.value = ro.originY;
   router.replace({
     query: {
       ...router.currentRoute.value.query,
@@ -1934,11 +2160,17 @@ const submitForm = async () => {
 
   dialog.loading = true;
   try {
+    const mapOrigin = serializeNavigationMapOrigin(
+      Number(form.originX ?? 0) || 0,
+      Number(form.originY ?? 0) || 0,
+      Number(form.rotation ?? 0) || 0,
+    );
+    const payload = { ...form, mapOrigin };
     if (form.id) {
-      await updateNavigationMap(form);
+      await updateNavigationMap(payload);
       ElMessage.success("修改成功");
     } else {
-      await addNavigationMap(form);
+      await addNavigationMap(payload);
       ElMessage.success("新增成功");
     }
     dialog.visible = false;
@@ -2109,9 +2341,7 @@ onBeforeUnmount(() => {
 
 .map-layer-image {
   position: absolute;
-  width: 800px;
-  height: 600px;
-  transform: translate(-50%, -50%);
+  /* 位置与宽高由 rasterPreviewLayoutStyle 或回退样式提供 */
 }
 
 .map-layer-svg {
@@ -2132,9 +2362,10 @@ onBeforeUnmount(() => {
 }
 
 .canvas-img {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
 }
 
 .canvas-empty {
