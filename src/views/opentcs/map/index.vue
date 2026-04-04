@@ -1351,11 +1351,10 @@ const rasterPreviewLayoutStyle = computed(() => {
     return fallback;
   }
   const { layout } = rl;
-  const { x: sx, y: sy } = rendererClipCompensation.value;
   return {
     position: "absolute" as const,
-    left: `${layout.x + sx}px`,
-    top: `${layout.y + sy}px`,
+    left: `${layout.x}px`,
+    top: `${layout.y}px`,
     width: `${layout.widthModel}px`,
     height: `${layout.heightModel}px`,
     transform: "none",
