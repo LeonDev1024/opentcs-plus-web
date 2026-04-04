@@ -529,7 +529,7 @@ import { useMapEditorTabsStore } from "@/store/modules/mapEditorTabs";
 import { useAppStore } from "@/store/modules/app";
 import { ElMessage, ElMessageBox } from "element-plus";
 import type { FormInstance } from "element-plus";
-import layerIconUrl from "@/assets/icons/svg/图层.svg?url";
+import layerIconUrl from "@/assets/icons/svg/layer.svg?url";
 import { View, Hide } from "@element-plus/icons-vue";
 import { watch, onBeforeUnmount } from "vue";
 
