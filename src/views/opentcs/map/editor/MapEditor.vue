@@ -14,7 +14,7 @@
             >
               <span class="map-toolbar-btn__inner">
                 <span class="map-toolbar-btn__icon">
-                  <SvgIcon icon-class="选择指针" class="select-pointer-icon" />
+                  <SvgIcon icon-class="xuanze-zhenzhe" class="select-pointer-icon" />
                 </span>
                 <span class="map-toolbar-btn__label">选择</span>
               </span>
