@@ -38,7 +38,7 @@
         >
           <!-- 地图层：随视图平移+缩放，被 canvas overflow:hidden 裁切 -->
           <div class="canvas-map-layer" :style="mapLayerStyle">
-            <!-- 预览模式：底图与元素可叠加显示 -->
+            <!-- 预览模式：底图与元素可叠加显示（编辑模式只显示拓扑元素） -->
             <div
               v-if="
                 !isEditingOrigin &&
@@ -56,10 +56,11 @@
               />
             </div>
 
+            <!-- 普通模式：单张地图渲染 -->
             <MapRenderer
               v-if="
-                previewUseRenderer &&
                 !isEditingOrigin &&
+                previewUseRenderer &&
                 activeMap &&
                 hasRenderableElements
               "
@@ -67,8 +68,8 @@
               :style="{
                 width: `${previewCanvasSize.w}px`,
                 height: `${previewCanvasSize.h}px`,
-                left: `${-rendererClipCompensation.x}px`,
-                top: `${-rendererClipCompensation.y}px`,
+                left: `${rendererCanvasOffset.x}px`,
+                top: `${rendererCanvasOffset.y}px`,
               }"
               :points="rendererPointsVisible"
               :paths="rendererPathsVisible"
@@ -82,8 +83,39 @@
               :auto-center="false"
             />
 
+            <!-- 原点编辑模式：所有地图叠加渲染（底图 + 拓扑元素） -->
+            <template v-if="isEditingOrigin">
+              <!-- 各地图栅格底图 -->
+              <template v-for="em in editModeMapsWithCache" :key="'edit-raster-' + em.mapId">
+                <div
+                  v-if="em.rasterUrl && getEditMapCache(em)?.raster"
+                  class="map-layer-image"
+                  :style="getEditMapRasterStyle(em)"
+                >
+                  <img class="canvas-img" :src="em.rasterUrl" alt="底图" />
+                </div>
+              </template>
+              <!-- 各地图拓扑元素 -->
+              <MapRenderer
+                v-for="em in editModeMapsWithCache"
+                :key="'edit-renderer-' + em.mapId"
+                class="preview-konva-layer"
+                :style="getEditMapRendererStyle(em)"
+                :points="getEditMapRendererPoints(em)"
+                :paths="getEditMapRendererPaths(em)"
+                :locations="getEditMapRendererLocations(em)"
+                :width="getEditMapCache(em)!.canvasW"
+                :height="getEditMapCache(em)!.canvasH"
+                :scale="1"
+                :offset-x="0"
+                :offset-y="0"
+                :readonly="true"
+                :auto-center="false"
+              />
+            </template>
+
             <svg
-              v-else-if="!isEditingOrigin && activeMap && hasRenderableElements"
+              v-if="!isEditingOrigin && !previewUseRenderer && activeMap && hasRenderableElements"
               class="map-layer-svg"
             >
               <g :transform="previewSvgCenterTransform">
@@ -314,8 +346,22 @@
                 @change="onOriginInputChange"
               />
             </div>
+            <div class="origin-edit-row">
+              <label>θ</label>
+              <el-input-number
+                v-model="editOriginRotation"
+                size="small"
+                :step="5"
+                :precision="1"
+                :min="-180"
+                :max="180"
+                controls-position="right"
+                @change="onOriginInputChange"
+              />
+              <span class="origin-unit-label">°</span>
+            </div>
             <div class="origin-edit-hint">
-              拖拽画布中该地图的橙色圆圈可移动原点
+              拖拽画布中该地图的橙色圆圈可移动原点；偏向角遵循右手法则，逆时针为正
             </div>
             <div class="origin-edit-actions">
               <el-button
@@ -520,6 +566,7 @@ import {
 import {
   computeRasterModelLayout,
   resolveScaleMmPerUnitForRaster,
+  type RasterModelLayout,
 } from "@/utils/mapEditor/rasterAlignment";
 import {
   parseNavigationMapOrigin,
@@ -740,11 +787,11 @@ function mapOriginOffset(ox: number, oy: number) {
 function mapOriginOffsetWithClip(
   ox: number,
   oy: number,
-  clip: { x: number; y: number },
+  _clip: { x: number; y: number },
 ) {
   return {
-    left: `${ox * SCALE + clip.x}px`,
-    top: `${-oy * SCALE + clip.y}px`,
+    left: `${ox * SCALE}px`,
+    top: `${-oy * SCALE}px`,
   };
 }
 
@@ -821,11 +868,24 @@ const originSaving = ref(false);
 const originEditingMapId = ref<string>("");
 const editOriginX = ref(0);
 const editOriginY = ref(0);
+const editOriginRotation = ref(0);
 
 /** 编辑模式下每张地图的临时原点数据 */
-const originDrafts = ref<Map<string, { originX: number; originY: number }>>(
+const originDrafts = ref<Map<string, { originX: number; originY: number; rotation: number }>>(
   new Map(),
 );
+
+interface MapEditCache {
+  points: any[];
+  paths: any[];
+  locations: any[];
+  clip: { x: number; y: number };
+  canvasW: number;
+  canvasH: number;
+  raster?: { url: string; layout: RasterModelLayout };
+}
+/** 原点编辑模式下所有地图的元素缓存（用于多图叠加显示） */
+const allMapEditCaches = ref<Map<string, MapEditCache>>(new Map());
 
 const originEditingMapName = computed(() => {
   const m = filteredMaps.value.find(
@@ -846,7 +906,12 @@ function getMapLayerOffset(m: NavigationMapVO) {
   const r = parseNavigationMapOrigin(m);
   const ox = draft?.originX ?? r.originX;
   const oy = draft?.originY ?? r.originY;
-  return mapOriginOffsetWithClip(ox, oy, rendererClipCompensation.value);
+  const rotation = draft?.rotation ?? r.rotation;
+  const base = mapOriginOffsetWithClip(ox, oy, rendererClipCompensation.value);
+  if (rotation !== 0) {
+    return { ...base, transform: `rotate(${-rotation}deg)`, transformOrigin: "0 0" };
+  }
+  return base;
 }
 
 /**
@@ -858,13 +923,8 @@ function getHandleScreenStyle(m: NavigationMapVO) {
   const r = parseNavigationMapOrigin(m);
   const ox = draft?.originX ?? r.originX;
   const oy = draft?.originY ?? r.originY;
-  const { x: sx } = rendererClipCompensation.value;
   return {
-    left:
-      170 +
-      viewOffset.x +
-      (ox * SCALE + sx) * canvasScale.value +
-      "px",
+    left: 170 + viewOffset.x + ox * SCALE * canvasScale.value + "px",
     bottom: viewOffset.y + oy * SCALE * canvasScale.value + "px",
   };
 }
@@ -874,16 +934,18 @@ function toggleOriginEditing() {
     isEditingOrigin.value = false;
     originEditingMapId.value = "";
     originDrafts.value.clear();
+    allMapEditCaches.value = new Map();
     return;
   }
   if (!selectedFactoryId.value || filteredMaps.value.length === 0) return;
   // 初始化每张地图的草稿
-  const drafts = new Map<string, { originX: number; originY: number }>();
+  const drafts = new Map<string, { originX: number; originY: number; rotation: number }>();
   filteredMaps.value.forEach((m) => {
     const r = parseNavigationMapOrigin(m);
     drafts.set(String(m.mapId), {
       originX: r.originX,
       originY: r.originY,
+      rotation: r.rotation,
     });
   });
   originDrafts.value = drafts;
@@ -891,13 +953,19 @@ function toggleOriginEditing() {
   originEditingMapId.value = String(filteredMaps.value[0].mapId);
   selectOriginMap(originEditingMapId.value);
   isEditingOrigin.value = true;
+  // 异步加载所有地图元素（不阻塞 UI）
+  loadAllMapsForEditing();
 }
 
 function selectOriginMap(mapId: string) {
   originEditingMapId.value = mapId;
+  selectedMapId.value = mapId;
   const draft = originDrafts.value.get(mapId);
   editOriginX.value = draft?.originX ?? 0;
   editOriginY.value = draft?.originY ?? 0;
+  editOriginRotation.value = draft?.rotation ?? 0;
+  const m = filteredMaps.value.find((m) => String(m.mapId) === mapId);
+  if (m) loadMapElements(m);
 }
 
 function onOriginInputChange() {
@@ -905,13 +973,14 @@ function onOriginInputChange() {
   originDrafts.value.set(originEditingMapId.value, {
     originX: editOriginX.value,
     originY: editOriginY.value,
+    rotation: editOriginRotation.value,
   });
 }
 
 function getMapDraftOrigin(m: NavigationMapVO) {
   const draft = originDrafts.value.get(String(m.mapId));
   const r = parseNavigationMapOrigin(m);
-  return draft ?? { originX: r.originX, originY: r.originY };
+  return draft ?? { originX: r.originX, originY: r.originY, rotation: r.rotation };
 }
 
 async function saveAllOrigins() {
@@ -924,10 +993,11 @@ async function saveAllOrigins() {
       const resolved = parseNavigationMapOrigin(m);
       if (
         draft.originX === resolved.originX &&
-        draft.originY === resolved.originY
+        draft.originY === resolved.originY &&
+        draft.rotation === resolved.rotation
       )
         return;
-      const rot = resolved.rotation;
+      const rot = draft.rotation;
       const mapOrigin = serializeNavigationMapOrigin(
         draft.originX,
         draft.originY,
@@ -1001,6 +1071,7 @@ function onDragMapOrigin(e: MouseEvent) {
   originDrafts.value.set(draggingMapId.value, {
     originX: editOriginX.value,
     originY: editOriginY.value,
+    rotation: editOriginRotation.value,
   });
 }
 
@@ -1012,6 +1083,278 @@ function endDragMapOrigin() {
   }
   document.removeEventListener("mousemove", onDragMapOrigin);
   document.removeEventListener("mouseup", endDragMapOrigin);
+}
+
+// ─── 多图编辑辅助 ──────────────────────────────────────────────
+
+/** 计算一组元素的负坐标裁切补偿（复用 rendererClipCompensation 逻辑） */
+function computeClipForElements(
+  points: any[],
+  locations: any[],
+  paths: any[],
+): { x: number; y: number } {
+  let minX = 0;
+  let minY = 0;
+  const push = (x: number, y: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+  };
+  for (const p of points) push(Number(p.x ?? p.xPosition ?? 0), Number(p.y ?? p.yPosition ?? 0));
+  for (const l of locations) {
+    push(Number(l.x ?? l.xPosition ?? 0), Number(l.y ?? l.yPosition ?? 0));
+    if (Array.isArray(l.geometry?.vertices)) {
+      for (const v of l.geometry.vertices) {
+        push(Number(v.x ?? v.xPosition ?? 0), Number(v.y ?? v.yPosition ?? 0));
+      }
+    }
+  }
+  for (const path of paths) {
+    const cps = extractPathControlPoints(path);
+    if (Array.isArray(cps)) {
+      for (const cp of cps) push(Number(cp.x ?? cp.xPosition ?? 0), Number(cp.y ?? cp.yPosition ?? 0));
+    }
+    if (path.startPoint) push(Number(path.startPoint.x ?? path.startPoint.xPosition ?? 0), Number(path.startPoint.y ?? path.startPoint.yPosition ?? 0));
+    if (path.endPoint) push(Number(path.endPoint.x ?? path.endPoint.xPosition ?? 0), Number(path.endPoint.y ?? path.endPoint.yPosition ?? 0));
+  }
+  return {
+    x: minX < 0 ? Math.ceil(-minX) + 8 : 0,
+    y: minY < 0 ? Math.ceil(-minY) + 8 : 0,
+  };
+}
+
+/** 计算元素最大范围，用于确定 Konva canvas 尺寸 */
+function computeMaxExtentForElements(
+  points: any[],
+  locations: any[],
+  paths: any[],
+  clip: { x: number; y: number },
+): { maxX: number; maxY: number } {
+  let maxX = 0;
+  let maxY = 0;
+  const push = (x: number, y: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    maxX = Math.max(maxX, x + clip.x);
+    maxY = Math.max(maxY, y + clip.y);
+  };
+  for (const p of points) push(Number(p.x ?? p.xPosition ?? 0), Number(p.y ?? p.yPosition ?? 0));
+  for (const l of locations) {
+    push(Number(l.x ?? l.xPosition ?? 0), Number(l.y ?? l.yPosition ?? 0));
+    if (Array.isArray(l.geometry?.vertices)) {
+      for (const v of l.geometry.vertices) {
+        push(Number(v.x ?? v.xPosition ?? 0), Number(v.y ?? v.yPosition ?? 0));
+      }
+    }
+  }
+  for (const path of paths) {
+    const cps = extractPathControlPoints(path);
+    if (Array.isArray(cps)) {
+      for (const cp of cps) push(Number(cp.x ?? cp.xPosition ?? 0), Number(cp.y ?? cp.yPosition ?? 0));
+    }
+  }
+  return { maxX, maxY };
+}
+
+/** 解析路径端点（复用 processedPaths 逻辑，纯函数版） */
+function processPathsForMap(points: any[], paths: any[]): any[] {
+  const pointsMap = new Map<string, any>();
+  for (const p of points) {
+    if (p?.id != null) pointsMap.set(String(p.id), p);
+    if (p?.pointId != null) pointsMap.set(String(p.pointId), p);
+  }
+  return paths.map((path: any) => {
+    let startPoint = path.startPoint;
+    let endPoint = path.endPoint;
+    if (!startPoint && path.startPointId) startPoint = pointsMap.get(String(path.startPointId));
+    if (!endPoint && path.endPointId) endPoint = pointsMap.get(String(path.endPointId));
+    return { ...path, startPoint, endPoint };
+  });
+}
+
+/**
+ * 原点编辑模式进入时，依次加载所有地图的元素并缓存。
+ * 加载顺序：当前选中地图优先，其余顺序加载。
+ * 最后重新加载当前选中地图，恢复 mapElements。
+ */
+async function loadAllMapsForEditing() {
+  allMapEditCaches.value = new Map();
+  const caches = new Map<string, MapEditCache>();
+  const maps = filteredMaps.value;
+  for (const m of maps) {
+    try {
+      await loadMapElements(m);
+      const points = [...mapElements.value.points];
+      const rawPaths = [...mapElements.value.paths];
+      const locations = [...mapElements.value.locations];
+      const processedP = processPathsForMap(points, rawPaths);
+      const clip = computeClipForElements(points, locations, processedP);
+      const { maxX, maxY } = computeMaxExtentForElements(points, locations, processedP, clip);
+      const canvasW = Math.max(1, Math.min(PREVIEW_CANVAS_MAX_DIM, Math.ceil(maxX + PREVIEW_SCENE_PADDING)));
+      const canvasH = Math.max(1, Math.min(PREVIEW_CANVAS_MAX_DIM, Math.ceil(maxY + PREVIEW_SCENE_PADDING)));
+      const raster = computeEditCacheRaster(m);
+      caches.set(String(m.mapId), { points, paths: processedP, locations, clip, canvasW, canvasH, raster });
+    } catch (e) {
+      console.error(`Failed to load elements for map ${m.mapId}:`, e);
+      // Still create an empty cache entry so the map's axes/handle remain visible
+      caches.set(String(m.mapId), {
+        points: [], paths: [], locations: [],
+        clip: { x: 0, y: 0 }, canvasW: 96, canvasH: 96,
+      });
+    }
+  }
+  allMapEditCaches.value = caches;
+  // 恢复当前选中地图的元素（loadMapElements 会覆盖 mapElements）
+  const current = maps.find((m) => String(m.mapId) === originEditingMapId.value);
+  if (current) loadMapElements(current);
+}
+
+/**
+ * 计算编辑模式下某张地图的栅格底图缓存。
+ * 在 loadMapElements(m) 之后调用，此时 previewMapEditorMeta 持有该地图的 mapInfo。
+ */
+function computeEditCacheRaster(m: NavigationMapVO): MapEditCache["raster"] | undefined {
+  if (!m.rasterUrl || !m.rasterWidth || !m.rasterHeight) return undefined;
+  const meta = previewMapEditorMeta.value;
+  const mi = meta?.mapInfo;
+  const resNum = Number.parseFloat(String(m.rasterResolution ?? 0.05)) || 0.05;
+  const scaleMmPerUnit = resolveScaleMmPerUnitForRaster({
+    mapInfo: { scaleX: (mi as { scaleX?: number | string } | null | undefined)?.scaleX },
+    visualLayout: meta?.visualLayout ?? undefined,
+    rasterResolutionMPerPx: resNum,
+  });
+  const { originXm, originYm } = parseYamlOriginMeters(mi, m);
+  try {
+    const layout = computeRasterModelLayout({
+      originXm,
+      originYm,
+      resolutionMPerPx: resNum,
+      widthPx: m.rasterWidth,
+      heightPx: m.rasterHeight,
+      scaleMmPerUnit,
+    });
+    return { url: m.rasterUrl, layout };
+  } catch {
+    return undefined;
+  }
+}
+
+/** 编辑模式下有缓存的地图列表 */
+const editModeMapsWithCache = computed(() =>
+  isEditingOrigin.value
+    ? filteredMaps.value.filter((m) => allMapEditCaches.value.has(String(m.mapId)))
+    : [],
+);
+
+/** 获取某张地图的编辑缓存 */
+function getEditMapCache(m: NavigationMapVO): MapEditCache | null {
+  return allMapEditCaches.value.get(String(m.mapId)) ?? null;
+}
+
+/** 编辑模式下某张地图的栅格底图 CSS 样式（工厂坐标系） */
+function getEditMapRasterStyle(m: NavigationMapVO): Record<string, string> {
+  const cache = getEditMapCache(m);
+  if (!cache?.raster) return {};
+  const draft = originDrafts.value.get(String(m.mapId));
+  const r = parseNavigationMapOrigin(m);
+  const ox = (draft?.originX ?? r.originX) * SCALE;
+  const oy = (draft?.originY ?? r.originY) * SCALE;
+  const { layout } = cache.raster;
+  return {
+    position: "absolute",
+    left: `${ox + layout.x}px`,
+    top: `${-oy + layout.y}px`,
+    width: `${layout.widthModel}px`,
+    height: `${layout.heightModel}px`,
+    opacity: "0.4",
+    pointerEvents: "none",
+  };
+}
+
+/** 编辑模式下某张地图的 MapRenderer CSS 样式 */
+function getEditMapRendererStyle(m: NavigationMapVO): Record<string, string> {
+  const cache = getEditMapCache(m);
+  if (!cache) return {};
+  const draft = originDrafts.value.get(String(m.mapId));
+  const r = parseNavigationMapOrigin(m);
+  const ox = (draft?.originX ?? r.originX) * SCALE;
+  const oy = (draft?.originY ?? r.originY) * SCALE;
+  return {
+    width: `${cache.canvasW}px`,
+    height: `${cache.canvasH}px`,
+    left: `${ox - cache.clip.x}px`,
+    top: `${-oy - cache.clip.y}px`,
+  };
+}
+
+/** 编辑模式下某张地图的 Konva 点位数据（含裁切补偿） */
+function getEditMapRendererPoints(m: NavigationMapVO): any[] {
+  const cache = getEditMapCache(m);
+  if (!cache) return [];
+  const { clip } = cache;
+  return cache.points.map((p: any) => ({
+    ...p,
+    x: Number(p.x ?? p.xPosition ?? 0) + clip.x,
+    y: Number(p.y ?? p.yPosition ?? 0) + clip.y,
+  }));
+}
+
+/** 编辑模式下某张地图的 Konva 路径数据（含裁切补偿） */
+function getEditMapRendererPaths(m: NavigationMapVO): any[] {
+  const cache = getEditMapCache(m);
+  if (!cache) return [];
+  const { clip } = cache;
+  return cache.paths.map((path: any) => {
+    const cps = extractPathControlPoints(path);
+    let controlPoints = Array.isArray(cps)
+      ? cps.map((cp: any) => ({
+          ...cp,
+          x: Number(cp.x ?? cp.xPosition ?? 0) + clip.x,
+          y: Number(cp.y ?? cp.yPosition ?? 0) + clip.y,
+        }))
+      : [];
+    if (controlPoints.length < 2 && path.startPoint && path.endPoint) {
+      controlPoints = [
+        { id: `cp_${path.id}_0`, x: Number(path.startPoint.x ?? 0) + clip.x, y: Number(path.startPoint.y ?? 0) + clip.y },
+        { id: `cp_${path.id}_1`, x: Number(path.endPoint.x ?? 0) + clip.x, y: Number(path.endPoint.y ?? 0) + clip.y },
+      ];
+    }
+    return {
+      ...path,
+      geometry: {
+        ...(path.geometry || {}),
+        controlPoints,
+        pathType: path.geometry?.pathType || pathConnectionKind(path),
+      },
+    };
+  });
+}
+
+/** 编辑模式下某张地图的 Konva 位置数据（含裁切补偿） */
+function getEditMapRendererLocations(m: NavigationMapVO): any[] {
+  const cache = getEditMapCache(m);
+  if (!cache) return [];
+  const { clip } = cache;
+  return cache.locations.map((l: any) => {
+    const x = Number(l.x ?? l.xPosition ?? 0) + clip.x;
+    const y = Number(l.y ?? l.yPosition ?? 0) + clip.y;
+    return {
+      ...l,
+      x,
+      y,
+      geometry: l.geometry
+        ? {
+            ...l.geometry,
+            vertices: Array.isArray(l.geometry.vertices)
+              ? l.geometry.vertices.map((v: any) => ({
+                  ...v,
+                  x: Number(v.x ?? v.xPosition ?? 0) + clip.x,
+                  y: Number(v.y ?? v.yPosition ?? 0) + clip.y,
+                }))
+              : l.geometry.vertices,
+          }
+        : l.geometry,
+    };
+  });
 }
 
 // 保留 query 类型，便于后续扩展筛选/分页（P0 暂不使用）
@@ -1259,15 +1602,25 @@ const rendererClipCompensation = computed(() => {
   };
 });
 
-/** 地图导航原点虚线轴：与 Konva 内容同一工厂图层坐标（含裁切补偿） */
+/**
+ * MapRenderer 的 CSS 位置偏移（非编辑模式）：
+ * - 抵消负坐标裁切补偿，使模型(0,0)在层CSS(0,0)
+ * - 编辑模式下不使用此偏移，改用 allMapEditCaches 中各地图独立的 getEditMapRendererStyle
+ */
+const rendererCanvasOffset = computed(() => ({
+  x: -rendererClipCompensation.value.x,
+  y: -rendererClipCompensation.value.y,
+}));
+
+/** 地图导航原点虚线轴（普通模式）：含裁切补偿 + 旋转 */
 const mapOriginLayerStyle = computed(() => {
   if (!activeMap.value) return {};
   const o = parseNavigationMapOrigin(activeMap.value);
-  return mapOriginOffsetWithClip(
-    o.originX,
-    o.originY,
-    rendererClipCompensation.value,
-  );
+  const base = mapOriginOffsetWithClip(o.originX, o.originY, rendererClipCompensation.value);
+  if (o.rotation !== 0) {
+    return { ...base, transform: `rotate(${-o.rotation}deg)`, transformOrigin: "0 0" };
+  }
+  return base;
 });
 
 /** 与 rendererPoints 同坐标系：负坐标补偿后的场景最大范围 */
@@ -1794,6 +2147,7 @@ const selectFactory = (factory: FactoryModelVO) => {
   isEditingOrigin.value = false;
   originEditingMapId.value = "";
   originDrafts.value.clear();
+  allMapEditCaches.value = new Map();
   loadMaps();
 };
 
@@ -2880,6 +3234,12 @@ onBeforeUnmount(() => {
   .el-input-number {
     flex: 1;
   }
+}
+
+.origin-unit-label {
+  font-size: 12px;
+  color: #909399;
+  flex-shrink: 0;
 }
 
 .origin-edit-hint {
