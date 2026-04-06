@@ -5,6 +5,11 @@
       <div class="axis-line axis-x" />
       <div class="axis-line axis-y" />
       <div class="axis-origin">O(0,0)</div>
+      <!-- 右手法则：逆时针正方向指示弧（从 +X 到 +Y 的 CCW 弧） -->
+      <svg class="axis-ccw-arc" width="36" height="36" viewBox="-6 -34 36 36">
+        <path d="M 28 0 A 28 28 0 0 0 0 -28" fill="none" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="3 2"/>
+        <polygon points="-5,-28 2,-24 2,-32" fill="#9ca3af"/>
+      </svg>
     </div>
 
     <div
@@ -23,6 +28,11 @@
       <div class="axis-line axis-x" />
       <div class="axis-line axis-y" />
       <div class="axis-origin">O(0,0)</div>
+      <!-- 右手法则：逆时针正方向指示弧（从 +X 到 +Y 的 CCW 弧） -->
+      <svg class="axis-ccw-arc" width="36" height="36" viewBox="-6 -34 36 36">
+        <path d="M 28 0 A 28 28 0 0 0 0 -28" fill="none" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="3 2"/>
+        <polygon points="-5,-28 2,-24 2,-32" fill="#9ca3af"/>
+      </svg>
     </div>
 
     <div
@@ -61,3 +71,11 @@ withDefaults(defineProps<Props>(), {
 });
 </script>
 
+<style scoped>
+.axis-ccw-arc {
+  position: absolute;
+  left: -6px;
+  top: -34px;
+  pointer-events: none;
+}
+</style>
