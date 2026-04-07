@@ -36,13 +36,13 @@
 
       <el-table v-loading="loading" :data="typeList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
+        <el-table-column label="车辆类型名称" align="center" prop="name" min-width="150" />
         <el-table-column label="所属品牌" align="center" prop="brandName" min-width="120">
           <template #default="scope">
             <el-tag v-if="scope.row.brandName" size="small">{{ scope.row.brandName }}</el-tag>
             <span v-else style="color: #909399;">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="车辆类型名称" align="center" prop="name" min-width="150" />
         <el-table-column label="尺寸(长×宽×高)" align="center" min-width="150">
           <template #default="scope">
             <span v-if="scope.row.length && scope.row.width && scope.row.height">
@@ -108,15 +108,15 @@
       <el-form ref="typeFormRef" :model="form" :rules="rules" label-width="140px">
         <el-row :gutter="20">
           <el-col :span="12">
+            <el-form-item label="车辆类型名称" prop="name">
+              <el-input v-model="form.name" placeholder="请输入车辆类型名称" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
             <el-form-item label="所属品牌" prop="brandId">
               <el-select v-model="form.brandId" placeholder="请选择品牌" style="width: 100%;">
                 <el-option v-for="brand in brandList" :key="brand.id" :label="brand.name" :value="brand.id" />
               </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12">
-            <el-form-item label="车辆类型名称" prop="name">
-              <el-input v-model="form.name" placeholder="请输入车辆类型名称" />
             </el-form-item>
           </el-col>
         </el-row>
