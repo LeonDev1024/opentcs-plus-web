@@ -37,6 +37,12 @@
       <el-table v-loading="loading" :data="typeList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
         <el-table-column label="车辆类型名称" align="center" prop="name" min-width="150" />
+        <el-table-column label="所属品牌" align="center" prop="brandName" min-width="120">
+          <template #default="scope">
+            <el-tag v-if="scope.row.brandName" size="small">{{ scope.row.brandName }}</el-tag>
+            <span v-else style="color: #909399;">-</span>
+          </template>
+        </el-table-column>
         <el-table-column label="尺寸(长×宽×高)" align="center" min-width="150">
           <template #default="scope">
             <span v-if="scope.row.length && scope.row.width && scope.row.height">
@@ -104,6 +110,13 @@
           <el-col :span="12">
             <el-form-item label="车辆类型名称" prop="name">
               <el-input v-model="form.name" placeholder="请输入车辆类型名称" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="所属品牌" prop="brandId">
+              <el-select v-model="form.brandId" placeholder="请选择品牌" style="width: 100%;">
+                <el-option v-for="brand in brandList" :key="brand.id" :label="brand.name" :value="brand.id" />
+              </el-select>
             </el-form-item>
           </el-col>
         </el-row>
@@ -189,6 +202,7 @@
     <!-- 查看详情对话框 -->
     <el-dialog v-model="detailDialog.visible" title="车辆类型详情" width="600px" append-to-body>
       <el-descriptions :column="2" border>
+        <el-descriptions-item label="所属品牌">{{ detailData.brandName || '-' }}</el-descriptions-item>
         <el-descriptions-item label="车辆类型名称">{{ detailData.name || '-' }}</el-descriptions-item>
         <el-descriptions-item label="能量等级">{{ detailData.energyLevel || '-' }}</el-descriptions-item>
         <el-descriptions-item label="长度(m)">{{ detailData.length || '-' }}</el-descriptions-item>
@@ -220,11 +234,14 @@
 
 <script setup name="Type" lang="ts">
 import { listType, getType, delType, addType, updateType } from '@/api/opentcs/vehicle/type';
+import { listBrandAll } from '@/api/opentcs/vehicle/brand';
 import { TypeVO, TypeQuery, TypeForm } from '@/api/opentcs/vehicle/type/types';
+import { BrandVO } from '@/api/opentcs/vehicle/brand/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 
 const typeList = ref<TypeVO[]>([]);
+const brandList = ref<BrandVO[]>([]);
 const buttonLoading = ref(false);
 const loading = ref(true);
 const showSearch = ref(true);
@@ -262,6 +279,7 @@ const getOperationsList = (operations?: string[]): string[] => {
 
 const initFormData = {
   id: undefined,
+  brandId: undefined,
   name: undefined,
   length: null as number | null,
   width: null as number | null,
@@ -285,6 +303,7 @@ const data = reactive<PageData<any, TypeQuery>>({
     name: undefined
   },
   rules: {
+    brandId: [{ required: true, message: '请选择所属品牌', trigger: 'change' }],
     name: [{ required: true, message: '车辆类型名称不能为空', trigger: 'blur' }],
     length: [
       { required: true, message: '长度不能为空', trigger: 'blur' },
@@ -325,6 +344,7 @@ const cancel = () => {
 /** 表单重置 */
 const reset = () => {
   form.value.id = initFormData.id;
+  form.value.brandId = initFormData.brandId;
   form.value.name = initFormData.name;
   form.value.length = initFormData.length;
   form.value.width = initFormData.width;
@@ -376,6 +396,7 @@ const handleUpdate = async (row?: TypeVO) => {
   
   // 解析数据到表单
   form.value.id = data.id;
+  form.value.brandId = data.brandId;
   form.value.name = data.name;
   form.value.length = data.length;
   form.value.width = data.width;
@@ -422,6 +443,7 @@ const submitForm = () => {
       // 构建提交数据
       const submitData: TypeForm = {
         id: form.value.id,
+        brandId: form.value.brandId,
         name: form.value.name,
         length: form.value.length ?? undefined,
         width: form.value.width ?? undefined,
@@ -480,7 +502,14 @@ const handleDelete = async (row?: TypeVO) => {
 
 onMounted(() => {
   getList();
+  getBrandList();
 });
+
+/** 获取品牌列表 */
+const getBrandList = async () => {
+  const res = await listBrandAll();
+  brandList.value = res.data || [];
+};
 </script>
 
 <style scoped lang="scss">
