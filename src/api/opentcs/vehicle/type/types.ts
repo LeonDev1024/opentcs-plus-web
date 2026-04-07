@@ -5,6 +5,16 @@ export interface TypeVO {
   id: string | number;
 
   /**
+   * 所属品牌ID
+   */
+  brandId?: string | number;
+
+  /**
+   * 品牌名称
+   */
+  brandName?: string;
+
+  /**
    * 车辆类型名称
    */
   name: string;
@@ -72,6 +82,11 @@ export interface TypeForm extends BaseEntity {
   id?: string | number;
 
   /**
+   * 所属品牌ID
+   */
+  brandId?: string | number;
+
+  /**
    * 车辆类型名称
    */
   name?: string;
@@ -123,6 +138,11 @@ export interface TypeForm extends BaseEntity {
 }
 
 export interface TypeQuery extends PageQuery {
+  /**
+   * 品牌ID
+   */
+  brandId?: string | number;
+
   /**
    * 车辆类型名称
    */
