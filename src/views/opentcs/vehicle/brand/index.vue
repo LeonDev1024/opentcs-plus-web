@@ -330,15 +330,17 @@ onMounted(() => {
   }
 
   .brand-card-logo {
-    height: 80px;
+    height: 90px;
     display: flex;
     align-items: center;
     justify-content: center;
     margin-bottom: 12px;
 
     .logo-img {
-      max-height: 70px;
-      max-width: 100%;
+      max-height: 90px;
+      max-width: 140px;
+      width: auto;
+      height: auto;
     }
 
     .logo-placeholder {
