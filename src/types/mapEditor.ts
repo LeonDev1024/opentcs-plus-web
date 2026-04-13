@@ -237,6 +237,9 @@ export interface MapEditorData {
     locations: MapLocation[];
   };
 
+  // Block 规则数据（资源互斥规则，对应 openTCS Block）
+  blocks?: MapBlock[];
+
   // 元数据
   metadata: {
     createdAt: string;
@@ -273,10 +276,39 @@ export interface RasterBackground {
   heightPx: number;
 }
 
+// ==================== Block（资源互斥规则）模型 ====================
+/**
+ * 对应 openTCS Block 语义：资源的逻辑分组，配合调度规则。
+ * Block 不是多边形区域，而是对现有 Point/Path/Location 的命名分组。
+ */
+export interface MapBlock {
+  /** 前端临时 UUID，不提交给后端 */
+  id: string;
+  /** 后端持久化 blockId（字符串唯一标识） */
+  blockId?: string;
+  /** Block 名称（全图唯一） */
+  name: string;
+  /**
+   * Block 类型：
+   * - SINGLE_VEHICLE_ONLY: 同一时刻只允许一辆车占用 Block 内所有资源（路口互斥）
+   * - SAME_DIRECTION_ONLY: 多车可同时进入，但方向必须相同（走廊同向通行）
+   */
+  type: 'SINGLE_VEHICLE_ONLY' | 'SAME_DIRECTION_ONLY';
+  /**
+   * 成员资源名称列表（Point.name / Path.name / Location.name）
+   * 遵循 openTCS 规范：用 name 字符串标识，非数据库 id
+   */
+  members: string[];
+  /** 成员元素在画布上的高亮颜色（hex 格式，如 "#F44336"） */
+  color: string;
+  /** 扩展属性（供策略插件读取） */
+  properties?: Record<string, string>;
+}
+
 // ==================== 选择状态 ====================
 export interface SelectionState {
   selectedIds: Set<string>;
-  selectedType: "point" | "path" | "location" | "layout" | null;
+  selectedType: "point" | "path" | "location" | "layout" | "block" | null;
 }
 
 // ==================== 命令接口（用于撤销/重做）====================

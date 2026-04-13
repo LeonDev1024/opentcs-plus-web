@@ -44,9 +44,68 @@
         </div>
       </el-tab-pane>
       
-      <el-tab-pane label="区域规则" name="blocks">
+      <el-tab-pane label="区域" name="blocks">
         <div class="blocks-content">
-          <el-empty description="区域规则功能待实现" :image-size="100" />
+          <!-- 工具栏 -->
+          <div class="blocks-toolbar">
+            <span class="blocks-count">共 {{ mapEditorStore.blocks.length }} 个规则</span>
+            <el-button size="small" type="primary" @click="openAddBlockDialog">
+              + 新增
+            </el-button>
+          </div>
+
+          <!-- 按类型分组展示 -->
+          <div class="blocks-list" v-if="mapEditorStore.blocks.length > 0">
+            <!-- SINGLE_VEHICLE_ONLY -->
+            <div class="block-group" v-if="singleVehicleBlocks.length > 0">
+              <div class="block-group-header">
+                <span class="block-type-badge single">单车互斥</span>
+                <span class="block-group-count">{{ singleVehicleBlocks.length }}</span>
+              </div>
+              <div
+                class="block-item"
+                v-for="block in singleVehicleBlocks"
+                :key="block.id"
+                :class="{ 'is-active': hoveredBlockId === block.id }"
+                @mouseenter="hoveredBlockId = block.id"
+                @mouseleave="hoveredBlockId = null"
+              >
+                <span class="block-color-swatch" :style="{ background: block.color }" />
+                <span class="block-name">{{ block.name }}</span>
+                <span class="block-member-count">{{ block.members.length }}个成员</span>
+                <div class="block-actions">
+                  <el-button size="small" text @click.stop="openEditBlockDialog(block)">编辑</el-button>
+                  <el-button size="small" text type="danger" @click.stop="handleDeleteBlock(block.id)">删除</el-button>
+                </div>
+              </div>
+            </div>
+
+            <!-- SAME_DIRECTION_ONLY -->
+            <div class="block-group" v-if="sameDirectionBlocks.length > 0">
+              <div class="block-group-header">
+                <span class="block-type-badge direction">同向通行</span>
+                <span class="block-group-count">{{ sameDirectionBlocks.length }}</span>
+              </div>
+              <div
+                class="block-item"
+                v-for="block in sameDirectionBlocks"
+                :key="block.id"
+                :class="{ 'is-active': hoveredBlockId === block.id }"
+                @mouseenter="hoveredBlockId = block.id"
+                @mouseleave="hoveredBlockId = null"
+              >
+                <span class="block-color-swatch" :style="{ background: block.color }" />
+                <span class="block-name">{{ block.name }}</span>
+                <span class="block-member-count">{{ block.members.length }}个成员</span>
+                <div class="block-actions">
+                  <el-button size="small" text @click.stop="openEditBlockDialog(block)">编辑</el-button>
+                  <el-button size="small" text type="danger" @click.stop="handleDeleteBlock(block.id)">删除</el-button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <el-empty v-else description="暂无区域规则，点击新增创建" :image-size="80" />
         </div>
       </el-tab-pane>
     </el-tabs>
@@ -58,20 +117,82 @@
     />
     
     <!-- 编辑对话框 -->
-    <PointEditDialog 
-      v-model="showEditDialog" 
+    <PointEditDialog
+      v-model="showEditDialog"
       :point="currentPoint"
       @updated="handlePointUpdated"
     />
+
+    <!-- Block 新增/编辑对话框 -->
+    <el-dialog
+      v-model="showBlockDialog"
+      :title="blockDialogMode === 'add' ? '新增区域规则' : '编辑区域规则'"
+      width="520px"
+      @closed="resetBlockForm"
+    >
+      <el-form :model="blockForm" label-width="90px" size="default">
+        <el-form-item label="名称" required>
+          <el-input v-model="blockForm.name" placeholder="Block 名称（全图唯一）" />
+        </el-form-item>
+        <el-form-item label="类型" required>
+          <el-select v-model="blockForm.type" style="width: 100%">
+            <el-option value="SINGLE_VEHICLE_ONLY" label="SINGLE_VEHICLE_ONLY — 单车互斥（路口）" />
+            <el-option value="SAME_DIRECTION_ONLY" label="SAME_DIRECTION_ONLY — 同向通行（走廊）" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="高亮颜色">
+          <el-color-picker v-model="blockForm.color" />
+          <span style="margin-left:8px;font-size:12px;color:#909399">成员在画布上的高亮颜色</span>
+        </el-form-item>
+        <el-form-item label="成员资源">
+          <el-select
+            v-model="blockForm.members"
+            multiple
+            filterable
+            style="width: 100%"
+            placeholder="选择 Point / Path / Location（按名称）"
+          >
+            <el-option-group label="Points">
+              <el-option
+                v-for="p in mapEditorStore.points"
+                :key="p.id"
+                :label="p.name"
+                :value="p.name"
+              />
+            </el-option-group>
+            <el-option-group label="Paths">
+              <el-option
+                v-for="p in mapEditorStore.paths"
+                :key="p.id"
+                :label="p.name"
+                :value="p.name"
+              />
+            </el-option-group>
+            <el-option-group label="Locations">
+              <el-option
+                v-for="l in mapEditorStore.locations"
+                :key="l.id"
+                :label="l.name"
+                :value="l.name"
+              />
+            </el-option-group>
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showBlockDialog = false">取消</el-button>
+        <el-button type="primary" @click="submitBlockForm">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { Grid, Folder, Edit } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
-import type { MapPath, MapPoint } from '@/types/mapEditor';
+import type { MapPath, MapPoint, MapBlock } from '@/types/mapEditor';
 import PointDetailDialog from './PointDetailDialog.vue';
 import PointEditDialog from './PointEditDialog.vue';
 
@@ -81,6 +202,92 @@ const activeTab = ref('components');
 const showDetailDialog = ref(false);
 const showEditDialog = ref(false);
 const currentPoint = ref<MapPoint | null>(null);
+
+// ==================== Block 状态 ====================
+const hoveredBlockId = ref<string | null>(null);
+const showBlockDialog = ref(false);
+const blockDialogMode = ref<'add' | 'edit'>('add');
+const editingBlockId = ref<string | null>(null);
+
+const BLOCK_COLORS = ['#F44336','#E91E63','#9C27B0','#3F51B5','#2196F3','#009688','#FF9800','#795548'];
+
+const blockForm = ref({
+  name: '',
+  type: 'SINGLE_VEHICLE_ONLY' as 'SINGLE_VEHICLE_ONLY' | 'SAME_DIRECTION_ONLY',
+  color: '#F44336',
+  members: [] as string[]
+});
+
+const singleVehicleBlocks = computed(() =>
+  mapEditorStore.blocks.filter(b => b.type === 'SINGLE_VEHICLE_ONLY')
+);
+const sameDirectionBlocks = computed(() =>
+  mapEditorStore.blocks.filter(b => b.type === 'SAME_DIRECTION_ONLY')
+);
+
+const openAddBlockDialog = () => {
+  blockDialogMode.value = 'add';
+  editingBlockId.value = null;
+  blockForm.value = {
+    name: `Block-${mapEditorStore.blocks.length + 1}`,
+    type: 'SINGLE_VEHICLE_ONLY',
+    color: BLOCK_COLORS[mapEditorStore.blocks.length % BLOCK_COLORS.length],
+    members: []
+  };
+  showBlockDialog.value = true;
+};
+
+const openEditBlockDialog = (block: MapBlock) => {
+  blockDialogMode.value = 'edit';
+  editingBlockId.value = block.id;
+  blockForm.value = {
+    name: block.name,
+    type: block.type,
+    color: block.color,
+    members: [...block.members]
+  };
+  showBlockDialog.value = true;
+};
+
+const resetBlockForm = () => {
+  editingBlockId.value = null;
+};
+
+const submitBlockForm = () => {
+  if (!blockForm.value.name.trim()) {
+    ElMessage.warning('请填写 Block 名称');
+    return;
+  }
+  if (blockDialogMode.value === 'add') {
+    mapEditorStore.addBlock({
+      name: blockForm.value.name.trim(),
+      type: blockForm.value.type,
+      color: blockForm.value.color,
+      members: blockForm.value.members
+    });
+    ElMessage.success('区域规则已创建');
+  } else if (editingBlockId.value) {
+    mapEditorStore.updateBlock(editingBlockId.value, {
+      name: blockForm.value.name.trim(),
+      type: blockForm.value.type,
+      color: blockForm.value.color,
+      members: blockForm.value.members
+    });
+    ElMessage.success('区域规则已更新');
+  }
+  showBlockDialog.value = false;
+};
+
+const handleDeleteBlock = (id: string) => {
+  ElMessageBox.confirm('确定删除该区域规则吗？', '确认删除', {
+    type: 'warning',
+    confirmButtonText: '删除',
+    cancelButtonText: '取消'
+  }).then(() => {
+    mapEditorStore.deleteBlock(id);
+    ElMessage.success('已删除');
+  }).catch(() => {});
+};
 
 const treeProps = {
   children: 'children',
@@ -530,8 +737,108 @@ const handlePointUpdated = () => {
   .blocks-content {
     flex: 1;
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 8px;
+
+    .blocks-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      flex-shrink: 0;
+
+      .blocks-count {
+        font-size: 12px;
+        color: #909399;
+      }
+    }
+
+    .blocks-list {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .block-group {
+      margin-bottom: 12px;
+
+      .block-group-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+        padding: 2px 0;
+
+        .block-type-badge {
+          font-size: 11px;
+          font-weight: 600;
+          padding: 2px 6px;
+          border-radius: 3px;
+
+          &.single {
+            background: #fef0f0;
+            color: #f56c6c;
+          }
+
+          &.direction {
+            background: #f0f9eb;
+            color: #67c23a;
+          }
+        }
+
+        .block-group-count {
+          font-size: 11px;
+          color: #c0c4cc;
+        }
+      }
+
+      .block-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 8px;
+        border-radius: 4px;
+        cursor: default;
+        transition: background 0.15s;
+
+        &:hover,
+        &.is-active {
+          background: #f5f7fa;
+        }
+
+        .block-color-swatch {
+          width: 12px;
+          height: 12px;
+          border-radius: 50%;
+          flex-shrink: 0;
+          border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .block-name {
+          flex: 1;
+          font-size: 13px;
+          color: #303133;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .block-member-count {
+          font-size: 11px;
+          color: #909399;
+          flex-shrink: 0;
+        }
+
+        .block-actions {
+          display: none;
+          gap: 2px;
+        }
+
+        &:hover .block-actions {
+          display: flex;
+        }
+      }
+    }
   }
 }
 </style>

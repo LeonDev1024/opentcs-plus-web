@@ -10,6 +10,7 @@ import type {
   MapPoint,
   MapPath,
   MapLocation,
+  MapBlock,
   ToolMode,
   CanvasState,
   SelectionState,
@@ -70,6 +71,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const points = ref<MapPoint[]>([]);
   const paths = ref<MapPath[]>([]);
   const locations = ref<MapLocation[]>([]);
+
+  // Block（资源互斥规则）数据
+  const blocks = ref<MapBlock[]>([]);
   
   // 选择状态 - 使用 ref 包装 Set 以确保响应式
   const selectedIds = ref(new Set<string>());
@@ -767,6 +771,25 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             rotation: flatHeader.rotation ?? mi?.rotation,
           });
 
+          // 解析 blocks：members 字段后端为 JSON 字符串，前端需转为 string[]
+          const rawBlocks: MapBlock[] = Array.isArray(apiData.blocks)
+            ? apiData.blocks.map((b: any) => ({
+                id: b?.blockId ?? b?.id ?? `block_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+                blockId: b?.blockId,
+                name: b?.name ?? '',
+                type: b?.type ?? 'SINGLE_VEHICLE_ONLY',
+                members: (() => {
+                  try {
+                    if (Array.isArray(b?.members)) return b.members.map(String);
+                    if (typeof b?.members === 'string') return JSON.parse(b.members);
+                    return [];
+                  } catch { return []; }
+                })(),
+                color: b?.color ?? '#F44336',
+                properties: b?.properties ? (typeof b.properties === 'string' ? JSON.parse(b.properties) : b.properties) : undefined
+              }))
+            : [];
+
           data = {
             mapInfo: {
               id: flatHeader.id ?? mapId,  // 数据库主键优先
@@ -802,6 +825,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               paths: rawPaths.map((p: Record<string, any>) => normalizePath(p, defaultPathLayerId, rawPoints)),
               locations: rawLocations.map((l: Record<string, any>) => normalizeLocation(l, defaultLocationLayerId))
             },
+            blocks: rawBlocks,
             metadata: {
               createdAt: flatHeader.createTime || new Date().toISOString(),
               updatedAt: flatHeader.updateTime || new Date().toISOString()
@@ -833,6 +857,24 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             originY: apiData.originY ?? miOnly?.originY,
             rotation: apiData.rotation ?? miOnly?.rotation,
           });
+          const legacyRawBlocks: MapBlock[] = Array.isArray(apiData.blocks)
+            ? apiData.blocks.map((b: any) => ({
+                id: b?.blockId ?? b?.id ?? `block_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+                blockId: b?.blockId,
+                name: b?.name ?? '',
+                type: b?.type ?? 'SINGLE_VEHICLE_ONLY',
+                members: (() => {
+                  try {
+                    if (Array.isArray(b?.members)) return b.members.map(String);
+                    if (typeof b?.members === 'string') return JSON.parse(b.members);
+                    return [];
+                  } catch { return []; }
+                })(),
+                color: b?.color ?? '#F44336',
+                properties: b?.properties ? (typeof b.properties === 'string' ? JSON.parse(b.properties) : b.properties) : undefined
+              }))
+            : [];
+
           data = {
             mapInfo: {
               // id 保留数据库主键兼容；编辑器主标识统一使用 mapId
@@ -866,6 +908,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               paths: rpath.map((p: Record<string, any>) => normalizePath(p, dpathId, rp)),
               locations: rloc.map((l: Record<string, any>) => normalizeLocation(l, dlocId))
             },
+            blocks: legacyRawBlocks,
             metadata: {
               createdAt: apiData.mapInfo.createTime || new Date().toISOString(),
               updatedAt: apiData.mapInfo.updateTime || new Date().toISOString()
@@ -916,6 +959,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       points.value = data.elements.points || [];
       paths.value = data.elements.paths || [];
       locations.value = data.elements.locations || [];
+      blocks.value = data.blocks || [];
 
       syncPointNameCounter();
       syncLocationNameCounter();
@@ -999,6 +1043,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       mapData.value.elements.points = points.value;
       mapData.value.elements.paths = paths.value;
       mapData.value.elements.locations = locations.value;
+      mapData.value.blocks = blocks.value;
       mapData.value.mapInfo.scale = canvasState.scale;
       mapData.value.mapInfo.offsetX = canvasState.offsetX;
       mapData.value.mapInfo.offsetY = canvasState.offsetY;
@@ -1204,7 +1249,15 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         })),
         points: serializePoints(rawData.elements?.points || []),
         paths: serializePaths(rawData.elements?.paths || []),
-        locations: serializeLocations(rawData.elements?.locations || [])
+        locations: serializeLocations(rawData.elements?.locations || []),
+        blocks: (blocks.value || []).map((b) => ({
+          blockId: b.blockId,
+          name: b.name,
+          type: b.type,
+          members: JSON.stringify(b.members || []),
+          color: b.color,
+          properties: b.properties ? JSON.stringify(b.properties) : undefined
+        }))
       };
 
       // 保存到后端（语义数据）
@@ -1976,6 +2029,46 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     versionHistory.value = [];
   };
 
+  // ==================== Block Actions ====================
+
+  /**
+   * 添加 Block
+   */
+  const addBlock = (partial: Omit<MapBlock, 'id'>): MapBlock => {
+    const block: MapBlock = {
+      ...partial,
+      id: `block_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+    };
+    blocks.value = [...blocks.value, block];
+    isDirty.value = true;
+    return block;
+  };
+
+  /**
+   * 更新 Block（不可变替换）
+   */
+  const updateBlock = (id: string, updates: Partial<MapBlock>): void => {
+    blocks.value = blocks.value.map((b) =>
+      b.id === id ? { ...b, ...updates } : b
+    );
+    isDirty.value = true;
+  };
+
+  /**
+   * 删除 Block
+   */
+  const deleteBlock = (id: string): void => {
+    blocks.value = blocks.value.filter((b) => b.id !== id);
+    isDirty.value = true;
+  };
+
+  /**
+   * 获取包含指定元素（按 name）的所有 Blocks
+   */
+  const getBlocksForElement = (elementName: string): MapBlock[] => {
+    return blocks.value.filter((b) => b.members.includes(elementName));
+  };
+
   /**
    * 重置编辑器
    */
@@ -1988,6 +2081,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     points.value = [];
     paths.value = [];
     locations.value = [];
+    blocks.value = [];
     activeLayerId.value = null;
     clearSelection();
     commandManager.clear();
@@ -2030,6 +2124,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     points,
     paths,
     locations,
+    blocks,
     selection,
     selectedIds,
     selectedType,
@@ -2096,7 +2191,11 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     reset,
     setRasterBackground,
     clearRasterBackground,
-    initEditorState
+    initEditorState,
+    addBlock,
+    updateBlock,
+    deleteBlock,
+    getBlocksForElement
   };
 });
 
