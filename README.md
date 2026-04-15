@@ -5,12 +5,16 @@
 </p>
 
 <p align="center">
+  <a href="https://opensource.org/licenses/GPL-3.0">
+    <img src="https://img.shields.io/badge/License-GPLv3-429D53" alt="License: GPLv3" />
+  </a>
   <img src="https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vue.js&logoColor=white" alt="Vue 3" />
   <img src="https://img.shields.io/badge/TypeScript-5.8-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Vite-6.3-646CFF?logo=vite&logoColor=white" alt="Vite" />
   <img src="https://img.shields.io/badge/Element_Plus-2.9-409EFF?logo=element&logoColor=white" alt="Element Plus" />
-  <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License" />
 </p>
+
+> **开源协议**：OpenTCS Plus 采用 GPLv3 协议。如果您希望在闭源商业产品中使用，请联系我们获取商业授权。
 
 <p align="center">
   <a href="#在线体验">在线体验</a> ·
@@ -271,4 +275,4 @@ fix(vehicle): 修复车辆状态显示错误
 
 ## License
 
-[MIT](./LICENSE) © OpenTCS Plus Contributors
+[GPLv3](./LICENSE) © OpenTCS Plus Contributors
