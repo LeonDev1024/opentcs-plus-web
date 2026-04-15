@@ -3,6 +3,7 @@ import router, { constantRoutes, dynamicRoutes } from '@/router';
 import store from '@/store';
 import { getRouters } from '@/api/menu';
 import auth from '@/plugins/auth';
+import { useSettingsStore } from '@/store/modules/settings';
 import { RouteRecordRaw } from 'vue-router';
 import Layout from '@/layout/index.vue';
 import ParentView from '@/components/ParentView/index.vue';
@@ -60,7 +61,12 @@ export const usePermissionStore = defineStore('permission', () => {
         router.addRoute(route);
       });
       setRoutes(rewriteRoutes);
-      setSidebarRouters(constantRoutes.concat(sidebarRoutes));
+      const settingsStore = useSettingsStore();
+      if (settingsStore.topNav) {
+        setSidebarRouters([]);
+      } else {
+        setSidebarRouters(constantRoutes.concat(sidebarRoutes));
+      }
       setDefaultRoutes(sidebarRoutes);
       setTopbarRoutes(defaultRoutes);
       // 路由name重复检查

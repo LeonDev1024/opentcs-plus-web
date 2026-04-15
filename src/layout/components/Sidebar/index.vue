@@ -49,6 +49,10 @@ const activeMenu = computed(() => {
   return path;
 });
 
-const bgColor = computed(() => (sideTheme.value === 'theme-dark' ? variables.menuBackground : variables.menuLightBackground));
-const textColor = computed(() => (sideTheme.value === 'theme-dark' ? variables.menuColor : variables.menuLightColor));
+/**
+ * 约定：顶部导航深色、侧边栏浅色（与系统暗黑模式 html.dark 无关）
+ * 如果将来需要可配置，再把 settings 抽成开关即可。
+ */
+const bgColor = computed(() => (settingsStore.topNav ? variables.menuLightBackground : sideTheme.value === 'theme-dark' ? variables.menuBackground : variables.menuLightBackground));
+const textColor = computed(() => (settingsStore.topNav ? variables.menuLightColor : sideTheme.value === 'theme-dark' ? variables.menuColor : variables.menuLightColor));
 </script>

@@ -32,12 +32,14 @@ const settingsStore = useSettingsStore();
 const theme = computed(() => settingsStore.theme);
 const sidebar = computed(() => useAppStore().sidebar);
 const device = computed(() => useAppStore().device);
-const needTagsView = computed(() => settingsStore.tagsView);
+const route = useRoute();
+const isHomePage = computed(() => route.path === '/index' || route.path === '/');
+const needTagsView = computed(() => settingsStore.tagsView && !isHomePage.value);
 const fixedHeader = computed(() => settingsStore.fixedHeader);
 
 const classObj = computed(() => ({
-  hideSidebar: !sidebar.value.opened,
-  openSidebar: sidebar.value.opened,
+  hideSidebar: !sidebar.value.opened && !sidebar.value.hide,
+  openSidebar: sidebar.value.opened && !sidebar.value.hide,
   withoutAnimation: sidebar.value.withoutAnimation,
   mobile: device.value === 'mobile'
 }));
