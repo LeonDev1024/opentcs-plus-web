@@ -15,6 +15,10 @@
 </p>
 
 > **开源协议**：OpenTCS Plus 采用 GPLv3 协议。如果您希望在闭源商业产品中使用，请联系我们获取商业授权。
+>
+> <a href="https://github.com/sponsors/LeonDev1024" target="_blank">
+>   <img src="https://img.shields.io/badge/GitHub_Sponsors-支持我们-EE4D73?logo=github" alt="Sponsor" />
+> </a>
 
 <p align="center">
   <a href="#在线体验">在线体验</a> ·
