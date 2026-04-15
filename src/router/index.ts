@@ -60,12 +60,12 @@ export const constantRoutes: RouteRecordRaw[] = [
   {
     path: '',
     component: Layout,
-    redirect: '/index',
+    redirect: '/dashboard',
     children: [
       {
-        path: '/index',
+        path: '/dashboard',
         component: () => import('@/views/index.vue'),
-        name: 'Index',
+        name: 'Dashboard',
         meta: { title: '首页', icon: 'dashboard' }
       }
     ]

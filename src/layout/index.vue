@@ -33,7 +33,7 @@ const theme = computed(() => settingsStore.theme);
 const sidebar = computed(() => useAppStore().sidebar);
 const device = computed(() => useAppStore().device);
 const route = useRoute();
-const isHomePage = computed(() => route.path === '/index' || route.path === '/');
+const isHomePage = computed(() => route.path === '/dashboard' || route.path === '/');
 const needTagsView = computed(() => settingsStore.tagsView && !isHomePage.value);
 const fixedHeader = computed(() => settingsStore.fixedHeader);
 

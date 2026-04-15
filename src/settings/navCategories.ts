@@ -10,7 +10,7 @@ export type TopNavCategoryDef = {
 };
 
 export const TOP_NAV_CATEGORIES: TopNavCategoryDef[] = [
-  { id: 'home',      title: '首页',   icon: 'dashboard', pathPrefixes: ['/index'] },
+  { id: 'home',      title: '首页',   icon: 'dashboard', pathPrefixes: ['/dashboard'] },
   { id: 'deploy',    title: '部署管理', icon: 'build',     pathPrefixes: ['/deploy', '/map-editor'] },
   { id: 'ops',       title: '运维管理', icon: 'guide',     pathPrefixes: ['/ops', '/live'] },
   { id: 'analytics', title: '运营分析', icon: 'chart',     pathPrefixes: ['/analytics'] },
@@ -20,7 +20,7 @@ export const TOP_NAV_CATEGORIES: TopNavCategoryDef[] = [
 export function resolveNavCategory(path: string): TopNavCategoryId {
   const p = path || '/';
 
-  if (p === '/' || p.startsWith('/index')) return 'home';
+  if (p === '/' || p.startsWith('/dashboard')) return 'home';
   if (p.startsWith('/user/profile'))        return 'system';
 
   for (const cat of TOP_NAV_CATEGORIES) {

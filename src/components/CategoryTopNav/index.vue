@@ -62,7 +62,7 @@ function handleSelect(key: string) {
     tagsViewStore.delAllViews();
     permissionStore.setSidebarRouters([]);
     appStore.toggleSideBarHide(true);
-    router.push('/index');
+    router.push('/dashboard');
     return;
   }
   const backendRoots = permissionStore.getDefaultRoutes() as any[];

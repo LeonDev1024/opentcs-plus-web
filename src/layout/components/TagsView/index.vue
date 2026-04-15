@@ -81,7 +81,7 @@ const isAffix = (tag: RouteLocationNormalized) => {
 };
 const isFirstView = () => {
   try {
-    return selectedTag.value.fullPath === '/index' || selectedTag.value.fullPath === visitedViews.value[1].fullPath;
+    return selectedTag.value.fullPath === '/dashboard' || selectedTag.value.fullPath === visitedViews.value[1].fullPath;
   } catch (err) {
     return false;
   }

@@ -32,7 +32,7 @@ const visibleNumber = ref<number>(-1);
 // 当前激活菜单的 index
 const currentIndex = ref<string>();
 // 隐藏侧边栏路由
-const hideList = ['/index', '/user/profile'];
+const hideList = ['/dashboard', '/user/profile'];
 
 const appStore = useAppStore();
 const settingsStore = useSettingsStore();
@@ -85,7 +85,7 @@ const childrenMenus = computed(() => {
 // 默认激活的菜单
 const activeMenu = computed(() => {
   let path = route.path;
-  if (path === '/index') {
+  if (path === '/dashboard') {
     path = '/system/user';
   }
   let activePath = path;
