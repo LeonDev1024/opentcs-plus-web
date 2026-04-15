@@ -283,7 +283,7 @@ watch(
         cursor: pointer;
 
         &:hover {
-          background: var(--menuHover);
+          background: #e2e8f0;
         }
 
         .user-avatar {
