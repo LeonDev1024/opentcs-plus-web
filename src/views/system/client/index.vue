@@ -142,8 +142,8 @@
 </template>
 
 <script setup name="Client" lang="ts">
-import { listClient, getClient, delClient, addClient, updateClient, changeStatus } from '@/api/system/client';
-import { ClientVO, ClientQuery, ClientForm } from '@/api/system/client/types';
+import { listClient, getClient, delClient, addClient, updateClient, changeStatus } from '@/api/system/management/client';
+import { ClientVO, ClientQuery, ClientForm } from '@/api/system/management/client/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 const { sys_normal_disable } = toRefs<any>(proxy?.useDict('sys_normal_disable'));

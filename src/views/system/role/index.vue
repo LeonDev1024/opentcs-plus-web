@@ -192,10 +192,10 @@
 </template>
 
 <script setup name="Role" lang="ts">
-import { addRole, changeRoleStatus, dataScope, delRole, getRole, listRole, updateRole, deptTreeSelect } from '@/api/system/role';
-import { roleMenuTreeselect, treeselect as menuTreeselect } from '@/api/system/menu/index';
-import { RoleVO, RoleForm, RoleQuery, DeptTreeOption } from '@/api/system/role/types';
-import { MenuTreeOption, RoleMenuTree } from '@/api/system/menu/types';
+import { addRole, changeRoleStatus, dataScope, delRole, getRole, listRole, updateRole, deptTreeSelect } from '@/api/system/management/role';
+import { roleMenuTreeselect, treeselect as menuTreeselect } from '@/api/system/management/menu/index';
+import { RoleVO, RoleForm, RoleQuery, DeptTreeOption } from '@/api/system/management/role/types';
+import { MenuTreeOption, RoleMenuTree } from '@/api/system/management/menu/types';
 
 const router = useRouter();
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;

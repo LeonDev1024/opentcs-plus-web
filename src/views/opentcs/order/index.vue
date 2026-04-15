@@ -191,8 +191,8 @@
 
 <script setup name="Order" lang="ts">
 import { ElMessage } from 'element-plus';
-import { listOrder, getOrder, delOrder, addOrder, updateOrder, assignOrder, cancelOrder } from '@/api/opentcs/order';
-import { OrderVO, OrderQuery, OrderForm } from '@/api/opentcs/order/types';
+import { listOrder, getOrder, delOrder, addOrder, updateOrder, assignOrder, cancelOrder } from '@/api/ops/order';
+import { OrderVO, OrderQuery, OrderForm } from '@/api/ops/order/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 

@@ -56,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { authUnlock, authBinding } from '@/api/system/social/auth';
+import { authUnlock, authBinding } from '@/api/system/management/social/auth';
 import { propTypes } from '@/utils/propTypes';
 import { useUserStore } from '@/store/modules/user';
 

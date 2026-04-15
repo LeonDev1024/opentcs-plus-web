@@ -94,8 +94,8 @@ import {
   resolvePointBullseyeStyleReadonly,
   updateConnectedPointIds,
 } from "@/utils/mapEditor/pointStyle";
-import { getLocationTypeListForSelect } from "@/api/opentcs/map/location";
-import type { LocationVO } from "@/api/opentcs/map/location/types";
+import { getLocationTypeListForSelect } from "@/api/deploy/factory/location-type";
+import type { LocationVO } from "@/api/deploy/factory/location-type/types";
 
 // ==================== Props ====================
 interface Props {

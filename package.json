@@ -1,9 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/package",
-  "name": "ruoyi-vue-plus",
-  "version": "5.5.1-2.5.1",
-  "description": "RuoYi-Vue-Plus多租户管理系统",
-  "author": "LionLi",
+  "name": "opentcs-plus-web",
+  "version": "1.0.1",
+  "description": "OpenTCS-Plus 调度管理平台",
+  "author": "liuyichun",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -18,7 +18,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://gitee.com/JavaLionLi/plus-ui.git"
+    "url": "https://github.com/LeonDev1024/opentcs-plus-web.git"
   },
   "dependencies": {
     "@element-plus/icons-vue": "2.3.1",

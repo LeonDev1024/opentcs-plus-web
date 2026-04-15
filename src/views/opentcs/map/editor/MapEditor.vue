@@ -1077,8 +1077,8 @@ import type { MapPoint } from "@/types/mapEditor";
 import { DEFAULT_POINT_OUTER_RADIUS } from "@/utils/mapEditor/mapVisualTokens";
 import PathTypeIcon from "./components/icons/PathTypeIcon.vue";
 import SvgIcon from "@/components/SvgIcon/index.vue";
-import { exportMapFile, importMapFile, publishMap } from "@/api/opentcs/map";
-import { updateNavigationMap } from "@/api/opentcs/factory/map";
+import { exportMapFile, importMapFile, publishMap } from "@/api/deploy/map-editor";
+import { updateNavigationMap } from "@/api/deploy/factory/map";
 import {
   Document,
   Close,
@@ -1106,7 +1106,7 @@ import {
 } from "@/utils/mapEditor/rasterAlignment";
 import type { RasterBackground } from "@/types/mapEditor";
 import request from "@/utils/request";
-import { uploadOss } from "@/api/system/oss/upload";
+import { uploadOss } from "@/api/system/management/oss/upload";
 
 // Props
 const props = defineProps<{

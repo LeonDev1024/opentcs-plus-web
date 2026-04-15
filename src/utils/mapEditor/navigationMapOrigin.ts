@@ -1,4 +1,4 @@
-import type { NavigationMapVO } from "@/api/opentcs/factory/map/types";
+import type { NavigationMapVO } from "@/api/deploy/factory/map/types";
 
 export interface ParsedNavigationMapOrigin {
   originX: number;

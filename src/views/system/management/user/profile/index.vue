@@ -74,10 +74,10 @@ import UserInfo from './userInfo.vue';
 import ResetPwd from './resetPwd.vue';
 import ThirdParty from './thirdParty.vue';
 import OnlineDevice from './onlineDevice.vue';
-import { getAuthList } from '@/api/system/social/auth';
-import { getUserProfile } from '@/api/system/user';
-import { getOnline } from '@/api/monitor/online';
-import { UserVO } from '@/api/system/user/types';
+import { getAuthList } from '@/api/system/management/social/auth';
+import { getUserProfile } from '@/api/system/management/user';
+import { getOnline } from '@/api/system/monitor/online';
+import { UserVO } from '@/api/system/management/user/types';
 
 const activeTab = ref('userinfo');
 interface State {

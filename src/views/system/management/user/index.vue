@@ -289,14 +289,14 @@
 </template>
 
 <script setup name="User" lang="ts">
-import api from '@/api/system/user';
-import { UserForm, UserQuery, UserVO } from '@/api/system/user/types';
-import { DeptTreeVO, DeptVO } from '@/api/system/dept/types';
-import { RoleVO } from '@/api/system/role/types';
-import { PostVO } from '@/api/system/post/types';
+import api from '@/api/system/management/user';
+import { UserForm, UserQuery, UserVO } from '@/api/system/management/user/types';
+import { DeptTreeVO, DeptVO } from '@/api/system/management/dept/types';
+import { RoleVO } from '@/api/system/management/role/types';
+import { PostVO } from '@/api/system/management/post/types';
 import { globalHeaders } from '@/utils/request';
 import { to } from 'await-to-js';
-import { optionselect } from '@/api/system/post';
+import { optionselect } from '@/api/system/management/post';
 import { checkPermi } from '@/utils/permission';
 import { useUserStore } from '@/store/modules/user';
 

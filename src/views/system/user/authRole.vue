@@ -56,9 +56,9 @@
 </template>
 
 <script setup name="AuthRole" lang="ts">
-import { RoleVO } from '@/api/system/role/types';
-import { getAuthRole, updateAuthRole } from '@/api/system/user';
-import { UserForm } from '@/api/system/user/types';
+import { RoleVO } from '@/api/system/management/role/types';
+import { getAuthRole, updateAuthRole } from '@/api/system/management/user';
+import { UserForm } from '@/api/system/management/user/types';
 import { RouteLocationNormalized } from 'vue-router';
 import { parseTime } from '@/utils/ruoyi';
 

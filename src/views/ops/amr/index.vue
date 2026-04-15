@@ -176,8 +176,8 @@ import {
   moveVehicle,
   switchMap,
   switchMode
-} from '@/api/opentcs/ops/amr';
-import type { GoChargeRequest, MapSwitchRequest, ModeSwitchRequest, MoveRequest, OpsActionRecord, OpsAmrVehicle } from '@/api/opentcs/ops/amr/types';
+} from '@/api/ops/amr';
+import type { GoChargeRequest, MapSwitchRequest, ModeSwitchRequest, MoveRequest, OpsActionRecord, OpsAmrVehicle } from '@/api/ops/amr/types';
 
 const loading = ref(false);
 const vehicleList = ref<OpsAmrVehicle[]>([]);

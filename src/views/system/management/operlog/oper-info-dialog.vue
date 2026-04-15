@@ -53,7 +53,7 @@
 </template>
 
 <script setup lang="ts">
-import type { OperLogForm } from '@/api/monitor/operlog/types';
+import type { OperLogForm } from '@/api/system/monitor/operlog/types';
 import VueJsonPretty from 'vue-json-pretty';
 import 'vue-json-pretty/lib/styles.css';
 

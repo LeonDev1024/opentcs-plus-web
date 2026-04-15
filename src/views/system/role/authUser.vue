@@ -65,9 +65,9 @@
 </template>
 
 <script setup name="AuthUser" lang="ts">
-import { allocatedUserList, authUserCancel, authUserCancelAll } from '@/api/system/role';
-import { UserQuery } from '@/api/system/user/types';
-import { UserVO } from '@/api/system/user/types';
+import { allocatedUserList, authUserCancel, authUserCancelAll } from '@/api/system/management/role';
+import { UserQuery } from '@/api/system/management/user/types';
+import { UserVO } from '@/api/system/management/user/types';
 import SelectUser from './selectUser.vue';
 import { RouteLocationNormalized } from 'vue-router';
 

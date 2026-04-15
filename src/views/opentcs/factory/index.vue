@@ -107,8 +107,8 @@
 </template>
 
 <script setup lang="ts">
-import { listFactoryModel, getFactoryModel, addFactoryModel, updateFactoryModel, delFactoryModel } from '@/api/opentcs/factory/model';
-import type { FactoryModelVO, FactoryModelForm, FactoryModelQuery } from '@/api/opentcs/factory/model/types';
+import { listFactoryModel, getFactoryModel, addFactoryModel, updateFactoryModel, delFactoryModel } from '@/api/deploy/factory/model';
+import type { FactoryModelVO, FactoryModelForm, FactoryModelQuery } from '@/api/deploy/factory/model/types';
 import { ElMessageBox } from 'element-plus';
 import type { FormInstance } from 'element-plus';
 

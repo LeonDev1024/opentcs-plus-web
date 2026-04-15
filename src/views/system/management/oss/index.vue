@@ -132,9 +132,9 @@
 </template>
 
 <script setup name="Oss" lang="ts">
-import { listOss, delOss } from '@/api/system/oss';
+import { listOss, delOss } from '@/api/system/management/oss';
 import ImagePreview from '@/components/ImagePreview/index.vue';
-import { OssForm, OssQuery, OssVO } from '@/api/system/oss/types';
+import { OssForm, OssQuery, OssVO } from '@/api/system/management/oss/types';
 
 const router = useRouter();
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;

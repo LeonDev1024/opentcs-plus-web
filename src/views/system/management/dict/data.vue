@@ -127,10 +127,10 @@
 
 <script setup name="Data" lang="ts">
 import { useDictStore } from '@/store/modules/dict';
-import { optionselect as getDictOptionselect, getType } from '@/api/system/dict/type';
-import { listData, getData, delData, addData, updateData } from '@/api/system/dict/data';
-import { DictTypeVO } from '@/api/system/dict/type/types';
-import { DictDataForm, DictDataQuery, DictDataVO } from '@/api/system/dict/data/types';
+import { optionselect as getDictOptionselect, getType } from '@/api/system/management/dict/type';
+import { listData, getData, delData, addData, updateData } from '@/api/system/management/dict/data';
+import { DictTypeVO } from '@/api/system/management/dict/type/types';
+import { DictDataForm, DictDataQuery, DictDataVO } from '@/api/system/management/dict/data/types';
 import { RouteLocationNormalized } from 'vue-router';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;

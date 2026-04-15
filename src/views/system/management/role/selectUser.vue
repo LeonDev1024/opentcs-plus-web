@@ -44,9 +44,9 @@
 </template>
 
 <script setup name="SelectUser" lang="ts">
-import { authUserSelectAll, unallocatedUserList } from '@/api/system/role';
-import { UserVO } from '@/api/system/user/types';
-import { UserQuery } from '@/api/system/user/types';
+import { authUserSelectAll, unallocatedUserList } from '@/api/system/management/role';
+import { UserVO } from '@/api/system/management/user/types';
+import { UserQuery } from '@/api/system/management/user/types';
 
 const props = defineProps({
   roleId: {

@@ -8,8 +8,6 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    ApprovalButton: typeof import('./../components/Process/approvalButton.vue')['default']
-    ApprovalRecord: typeof import('./../components/Process/approvalRecord.vue')['default']
     Breadcrumb: typeof import('./../components/Breadcrumb/index.vue')['default']
     CategoryTopNav: typeof import('./../components/CategoryTopNav/index.vue')['default']
     DictTag: typeof import('./../components/DictTag/index.vue')['default']
@@ -69,8 +67,6 @@ declare module 'vue' {
     ElTreeSelect: typeof import('element-plus/es')['ElTreeSelect']
     ElUpload: typeof import('element-plus/es')['ElUpload']
     FileUpload: typeof import('./../components/FileUpload/index.vue')['default']
-    FlowChart: typeof import('./../components/Process/flowChart.vue')['default']
-    FlowChartImg: typeof import('./../components/Process/flowChartImg.vue')['default']
     GuideDialog: typeof import('./../components/GuideDialog/index.vue')['default']
     Hamburger: typeof import('./../components/Hamburger/index.vue')['default']
     IconifyIconSelect: typeof import('./../components/IconifyIconSelect/index.vue')['default']
@@ -86,10 +82,8 @@ declare module 'vue' {
     MapManagementCanvasAxes: typeof import('./../components/map/MapManagementCanvasAxes.vue')['default']
     MapManagementCanvasLayer: typeof import('./../components/map/MapManagementCanvasLayer.vue')['default']
     MapRenderer: typeof import('./../components/map/MapRenderer.vue')['default']
-    MessageType: typeof import('./../components/Process/MessageType.vue')['default']
     Pagination: typeof import('./../components/Pagination/index.vue')['default']
     ParentView: typeof import('./../components/ParentView/index.vue')['default']
-    ProcessMeddle: typeof import('./../components/Process/processMeddle.vue')['default']
     RightToolbar: typeof import('./../components/RightToolbar/index.vue')['default']
     RoleSelect: typeof import('./../components/RoleSelect/index.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
@@ -98,7 +92,6 @@ declare module 'vue' {
     RuoYiGit: typeof import('./../components/RuoYiGit/index.vue')['default']
     Screenfull: typeof import('./../components/Screenfull/index.vue')['default']
     SizeSelect: typeof import('./../components/SizeSelect/index.vue')['default']
-    SubmitVerify: typeof import('./../components/Process/submitVerify.vue')['default']
     SvgIcon: typeof import('./../components/SvgIcon/index.vue')['default']
     TopNav: typeof import('./../components/TopNav/index.vue')['default']
     UserAvatarInitial: typeof import('./../components/UserAvatarInitial/index.vue')['default']

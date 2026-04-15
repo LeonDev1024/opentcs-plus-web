@@ -152,7 +152,7 @@ import { ElMessage } from 'element-plus'
 import VehicleStatus from './components/VehicleStatus.vue'
 import OrderStatus from './components/OrderStatus.vue'
 import TrafficStatus from './components/TrafficStatus.vue'
-import { simulationApi } from '@/api/opentcs/simulation'
+import { simulationApi } from '@/api/ops/monitor'
 
 // 仿真状态
 const simulationStatus = ref('STOPPED')

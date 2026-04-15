@@ -106,8 +106,8 @@
 </template>
 
 <script setup name="Logininfor" lang="ts">
-import { list, delLoginInfo, cleanLoginInfo, unlockLoginInfo } from '@/api/monitor/loginInfo';
-import { LoginInfoQuery, LoginInfoVO } from '@/api/monitor/loginInfo/types';
+import { list, delLoginInfo, cleanLoginInfo, unlockLoginInfo } from '@/api/system/monitor/loginInfo';
+import { LoginInfoQuery, LoginInfoVO } from '@/api/system/monitor/loginInfo/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 const { sys_device_type } = toRefs<any>(proxy?.useDict('sys_device_type'));

@@ -59,7 +59,7 @@
 <script setup lang="ts">
 import 'vue-cropper/dist/index.css';
 import { VueCropper } from 'vue-cropper';
-import { uploadAvatar } from '@/api/system/user';
+import { uploadAvatar } from '@/api/system/management/user';
 import { useUserStore } from '@/store/modules/user';
 import UserAvatarInitial from '@/components/UserAvatarInitial/index.vue';
 import { UploadRawFile } from 'element-plus';

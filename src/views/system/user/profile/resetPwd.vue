@@ -18,8 +18,8 @@
 
 <script setup lang="ts">
 import type { FormInstance } from 'element-plus';
-import { updateUserPwd } from '@/api/system/user';
-import type { ResetPwdForm } from '@/api/system/user/types';
+import { updateUserPwd } from '@/api/system/management/user';
+import type { ResetPwdForm } from '@/api/system/management/user/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 const pwdRef = ref<FormInstance>();

@@ -233,10 +233,10 @@
 </template>
 
 <script setup name="Type" lang="ts">
-import { listType, getType, delType, addType, updateType } from '@/api/opentcs/vehicle/type';
-import { listBrandAll } from '@/api/opentcs/vehicle/brand';
-import { TypeVO, TypeQuery, TypeForm } from '@/api/opentcs/vehicle/type/types';
-import { BrandVO } from '@/api/opentcs/vehicle/brand/types';
+import { listType, getType, delType, addType, updateType } from '@/api/deploy/device/type';
+import { listBrandAll } from '@/api/deploy/device/brand';
+import { TypeVO, TypeQuery, TypeForm } from '@/api/deploy/device/type/types';
+import { BrandVO } from '@/api/deploy/device/brand/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 

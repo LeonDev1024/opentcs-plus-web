@@ -120,8 +120,8 @@
 </template>
 
 <script setup name="Location" lang="ts">
-import { listLocation, getLocation, delLocation, addLocation, updateLocation } from '@/api/opentcs/map/location';
-import { LocationVO, LocationQuery, LocationForm } from '@/api/opentcs/map/location/types';
+import { listLocation, getLocation, delLocation, addLocation, updateLocation } from '@/api/deploy/factory/location-type';
+import { LocationVO, LocationQuery, LocationForm } from '@/api/deploy/factory/location-type/types';
 import LocationIconSelect from '@/components/LocationIconSelect/index.vue';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;

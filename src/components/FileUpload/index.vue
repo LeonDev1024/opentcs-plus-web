@@ -46,7 +46,7 @@
 
 <script setup lang="ts">
 import { propTypes } from '@/utils/propTypes';
-import { delOss, listByIds } from '@/api/system/oss';
+import { delOss, listByIds } from '@/api/system/management/oss';
 import { globalHeaders } from '@/utils/request';
 
 const props = defineProps({

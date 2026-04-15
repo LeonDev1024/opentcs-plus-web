@@ -27,7 +27,7 @@
 </template>
 
 <script setup name="Online" lang="ts">
-import { delOnline } from '@/api/monitor/online';
+import { delOnline } from '@/api/system/monitor/online';
 import { propTypes } from '@/utils/propTypes';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;

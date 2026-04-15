@@ -548,22 +548,22 @@ import {
   addNavigationMap,
   updateNavigationMap,
   delNavigationMap,
-} from "@/api/opentcs/factory/map";
+} from "@/api/deploy/factory/map";
 import type {
   NavigationMapVO,
   NavigationMapForm,
   NavigationMapQuery,
-} from "@/api/opentcs/factory/map/types";
-import { listFactoryModel } from "@/api/opentcs/factory/model";
-import type { FactoryModelVO } from "@/api/opentcs/factory/model/types";
-import { listType } from "@/api/opentcs/vehicle/type";
-import type { TypeVO } from "@/api/opentcs/vehicle/type/types";
-import { loadMapEditorData } from "@/api/opentcs/map";
+} from "@/api/deploy/factory/map/types";
+import { listFactoryModel } from "@/api/deploy/factory/model";
+import type { FactoryModelVO } from "@/api/deploy/factory/model/types";
+import { listType } from "@/api/deploy/device/type";
+import type { TypeVO } from "@/api/deploy/device/type/types";
+import { loadMapEditorData } from "@/api/deploy/map-editor";
 import type {
   MapEditorResponse,
   MapEditorMapInfoApi,
   VisualLayoutData,
-} from "@/api/opentcs/map/types";
+} from "@/api/deploy/map-editor/types";
 import MapRenderer from "@/components/map/MapRenderer.vue";
 import MapManagementCanvasAxes from "@/components/map/MapManagementCanvasAxes.vue";
 import type { MapLayerVisibility } from "@/types/mapEditor";
