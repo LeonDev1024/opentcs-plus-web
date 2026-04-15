@@ -936,7 +936,7 @@ function getHandleScreenStyle(m: NavigationMapVO) {
   const ox = draft?.originX ?? r.originX;
   const oy = draft?.originY ?? r.originY;
   return {
-    left:
+left:
       STAGE2_SIDEBAR_PX + viewOffset.x + ox * SCALE * canvasScale.value + "px",
     bottom: viewOffset.y + oy * SCALE * canvasScale.value + "px",
   };
