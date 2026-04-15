@@ -105,3 +105,4 @@ doc/
 dist/
 dist-*/
 dist/**
+maps/
