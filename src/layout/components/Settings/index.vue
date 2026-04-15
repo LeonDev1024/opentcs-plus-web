@@ -45,12 +45,8 @@
 
     <h3 class="drawer-title">系统布局配置</h3>
 
-    <div class="drawer-item">
-      <span>开启 TopNav</span>
-      <span class="comp-style">
-        <el-switch v-model="settingsStore.topNav" class="drawer-switch" @change="topNavChange" />
-      </span>
-    </div>
+    <!-- TopNav 固定启用 -->
+    <input type="hidden" name="topNav" :value="true" />
 
     <div class="drawer-item">
       <span>开启 Tags-Views</span>
