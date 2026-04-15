@@ -156,8 +156,8 @@
 </template>
 
 <script setup name="Brand" lang="ts">
-import { listBrand, getBrand, delBrand, addBrand, updateBrand, changeBrandStatus } from '@/api/opentcs/vehicle/brand';
-import { BrandVO, BrandForm, BrandQuery } from '@/api/opentcs/vehicle/brand/types';
+import { listBrand, getBrand, delBrand, addBrand, updateBrand, changeBrandStatus } from '@/api/deploy/device/brand';
+import { BrandVO, BrandForm, BrandQuery } from '@/api/deploy/device/brand/types';
 import { Picture } from '@element-plus/icons-vue';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;

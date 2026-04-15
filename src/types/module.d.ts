@@ -6,7 +6,7 @@ import cache from '@/plugins/cache';
 import animate from '@/animate';
 import { useDict } from '@/utils/dict';
 import { handleTree, addDateRange, selectDictLabel, selectDictLabels, parseTime } from '@/utils/ruoyi';
-import { getConfigKey, updateConfigByKey } from '@/api/system/config';
+import { getConfigKey, updateConfigByKey } from '@/api/system/management/config';
 import { download as rd } from '@/utils/request';
 import type { LanguageType } from '@/lang';
 

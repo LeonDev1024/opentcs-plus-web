@@ -124,9 +124,9 @@
 </template>
 
 <script setup name="Cache" lang="ts">
-import { getCache } from '@/api/monitor/cache';
+import { getCache } from '@/api/system/monitor/cache';
 import * as echarts from 'echarts';
-import { CacheVO } from '@/api/monitor/cache/types';
+import { CacheVO } from '@/api/system/monitor/cache/types';
 
 const cache = ref<Partial<CacheVO>>({});
 const commandstats = ref();

@@ -118,9 +118,9 @@
 </template>
 
 <script setup name="Vehicle" lang="ts">
-import { listVehicle, getVehicle, delVehicle, addVehicle, updateVehicle } from '@/api/opentcs/vehicle';
-import { listType } from '@/api/opentcs/vehicle/type';
-import { VehicleVO, VehicleQuery, VehicleForm } from '@/api/opentcs/vehicle/types';
+import { listVehicle, getVehicle, delVehicle, addVehicle, updateVehicle } from '@/api/deploy/device';
+import { listType } from '@/api/deploy/device/type';
+import { VehicleVO, VehicleQuery, VehicleForm } from '@/api/deploy/device/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 

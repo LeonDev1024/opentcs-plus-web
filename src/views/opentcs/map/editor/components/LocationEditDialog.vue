@@ -147,7 +147,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import type { MapLocation } from '@/types/mapEditor';
-import type { LocationVO } from '@/api/opentcs/map/location/types';
+import type { LocationVO } from '@/api/deploy/factory/location-type/types';
 
 const mapEditorStore = useMapEditorStore();
 

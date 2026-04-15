@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import type { LocationVO } from '@/api/opentcs/map/location/types'
+import type { LocationVO } from '@/api/deploy/factory/location-type/types'
 import type { useMapEditorStore } from '@/store/modules/mapEditor'
 
 /**

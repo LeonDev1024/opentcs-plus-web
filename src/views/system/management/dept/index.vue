@@ -142,10 +142,10 @@
 </template>
 
 <script setup name="Dept" lang="ts">
-import { listDept, getDept, delDept, addDept, updateDept, listDeptExcludeChild } from '@/api/system/dept';
-import { DeptForm, DeptQuery, DeptVO } from '@/api/system/dept/types';
-import { UserVO } from '@/api/system/user/types';
-import { listUserByDeptId } from '@/api/system/user';
+import { listDept, getDept, delDept, addDept, updateDept, listDeptExcludeChild } from '@/api/system/management/dept';
+import { DeptForm, DeptQuery, DeptVO } from '@/api/system/management/dept/types';
+import { UserVO } from '@/api/system/management/user/types';
+import { listUserByDeptId } from '@/api/system/management/user';
 
 interface DeptOptionsType {
   deptId: number | string;

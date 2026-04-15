@@ -1,4 +1,4 @@
-import { getDicts } from '@/api/system/dict/data';
+import { getDicts } from '@/api/system/management/dict/data';
 import { useDictStore } from '@/store/modules/dict';
 /**
  * 获取字典数据

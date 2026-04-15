@@ -476,7 +476,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
-import type { LocationVO } from '@/api/opentcs/map/location/types';
+import type { LocationVO } from '@/api/deploy/factory/location-type/types';
 import { DEFAULT_POINT_OUTER_RADIUS } from '@/utils/mapEditor/mapVisualTokens';
 
 const mapEditorStore = useMapEditorStore();

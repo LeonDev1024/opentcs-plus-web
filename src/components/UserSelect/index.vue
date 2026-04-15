@@ -98,9 +98,9 @@
 </template>
 
 <script setup lang="ts">
-import api from '@/api/system/user';
-import { UserQuery, UserVO } from '@/api/system/user/types';
-import { DeptTreeVO, DeptVO } from '@/api/system/dept/types';
+import api from '@/api/system/management/user';
+import { UserQuery, UserVO } from '@/api/system/management/user/types';
+import { DeptTreeVO, DeptVO } from '@/api/system/management/dept/types';
 import { VxeTableInstance } from 'vxe-table';
 import useDialog from '@/hooks/useDialog';
 

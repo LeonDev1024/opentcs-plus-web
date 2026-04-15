@@ -331,7 +331,7 @@ import {
   POINT_TYPE_RADIUS,
 } from "@/utils/mapEditor/mapVisualTokens";
 import { POINT_TYPE, getPointVisualMeta } from "@/utils/mapEditor/pointStyle";
-import type { LocationVO } from "@/api/opentcs/map/location/types";
+import type { LocationVO } from "@/api/deploy/factory/location-type/types";
 import LocationEditDialog from "./LocationEditDialog.vue";
 import {
   useLocationTypes,

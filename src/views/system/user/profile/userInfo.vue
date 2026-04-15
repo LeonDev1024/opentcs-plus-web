@@ -23,7 +23,7 @@
 </template>
 
 <script setup lang="ts">
-import { updateUserProfile } from '@/api/system/user';
+import { updateUserProfile } from '@/api/system/management/user';
 import { propTypes } from '@/utils/propTypes';
 
 const props = defineProps({

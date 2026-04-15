@@ -19,10 +19,10 @@ import type {
 } from '@/types/mapEditor';
 import { ToolMode as ToolModeEnum, LayerType } from '@/types/mapEditor';
 import { CommandManager } from '@/utils/mapEditor/command';
-import { loadMapEditorData, saveMapEditorData, saveMap as saveMapApi } from '@/api/opentcs/map';
-import { getLocationTypeListForSelect } from '@/api/opentcs/map/location';
-import type { MapEditorResponse, VisualLayoutData } from '@/api/opentcs/map/types';
-import type { LocationVO } from '@/api/opentcs/map/location/types';
+import { loadMapEditorData, saveMapEditorData, saveMap as saveMapApi } from '@/api/deploy/map-editor';
+import { getLocationTypeListForSelect } from '@/api/deploy/factory/location-type';
+import type { MapEditorResponse, VisualLayoutData } from '@/api/deploy/map-editor/types';
+import type { LocationVO } from '@/api/deploy/factory/location-type/types';
 import { parseMapOriginFields } from '@/utils/mapEditor/navigationMapOrigin';
 
 export const useMapEditorStore = defineStore('mapEditor', () => {

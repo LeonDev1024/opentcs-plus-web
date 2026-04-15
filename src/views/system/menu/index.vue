@@ -285,8 +285,8 @@
 </template>
 
 <script setup name="Menu" lang="ts">
-import { addMenu, cascadeDelMenu, delMenu, getMenu, listMenu, updateMenu } from '@/api/system/menu';
-import { MenuForm, MenuQuery, MenuVO } from '@/api/system/menu/types';
+import { addMenu, cascadeDelMenu, delMenu, getMenu, listMenu, updateMenu } from '@/api/system/management/menu';
+import { MenuForm, MenuQuery, MenuVO } from '@/api/system/management/menu/types';
 import { MenuTypeEnum } from '@/enums/MenuTypeEnum';
 
 interface MenuOptionsType {

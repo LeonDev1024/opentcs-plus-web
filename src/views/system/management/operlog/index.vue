@@ -129,8 +129,8 @@
 </template>
 
 <script setup name="Operlog" lang="ts">
-import { list, delOperlog, cleanOperlog } from '@/api/monitor/operlog';
-import { OperLogForm, OperLogQuery, OperLogVO } from '@/api/monitor/operlog/types';
+import { list, delOperlog, cleanOperlog } from '@/api/system/monitor/operlog';
+import { OperLogForm, OperLogQuery, OperLogVO } from '@/api/system/monitor/operlog/types';
 import OperInfoDialog from './oper-info-dialog.vue';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;

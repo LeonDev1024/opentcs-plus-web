@@ -170,9 +170,9 @@
 </template>
 
 <script setup name="Post" lang="ts">
-import { listPost, addPost, delPost, getPost, updatePost, deptTreeSelect } from '@/api/system/post';
-import { PostForm, PostQuery, PostVO } from '@/api/system/post/types';
-import { DeptTreeVO, DeptVO } from '@/api/system/dept/types';
+import { listPost, addPost, delPost, getPost, updatePost, deptTreeSelect } from '@/api/system/management/post';
+import { PostForm, PostQuery, PostVO } from '@/api/system/management/post/types';
+import { DeptTreeVO, DeptVO } from '@/api/system/management/dept/types';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 const { sys_normal_disable } = toRefs<any>(proxy?.useDict('sys_normal_disable'));
