@@ -107,7 +107,7 @@ const titleSub = import.meta.env.VITE_APP_LOGO_TITLE_SUB ?? '调度管理平台'
       font-weight: 800 !important;
       letter-spacing: 0.5px !important;
       white-space: nowrap !important;
-      color: var(--text-primary) !important;
+      color: #ffffff !important;
       font-family:
         Avenir,
         Helvetica Neue,
@@ -120,7 +120,7 @@ const titleSub = import.meta.env.VITE_APP_LOGO_TITLE_SUB ?? '调度管理平台'
       font-weight: 500 !important;
       letter-spacing: 0.5px !important;
       white-space: nowrap !important;
-      color: var(--text-secondary) !important;
+      color: #ffffff !important;
       opacity: 0.9 !important;
       font-family:
         Avenir,

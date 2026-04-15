@@ -1,13 +1,13 @@
 <template>
-  <div class="navbar">
+  <div class="navbar" :class="{ 'navbar--dark-top': settingsStore.topNav }">
     <div class="navbar-left">
       <!-- Logo -->
       <logo :collapse="false" />
-      <!-- 折叠按钮 -->
-      <hamburger id="hamburger-container" :is-active="appStore.sidebar.opened" class="hamburger-container" @toggle-click="toggleSideBar" />
+      <!-- 折叠按钮（侧边栏隐藏时不显示） -->
+      <hamburger v-if="!appStore.sidebar.hide" id="hamburger-container" :is-active="appStore.sidebar.opened" class="hamburger-container" @toggle-click="toggleSideBar" />
       <!-- 路由标题 -->
       <breadcrumb v-if="!settingsStore.topNav" id="breadcrumb-container" class="breadcrumb-container" />
-      <top-nav v-if="settingsStore.topNav" id="topmenu-container" class="topmenu-container" />
+      <category-top-nav v-if="settingsStore.topNav" id="topmenu-container" class="topmenu-container" />
     </div>
 
     <div class="right-menu">
@@ -70,6 +70,7 @@
 
 <script setup lang="ts">
 import SearchMenu from './TopBar/search.vue';
+import CategoryTopNav from '@/components/CategoryTopNav/index.vue';
 import UserAvatarInitial from '@/components/UserAvatarInitial/index.vue';
 import Logo from './Sidebar/Logo.vue';
 import { useAppStore } from '@/store/modules/app';
@@ -198,6 +199,11 @@ watch(
 
     &:active {
       transform: scale(0.95);
+    }
+
+    :deep(.hamburger) {
+      fill: var(--text-secondary);
+      transition: fill var(--duration-200) var(--ease-in-out);
     }
   }
 
@@ -369,6 +375,46 @@ watch(
   
   .el-input__inner {
     font-weight: var(--font-weight-medium);
+  }
+}
+
+/* 顶部导航：深色；侧边栏由 Sidebar 组件单独控制为浅色 */
+.navbar--dark-top {
+  background: var(--menuBg);
+  border-bottom-color: rgba(203, 213, 225, 0.16);
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.45);
+
+  :deep(.sidebar-title-main) {
+    color: #ffffff !important;
+  }
+  :deep(.sidebar-title-sub) {
+    color: #ffffff !important;
+  }
+
+  :deep(.el-breadcrumb__inner),
+  :deep(.el-breadcrumb__separator) {
+    color: rgba(226, 232, 240, 0.75) !important;
+  }
+
+  .hamburger-container:hover {
+    background: var(--menuHover);
+  }
+
+  .hamburger-container {
+    :deep(.hamburger) {
+      fill: rgba(241, 245, 249, 0.9);
+    }
+  }
+
+  .right-menu {
+    .right-menu-item {
+      color: rgba(226, 232, 240, 0.78);
+
+      &.hover-effect:hover {
+        background: var(--menuHover);
+        color: #ffffff;
+      }
+    }
   }
 }
 </style>

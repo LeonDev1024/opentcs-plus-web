@@ -43,6 +43,10 @@ export const useAppStore = defineStore('app', () => {
     sidebar.opened = false;
     sidebar.withoutAnimation = withoutAnimation;
   };
+  const openSideBar = (): void => {
+    sidebarStatus.value = '1';
+    sidebar.opened = true;
+  };
   const toggleDevice = (d: string): void => {
     device.value = d;
   };
@@ -66,6 +70,7 @@ export const useAppStore = defineStore('app', () => {
     changeLanguage,
     toggleSideBar,
     closeSideBar,
+    openSideBar,
     toggleDevice,
     setSize,
     toggleSideBarHide

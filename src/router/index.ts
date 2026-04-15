@@ -47,7 +47,6 @@ export const constantRoutes: RouteRecordRaw[] = [
     component: () => import('@/views/login.vue'),
     hidden: true
   },
-
   {
     path: '/:pathMatch(.*)*',
     component: () => import('@/views/error/404.vue'),
@@ -67,7 +66,20 @@ export const constantRoutes: RouteRecordRaw[] = [
         path: '/index',
         component: () => import('@/views/index.vue'),
         name: 'Index',
-        meta: { title: '首页', icon: 'dashboard', affix: true }
+        meta: { title: '首页', icon: 'dashboard' }
+      }
+    ]
+  },
+  {
+    path: '/live',
+    component: Layout,
+    hidden: true,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/ops/monitor/live/index.vue'),
+        name: 'OpsLiveOverview',
+        meta: { title: '实时监控', icon: 'monitor', noCache: true }
       }
     ]
   },
@@ -86,41 +98,15 @@ export const constantRoutes: RouteRecordRaw[] = [
     ]
   },
   {
-    path: '/opentcs/map',
+    path: '/map-editor',
     component: Layout,
     hidden: true,
     children: [
       {
-        path: 'mapeditor',
-        component: () => import('@/views/opentcs/map/editor/MapEditorTabs.vue'),
+        path: '',
+        component: () => import('@/views/deploy/map-editor/MapEditorTabs.vue'),
         name: 'MapEditor',
         meta: { title: '地图编辑器', icon: 'map', noCache: true }
-      }
-    ]
-  },
-  {
-    path: '/opentcs/map/location',
-    component: Layout,
-    hidden: true,
-    children: [
-      {
-        path: '',
-        component: () => import('@/views/opentcs/map/location/index.vue'),
-        name: 'Location',
-        meta: { title: '位置类型管理', icon: 'location' }
-      }
-    ]
-  },
-  {
-    path: '/opentcs/simulation',
-    component: Layout,
-    hidden: true,
-    children: [
-      {
-        path: '',
-        component: () => import('@/views/opentcs/simulation/index.vue'),
-        name: 'Simulation',
-        meta: { title: '仿真模块', icon: 'model' }
       }
     ]
   }

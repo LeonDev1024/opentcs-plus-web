@@ -296,26 +296,6 @@
             </div>
           </div>
 
-          <div class="stage2-actions" v-if="!isEditingOrigin">
-            <el-button
-              type="primary"
-              icon="Plus"
-              :disabled="!selectedFactoryId"
-              @click="handleAdd"
-            >
-              新建地图
-            </el-button>
-            <el-button
-              type="primary"
-              plain
-              icon="EditPen"
-              :disabled="!activeMap"
-              @click="activeMap && handleEdit(activeMap)"
-            >
-              地图编辑
-            </el-button>
-          </div>
-
           <!-- 原点编辑模式：右上角显示选中地图的坐标编辑面板 -->
           <div
             v-if="isEditingOrigin && originEditingMapId"
@@ -415,6 +395,36 @@
               <span class="muted">请先选择工厂</span>
             </div>
           </div>
+        </div>
+
+        <!-- 放在 stage2 层、canvas 外，避免预览层叠遮挡导致按钮不可见 -->
+        <div class="stage2-actions" v-if="!isEditingOrigin">
+          <el-button
+            type="primary"
+            icon="Plus"
+            :disabled="!selectedFactoryId"
+            @click="handleAdd"
+          >
+            新建地图
+          </el-button>
+          <el-button
+            type="primary"
+            plain
+            icon="EditPen"
+            :disabled="!activeMap"
+            @click="activeMap && handleEdit(activeMap)"
+          >
+            地图编辑
+          </el-button>
+          <el-button
+            type="danger"
+            plain
+            icon="Delete"
+            :disabled="!activeMap"
+            @click="activeMap && handleDelete(activeMap)"
+          >
+            删除地图
+          </el-button>
         </div>
       </div>
     </div>
@@ -741,6 +751,8 @@ const selectedFactoryId = ref<number | undefined>(undefined);
 const selectedMapId = ref<string>("");
 
 // ═══════ 画布视图状态（像素坐标系，参照 Konva 编辑器） ════════════════════════
+/** 与样式 `.stage2-left` 宽度一致：内容区偏移、滚轮锚点、原点手柄定位 */
+const STAGE2_SIDEBAR_PX = 196;
 // viewOffset: 工厂原点 O(0,0) 在画布内容区的屏幕像素位置（左下角参考系）
 const canvasRef = ref<HTMLElement | null>(null);
 const viewOffset = reactive({ x: 150, y: 150 });
@@ -753,7 +765,7 @@ function getCanvasRect() {
   const el = canvasRef.value;
   if (!el) return { w: 800, h: 600 };
   const rect = el.getBoundingClientRect();
-  return { w: rect.width - 170, h: rect.height };
+  return { w: rect.width - STAGE2_SIDEBAR_PX, h: rect.height };
 }
 
 /**
@@ -813,7 +825,7 @@ function handleCanvasWheel(e: WheelEvent) {
   const el = canvasRef.value;
   if (!el) return;
   const rect = el.getBoundingClientRect();
-  const pointerX = e.clientX - rect.left - 170;
+  const pointerX = e.clientX - rect.left - STAGE2_SIDEBAR_PX;
   const pointerY = rect.bottom - e.clientY;
 
   const oldScale = canvasScale.value;
@@ -924,7 +936,8 @@ function getHandleScreenStyle(m: NavigationMapVO) {
   const ox = draft?.originX ?? r.originX;
   const oy = draft?.originY ?? r.originY;
   return {
-    left: 170 + viewOffset.x + ox * SCALE * canvasScale.value + "px",
+left:
+      STAGE2_SIDEBAR_PX + viewOffset.x + ox * SCALE * canvasScale.value + "px",
     bottom: viewOffset.y + oy * SCALE * canvasScale.value + "px",
   };
 }
@@ -2668,7 +2681,7 @@ onBeforeUnmount(() => {
 .stage2-canvas {
   position: absolute;
   inset: 0;
-  padding-left: 170px;
+  padding-left: 196px;
   background-image:
     linear-gradient(#eef0f4 1px, transparent 1px),
     linear-gradient(90deg, #eef0f4 1px, transparent 1px);
@@ -2684,7 +2697,7 @@ onBeforeUnmount(() => {
 // 地图层：承载所有地图内容，通过 CSS transform 实现平移+缩放
 .canvas-map-layer {
   position: absolute;
-  left: 170px;
+  left: 196px;
   top: 0;
   width: 0;
   height: 0;
@@ -2724,7 +2737,7 @@ onBeforeUnmount(() => {
 .canvas-empty {
   position: absolute;
   inset: 0;
-  left: 170px;
+  left: 196px;
   display: grid;
   place-items: center;
 }
@@ -2815,7 +2828,7 @@ onBeforeUnmount(() => {
 
 .canvas-footer {
   position: absolute;
-  left: 184px;
+  left: 210px;
   bottom: 10px;
   display: flex;
   align-items: center;
@@ -2947,9 +2960,13 @@ onBeforeUnmount(() => {
   top: 18px;
   right: 18px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  z-index: 10;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: min(420px, calc(100% - 200px));
+  z-index: 30;
+  pointer-events: auto;
 }
 
 .stage2-left {
@@ -2957,7 +2974,7 @@ onBeforeUnmount(() => {
   top: 0;
   left: 0;
   bottom: 0;
-  width: 170px;
+  width: 196px;
   background: rgba(255, 255, 255, 0.92);
   border-right: 1px solid #e6e8ee;
   z-index: 2;
@@ -2986,10 +3003,14 @@ onBeforeUnmount(() => {
   gap: 6px;
   border: 1px solid transparent;
   border-radius: 8px;
-  padding: 8px 8px;
+  padding: 6px 6px 6px 8px;
+  margin: 0;
   background: transparent;
-  cursor: pointer;
   color: #2b2f36;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
   transition:
     background 0.15s ease,
     border-color 0.15s ease;
@@ -3067,6 +3088,8 @@ onBeforeUnmount(() => {
 }
 
 .scene-name {
+  flex: 1;
+  min-width: 0;
   font-size: 12px;
   font-weight: 600;
   overflow: hidden;
