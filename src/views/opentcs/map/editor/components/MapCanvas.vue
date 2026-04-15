@@ -33,6 +33,7 @@
           <v-line
             :config="getPathConfig(path)"
             @click="handlePathClick(path, $event)"
+            @contextmenu.prevent="handlePathContextMenu(path, $event)"
           />
         </template>
         <!-- 连线预览：放在路径层、点位层之下，避免盖住点标签；勿用粗虚线+圆端帽（Konva 会叠成「圆斑扇贝纹」） -->
@@ -52,6 +53,7 @@
               :key="`${path.id}-arrow-${ai}`"
               :config="arrowCfg"
               @click="handlePathClick(path, $event)"
+              @contextmenu.prevent="handlePathContextMenu(path, $event)"
             />
           </template>
         </template>
@@ -390,6 +392,7 @@ const props = withDefaults(
 // 定义事件
 const emit = defineEmits<{
   "point-double-click": [point: MapPoint];
+  "path-context-menu": [path: MapPath, x: number, y: number];
 }>();
 
 // 获取自动切换工具的状态（默认不自动切换）
@@ -960,10 +963,10 @@ const {
 } = useCanvasAxis(mapEditorStore)
 
 const {
-  containerSize, canvasState, gridSize, gridColor, snapEnabled,
+  containerSize, canvasState, gridSize, gridColor,
   stageConfig, stageAreaRectConfig, rasterBackgroundConfig,
   gridLines, viewportBounds, visiblePoints, visiblePaths, visibleLocations,
-  setGridSize, setGridColor, setSnapEnabled, tryApplyViewportOriginBottomLeft,
+  setGridSize, setGridColor, tryApplyViewportOriginBottomLeft,
 } = useCanvasViewport(mapEditorStore, containerRef, rasterLayerRef)
 
 /** 画布漫游：与路径预览相同，Stage 上 @mousemove 常收不到，必须用 window 才能保证平移 */
@@ -2506,6 +2509,17 @@ const handlePathClick = (path: MapPath, e: any) => {
   mapEditorStore.selectElement(path.id, "path", multiSelect, shiftSelect);
 };
 
+const handlePathContextMenu = (path: MapPath, e: any) => {
+  e.cancelBubble = true;
+  if (e.evt) e.evt.preventDefault();
+  // 选中路径
+  mapEditorStore.selectElement(path.id, "path", false);
+  // 获取鼠标在页面中的位置，传给父组件显示菜单
+  const clientX = e.evt?.clientX ?? 0;
+  const clientY = e.evt?.clientY ?? 0;
+  emit("path-context-menu", path, clientX, clientY);
+};
+
 // 位置点击
 const handleLocationClick = (location: MapLocation, e: any) => {
   e.cancelBubble = true;
@@ -2987,7 +3001,6 @@ watch(currentTool, (tool) => {
 defineExpose({
   setGridSize,
   setGridColor,
-  setSnapEnabled,
   gridSize,
   getMousePosition: () => mousePosition.value,
   exportAsImage,

@@ -63,6 +63,9 @@ export interface MapPoint {
   // 锁定状态
   locked?: boolean;
 
+  // 调度属性（对应 openTCS PointModel）
+  vehicleOrientationAngle?: number; // 车辆停靠朝向角度（度），NaN 表示任意方向
+
   // 编辑器扩展属性
   editorProps: {
     radius: number; // 显示半径
@@ -107,6 +110,10 @@ export interface MapPath {
 
   // 锁定状态
   locked?: boolean;
+
+  // 调度属性（对应 openTCS PathModel）
+  maxVelocity?: number;        // 正向最大速度（mm/s），0 表示使用车辆默认值
+  maxReverseVelocity?: number; // 反向最大速度（mm/s），0 表示使用车辆默认值
 
   // 路径几何数据
   geometry: {

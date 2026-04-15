@@ -41,7 +41,7 @@
           </el-tooltip>
         </el-button-group>
         <el-divider direction="vertical" class="toolbar-cluster-divider" />
-        <!-- 地图元素：绘制点、绘制位置、路网连线、虚线链接、规则区域 -->
+        <!-- 地图元素：绘制点、绘制位置、直线/直角/曲线路径、虚线链接 -->
         <el-button-group class="creation-tool-group">
           <el-tooltip
             content="绘制导航点"
@@ -81,73 +81,85 @@
               </span>
             </el-button>
           </el-tooltip>
-          <el-tooltip
-            content="绘制路径"
-            :show-after="50"
-            placement="bottom"
-          >
-            <el-dropdown
-              trigger="click"
-              @command="handlePathTypeCommand"
-              popper-class="path-type-dropdown-menu"
+          <el-tooltip content="直线路径" :show-after="50" placement="bottom">
+            <el-button
+              class="map-toolbar-btn"
+              :type="
+                currentTool === 'path' &&
+                currentPathConnectionType === 'direct'
+                  ? 'primary'
+                  : 'default'
+              "
+              size="small"
+              @click="handlePathToolClick('direct')"
             >
-              <el-button
-                class="map-toolbar-btn map-toolbar-btn--path-dropdown"
-                :type="currentTool === 'path' ? 'primary' : 'default'"
-                size="small"
-                @click="setTool(ToolMode.PATH)"
-              >
-                <span class="map-toolbar-btn__inner">
-                  <span class="map-toolbar-btn__icon">
-                    <PathTypeIcon
-                      :type="currentPathConnectionType"
-                      :active="currentTool === 'path'"
-                    />
-                  </span>
-                  <span class="map-toolbar-btn__label">路径</span>
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <PathTypeIcon
+                    type="direct"
+                    :active="
+                      currentTool === 'path' &&
+                      currentPathConnectionType === 'direct'
+                    "
+                  />
                 </span>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    command="direct"
-                    class="path-type-dropdown-item"
-                  >
-                    <span class="path-type-menu-item">
-                      <span class="path-type-menu-item__icon">
-                        <PathTypeIcon type="direct" :active="false" />
-                      </span>
-                      <span class="path-type-menu-item__text">直线</span>
-                    </span>
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="orthogonal"
-                    class="path-type-dropdown-item"
-                  >
-                    <span class="path-type-menu-item">
-                      <span class="path-type-menu-item__icon">
-                        <PathTypeIcon type="orthogonal" :active="false" />
-                      </span>
-                      <span class="path-type-menu-item__text">直角线</span>
-                    </span>
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="curve"
-                    class="path-type-dropdown-item"
-                  >
-                    <span class="path-type-menu-item">
-                      <span class="path-type-menu-item__icon">
-                        <PathTypeIcon type="curve" :active="false" />
-                      </span>
-                      <span class="path-type-menu-item__text">贝塞尔曲线</span>
-                    </span>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
+                <span class="map-toolbar-btn__label">直线</span>
+              </span>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="直角线路径" :show-after="50" placement="bottom">
+            <el-button
+              class="map-toolbar-btn"
+              :type="
+                currentTool === 'path' &&
+                currentPathConnectionType === 'orthogonal'
+                  ? 'primary'
+                  : 'default'
+              "
+              size="small"
+              @click="handlePathToolClick('orthogonal')"
+            >
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <PathTypeIcon
+                    type="orthogonal"
+                    :active="
+                      currentTool === 'path' &&
+                      currentPathConnectionType === 'orthogonal'
+                    "
+                  />
+                </span>
+                <span class="map-toolbar-btn__label">直角</span>
+              </span>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="贝塞尔曲线路径" :show-after="50" placement="bottom">
+            <el-button
+              class="map-toolbar-btn"
+              :type="
+                currentTool === 'path' && currentPathConnectionType === 'curve'
+                  ? 'primary'
+                  : 'default'
+              "
+              size="small"
+              @click="handlePathToolClick('curve')"
+            >
+              <span class="map-toolbar-btn__inner">
+                <span class="map-toolbar-btn__icon">
+                  <PathTypeIcon
+                    type="curve"
+                    :active="
+                      currentTool === 'path' &&
+                      currentPathConnectionType === 'curve'
+                    "
+                  />
+                </span>
+                <span class="map-toolbar-btn__label">曲线</span>
+              </span>
+            </el-button>
           </el-tooltip>
           <el-tooltip
-            content="在位置中心按下并拖到路网点释放，创建虚线 Link（连接业务位置与拓扑点）"
+            content="绘制虚线链接"
             :show-after="50"
             placement="bottom"
           >
@@ -165,26 +177,6 @@
                   />
                 </span>
                 <span class="map-toolbar-btn__label">虚线链接</span>
-              </span>
-            </el-button>
-          </el-tooltip>
-          <!-- 规则区域 -->
-          <el-tooltip
-            content="点击画布顶点绘制规则区域"
-            :show-after="50"
-            placement="bottom"
-          >
-            <el-button
-              class="map-toolbar-btn toolbar-tool-rule"
-              :type="currentTool === 'ruleRegion' ? 'primary' : 'default'"
-              size="small"
-              @click="setTool(ToolMode.RULE_REGION)"
-            >
-              <span class="map-toolbar-btn__inner">
-                <span class="map-toolbar-btn__icon">
-                  <svg-icon icon-class="block" class="block-toolbar-icon" />
-                </span>
-                <span class="map-toolbar-btn__label">规则区域</span>
               </span>
             </el-button>
           </el-tooltip>
@@ -350,6 +342,7 @@
             ref="mapCanvasRef"
             :layer-visibility="layerVisibility"
             @point-double-click="handlePointDoubleClick"
+            @path-context-menu="handlePathContextMenu"
           />
         </div>
         <!-- 坐标轴已移至 MapCanvas，与 Stage offset 同步，随漫游移动 -->
@@ -1027,6 +1020,26 @@
       v-model="showImportBaseLayerDialog"
       @import="handleBaseLayerImport"
     />
+
+    <!-- 路径右键上下文菜单 -->
+    <div
+      v-if="pathContextMenu.visible"
+      class="path-context-menu"
+      :style="{ left: pathContextMenu.x + 'px', top: pathContextMenu.y + 'px' }"
+      @click.stop
+    >
+      <ul class="path-context-menu__list">
+        <li class="path-context-menu__item" @click="handleReversePathDirection">
+          <el-icon><Sort /></el-icon>
+          <span>反转方向</span>
+        </li>
+        <li class="path-context-menu__divider" />
+        <li class="path-context-menu__item path-context-menu__item--danger" @click="handleDeletePathFromMenu">
+          <el-icon><Delete /></el-icon>
+          <span>删除路径</span>
+        </li>
+      </ul>
+    </div>
   </div>
 </template>
 
@@ -1044,7 +1057,7 @@ import {
 } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage, ElMessageBox } from "element-plus";
-import type { MapLayerVisibility } from "@/types/mapEditor";
+import type { MapLayerVisibility, MapPath } from "@/types/mapEditor";
 import { defaultMapLayerVisibility } from "@/types/mapEditor";
 import { debounce } from "lodash-es";
 import { storeToRefs } from "pinia";
@@ -1083,6 +1096,7 @@ import {
   Grid,
   DArrowRight,
   Upload,
+  Sort,
 } from "@element-plus/icons-vue";
 import { parsePgmToDataUrl } from "@/utils/mapEditor/pgmParser";
 import {
@@ -1138,6 +1152,41 @@ const layerAllVisible = computed(() =>
 
 // 鼠标位置（从画布组件获取）
 const mousePosition = ref({ x: 0, y: 0 });
+
+// 路径右键菜单
+const pathContextMenu = reactive({
+  visible: false,
+  x: 0,
+  y: 0,
+  pathId: '' as string,
+});
+
+const handlePathContextMenu = (path: MapPath, clientX: number, clientY: number) => {
+  pathContextMenu.pathId = path.id;
+  pathContextMenu.x = clientX;
+  pathContextMenu.y = clientY;
+  pathContextMenu.visible = true;
+};
+
+const closePathContextMenu = () => {
+  pathContextMenu.visible = false;
+};
+
+const handleReversePathDirection = () => {
+  if (pathContextMenu.pathId) {
+    mapEditorStore.reversePath(pathContextMenu.pathId);
+    ElMessage.success('路径方向已反转');
+  }
+  closePathContextMenu();
+};
+
+const handleDeletePathFromMenu = () => {
+  if (pathContextMenu.pathId) {
+    mapEditorStore.deletePath(pathContextMenu.pathId);
+    ElMessage.success('路径已删除');
+  }
+  closePathContextMenu();
+};
 
 // 点编辑对话框
 const showPointEditDialog = ref(false);
@@ -1623,13 +1672,6 @@ const handlePathToolClick = (type: PathConnectionType) => {
   setTool(ToolMode.PATH);
 };
 
-const handlePathTypeCommand = (command: string | number | object) => {
-  const t = String(command) as PathConnectionType;
-  if (t === "direct" || t === "orthogonal" || t === "curve") {
-    handlePathToolClick(t);
-  }
-};
-
 // 点位类型下拉菜单显示状态
 const handlePointDropdownVisible = (visible: boolean) => {
   // 如果下拉菜单打开，确保工具已切换到绘制点
@@ -1747,7 +1789,13 @@ const handleResizeEnd = () => {
 };
 
 // 初始化网格大小为20（固定值）
+// 点击页面任意位置关闭路径右键菜单
+const onDocumentClick = () => {
+  if (pathContextMenu.visible) closePathContextMenu();
+};
+
 onMounted(async () => {
+  document.addEventListener('click', onDocumentClick);
   // 从 localStorage 加载面板宽度
   const savedWidth = localStorage.getItem(LEFT_PANEL_WIDTH_KEY);
   if (savedWidth) {
@@ -3232,6 +3280,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
 };
 
 onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClick);
   // 移除键盘事件
   window.removeEventListener("keydown", handleKeyDown);
 
@@ -3447,7 +3496,6 @@ onUnmounted(() => {
 
   // 工具栏
   .toolbar {
-    height: 48px;
     min-height: 48px;
     flex-shrink: 0;
     background: linear-gradient(0deg, #fafbfc 0%, #fff 100%);
@@ -3455,6 +3503,9 @@ onUnmounted(() => {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 6px;
+    column-gap: 8px;
     padding: 4px 16px;
     z-index: 100;
 
@@ -3462,7 +3513,9 @@ onUnmounted(() => {
       display: flex;
       align-items: center;
       gap: 12px;
-      flex-wrap: nowrap;
+      flex-wrap: wrap;
+      row-gap: 4px;
+      min-width: 0;
 
       &.toolbar-left-cluster {
         gap: 4px;
@@ -3624,23 +3677,6 @@ onUnmounted(() => {
         .map-toolbar-btn__label {
           display: none;
         }
-
-        &.map-toolbar-btn--path-dropdown {
-          position: relative;
-
-          &::after {
-            content: "";
-            position: absolute;
-            right: 4px;
-            bottom: 4px;
-            width: 0;
-            height: 0;
-            border-left: 3px solid transparent;
-            border-right: 3px solid transparent;
-            border-top: 4px solid currentColor;
-            opacity: 0.8;
-          }
-        }
       }
 
       // 分段按钮样式
@@ -3712,7 +3748,7 @@ onUnmounted(() => {
         }
       }
 
-      // 不使用 flex order：保持模板顺序为 漫游→点→位置→三种路网连线→虚线链接→规则区域→撤销等
+      // 不使用 flex order：保持模板顺序为 选择/漫游→点→位置→直线/直角/曲线路径→虚线链接→撤销等
     }
 
     .toolbar-right {
@@ -4194,60 +4230,56 @@ onUnmounted(() => {
   }
 }
 
-:deep(.path-type-dropdown-menu .el-dropdown-menu__item),
-:deep(.path-type-dropdown-menu .path-type-dropdown-item) {
-  min-width: 190px !important;
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  white-space: nowrap !important;
-  line-height: 28px !important;
-}
-
-:deep(.path-type-dropdown-menu .path-type-menu-item) {
-  display: inline-flex !important;
-  flex-direction: row !important;
-  align-items: center;
-  width: 100%;
-  gap: 8px;
-  white-space: nowrap;
-  flex-wrap: nowrap;
-  justify-content: flex-start;
-}
-
-:deep(.path-type-dropdown-menu .path-type-menu-item__text) {
-  display: inline-flex !important;
-  align-items: center;
-  white-space: nowrap;
-  word-break: keep-all;
-  flex-shrink: 0;
-}
-
-:deep(.path-type-dropdown-menu .path-type-menu-item__icon) {
-  display: inline-flex;
-  width: 16px;
-  height: 16px;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-
-:deep(.path-type-dropdown-menu .path-type-menu-item__icon > *) {
-  display: block !important;
-  width: 14px !important;
-  height: 14px !important;
-}
-
-:deep(.path-type-dropdown-menu .el-dropdown-menu) {
-  min-width: 196px !important;
-}
-
 // 批量编辑对话框样式
 .batch-type-hint {
   margin-left: 8px;
   color: #409eff;
   font-size: 12px;
+}
+</style>
+
+<style lang="scss">
+// 路径右键菜单（不使用 scoped，避免动态渲染时类名哈希失效）
+.path-context-menu {
+  position: fixed;
+  z-index: 9999;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  min-width: 140px;
+  padding: 4px 0;
+  user-select: none;
+
+  &__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 16px;
+    font-size: 13px;
+    color: #303133;
+    cursor: pointer;
+    transition: background 0.15s;
+
+    &:hover {
+      background: #f5f7fa;
+    }
+
+    &--danger {
+      color: #f56c6c;
+    }
+  }
+
+  &__divider {
+    height: 1px;
+    background: #e4e7ed;
+    margin: 4px 0;
+  }
 }
 </style>

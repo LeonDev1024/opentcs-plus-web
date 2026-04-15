@@ -100,7 +100,19 @@
             <tr>
               <td class="kv-key">Angle</td>
               <td class="kv-value">
-                <span class="kv-readonly">NaN deg</span>
+                <el-input-number
+                  v-model="pointForm.vehicleOrientationAngle"
+                  size="small"
+                  :min="-360"
+                  :max="360"
+                  :step="1"
+                  :precision="1"
+                  :placeholder="'NaN (任意方向)'"
+                  :controls="false"
+                  style="width: 100%"
+                  @change="updatePoint"
+                />
+                <span class="kv-unit"> deg</span>
               </td>
             </tr>
             <tr>
@@ -239,13 +251,33 @@
             <tr>
               <td class="kv-key">Maximum velocity</td>
               <td class="kv-value">
-                <span class="kv-readonly">0.0 mm/s</span>
+                <el-input-number
+                  v-model="pathForm.maxVelocity"
+                  size="small"
+                  :min="0"
+                  :step="100"
+                  :precision="0"
+                  :controls="false"
+                  style="width: 100%"
+                  @change="updatePath"
+                />
+                <span class="kv-unit"> mm/s</span>
               </td>
             </tr>
             <tr>
               <td class="kv-key">Maximum reverse velocity</td>
               <td class="kv-value">
-                <span class="kv-readonly">0.0 mm/s</span>
+                <el-input-number
+                  v-model="pathForm.maxReverseVelocity"
+                  size="small"
+                  :min="0"
+                  :step="100"
+                  :precision="0"
+                  :controls="false"
+                  style="width: 100%"
+                  @change="updatePath"
+                />
+                <span class="kv-unit"> mm/s</span>
               </td>
             </tr>
             <tr>
@@ -280,12 +312,6 @@
               <td class="kv-key">Layer</td>
               <td class="kv-value">
                 <span class="kv-readonly">{{ getLayerName(pathForm.layerId) }}</span>
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Locked</td>
-              <td class="kv-value">
-                <span class="kv-readonly">false</span>
               </td>
             </tr>
             <tr>
@@ -367,12 +393,6 @@
                     :value="item.id"
                   />
                 </el-select>
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Locked</td>
-              <td class="kv-value">
-                <span class="kv-readonly">false</span>
               </td>
             </tr>
             <tr>
@@ -598,6 +618,7 @@ const pointForm = ref<MapPoint>({
   y: 0,
   status: '0',
   locked: false,
+  vehicleOrientationAngle: undefined,
   editorProps: {
     radius: DEFAULT_POINT_OUTER_RADIUS,
     color: '#8c8c8c',
@@ -614,6 +635,8 @@ const pathForm = ref<MapPath>({
   name: '',
   status: '0',
   locked: false,
+  maxVelocity: 0,
+  maxReverseVelocity: 0,
   geometry: {
     controlPoints: [],
     pathType: 'line'

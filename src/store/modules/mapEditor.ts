@@ -1471,6 +1471,27 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   };
   
   /**
+   * 反转路径方向（交换起终点，反转控制点顺序）
+   */
+  const reversePath = (id: string) => {
+    const index = paths.value.findIndex(p => p.id === id);
+    if (index === -1) return;
+    const path = paths.value[index];
+    if (path.locked) return;
+    const reversedControlPoints = [...path.geometry.controlPoints].reverse();
+    paths.value[index] = {
+      ...path,
+      startPointId: path.endPointId,
+      endPointId: path.startPointId,
+      geometry: {
+        ...path.geometry,
+        controlPoints: reversedControlPoints,
+      },
+    };
+    isDirty.value = true;
+  };
+
+  /**
    * 删除路径
    */
   const deletePath = (id: string) => {
@@ -2158,6 +2179,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     addPath,
     updatePath,
     deletePath,
+    reversePath,
     addLocation,
     updateLocation,
     deleteLocation,
