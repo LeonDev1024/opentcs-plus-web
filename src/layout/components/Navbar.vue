@@ -35,9 +35,10 @@
         </el-tooltip>
 
 
-        <el-tooltip :content="proxy.$t('navbar.document')" effect="dark" placement="bottom">
-          <div class="right-menu-item hover-effect">
-            <ruo-yi-doc id="ruoyi-doc" />
+        <!-- 快速开始 -->
+        <el-tooltip content="快速开始" effect="dark" placement="bottom">
+          <div class="right-menu-item hover-effect" @click="guideVisible = true">
+            <el-icon><QuestionFilled /></el-icon>
           </div>
         </el-tooltip>
 
@@ -66,6 +67,9 @@
       </div>
     </div>
   </div>
+
+  <!-- 使用引导弹窗 -->
+  <guide-dialog v-model="guideVisible" />
 </template>
 
 <script setup lang="ts">
@@ -73,6 +77,8 @@ import SearchMenu from './TopBar/search.vue';
 import CategoryTopNav from '@/components/CategoryTopNav/index.vue';
 import UserAvatarInitial from '@/components/UserAvatarInitial/index.vue';
 import Logo from './Sidebar/Logo.vue';
+import GuideDialog from '@/components/GuideDialog/index.vue';
+import { QuestionFilled } from '@element-plus/icons-vue';
 import { useAppStore } from '@/store/modules/app';
 import { useUserStore } from '@/store/modules/user';
 import { useSettingsStore } from '@/store/modules/settings';
@@ -89,6 +95,7 @@ const newNotice = ref(<number>0);
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 
+const guideVisible = ref(false);
 const userId = ref(userStore.userId);
 // 搜索菜单
 const searchMenuRef = ref<InstanceType<typeof SearchMenu>>();
@@ -283,7 +290,7 @@ watch(
         cursor: pointer;
 
         &:hover {
-          background: var(--bg-secondary);
+          background: #e2e8f0;
         }
 
         .user-avatar {

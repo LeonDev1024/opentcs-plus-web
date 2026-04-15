@@ -19,7 +19,6 @@
       </template>
       <el-empty v-else :description="'消息为空'"></el-empty>
     </div>
-    <div v-if="newsList.length > 0" class="foot-box" @click="onGoToGithubClick">前往github</div>
   </div>
 </template>
 
@@ -52,10 +51,6 @@ const onNewsClick = (item: any) => {
   noticeStore.state.notices = newsList.value;
 };
 
-// 前往通知中心点击
-const onGoToGithubClick = () => {
-  window.open('https://github.com/LeonDev1024/opentcs-plus');
-};
 
 onMounted(() => {
   nextTick(() => {
@@ -109,21 +104,7 @@ onMounted(() => {
       }
     }
   }
-  .foot-box {
-    height: 35px;
-    color: var(--el-color-primary);
-    font-size: 13px;
-    cursor: pointer;
-    opacity: 0.8;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-top: 1px solid var(--el-border-color-lighter);
-    &:hover {
-      opacity: 1;
-    }
-  }
-  :deep(.el-empty__description p) {
+:deep(.el-empty__description p) {
     font-size: 13px;
   }
 }

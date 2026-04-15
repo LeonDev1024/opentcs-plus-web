@@ -1,5 +1,5 @@
 <template>
-  <div class="p-4">
+  <div class="brand-page">
     <!-- 搜索区域 -->
     <transition :enter-active-class="proxy?.animate.searchAnimate.enter" :leave-active-class="proxy?.animate.searchAnimate.leave">
       <div v-if="showSearch" class="search">
@@ -40,14 +40,19 @@
       <!-- 品牌卡片列表 -->
       <div v-loading="loading" class="brand-card-list">
         <el-row :gutter="20">
-          <el-col v-for="brand in brandList" :key="brand.id" :xs="24" :sm="12" :md="8" :lg="5">
-            <el-card class="brand-card" shadow="hover">
-              <!-- 顶部：Code + 名称 -->
-              <div class="brand-card-header">
-                <div class="brand-code">{{ brand.code }}</div>
-                <div class="brand-name">{{ brand.name }}</div>
+          <el-col v-for="brand in brandList" :key="brand.id" :xs="24" :sm="12" :md="8" :lg="6">
+            <div class="brand-card" :class="{ 'is-disabled': !brand.enabled }">
+              <!-- 顶部色带 -->
+              <div class="brand-card-ribbon">
+                <span class="brand-code-tag">{{ brand.code }}</span>
+                <el-tag
+                  :type="brand.enabled ? 'success' : 'info'"
+                  size="small"
+                  effect="light"
+                  class="status-tag"
+                >{{ brand.enabled ? '启用' : '禁用' }}</el-tag>
               </div>
-              <!-- 中间：Logo -->
+              <!-- Logo 区域 -->
               <div class="brand-card-logo">
                 <el-image v-if="brand.logo" :src="brand.logo" fit="contain" class="logo-img">
                   <template #error>
@@ -60,19 +65,20 @@
                   <el-icon><Picture /></el-icon>
                 </div>
               </div>
-              <!-- 底部：操作栏 -->
+              <!-- 品牌名称 -->
+              <div class="brand-card-name">{{ brand.name }}</div>
+              <!-- 操作栏 -->
               <div class="brand-card-footer">
-                <el-button link type="primary" icon="Edit" @click="handleUpdate(brand)">
-                  编辑
-                </el-button>
-                <el-button link :type="brand.enabled ? 'danger' : 'success'" @click="handleChangeStatus(brand)">
-                  {{ brand.enabled ? '禁用' : '启用' }}
-                </el-button>
-                <el-button link type="danger" icon="Delete" @click="handleDelete(brand)">
-                  删除
-                </el-button>
+                <el-button size="small" icon="Edit" @click="handleUpdate(brand)">编辑</el-button>
+                <el-button
+                  size="small"
+                  :type="brand.enabled ? 'warning' : 'success'"
+                  plain
+                  @click="handleChangeStatus(brand)"
+                >{{ brand.enabled ? '禁用' : '启用' }}</el-button>
+                <el-button size="small" type="danger" plain icon="Delete" @click="handleDelete(brand)">删除</el-button>
               </div>
-            </el-card>
+            </div>
           </el-col>
         </el-row>
 
@@ -297,64 +303,116 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+.brand-page {
+  padding: 10px 16px 0;
+
+  // 覆盖全局 .search 的上下 margin
+  :deep(.search) {
+    margin-top: 0;
+    margin-bottom: 8px;
+  }
+
+  // 收紧 el-card 内边距
+  :deep(.el-card__body) {
+    padding: 12px 16px;
+  }
+
+  :deep(.el-card__header) {
+    padding: 10px 16px;
+  }
+}
+
 .brand-card-list {
-  min-height: 400px;
+  min-height: 0;
 }
 
 .brand-card {
-  margin-bottom: 20px;
-  transition: all 0.3s;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #ebeef5;
+  overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  display: flex;
+  flex-direction: column;
 
   &:hover {
     transform: translateY(-4px);
+    box-shadow: 0 12px 32px -6px rgba(0, 0, 0, 0.12);
+    border-color: #c6d8ff;
   }
 
-  .brand-card-header {
+  &.is-disabled {
+    opacity: 0.65;
+    filter: grayscale(40%);
+  }
+
+  // 顶部色带
+  .brand-card-ribbon {
+    background: linear-gradient(135deg, #f0f5ff 0%, #e8efff 100%);
+    padding: 7px 12px;
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #ebeef5;
-    margin-bottom: 12px;
+    justify-content: space-between;
+    border-bottom: 1px solid #dce8ff;
 
-    .brand-code {
-      font-size: 12px;
-      color: #909399;
+    .brand-code-tag {
+      font-size: 11px;
+      font-weight: 700;
+      color: #4070f4;
+      letter-spacing: 0.08em;
+      background: rgba(64, 112, 244, 0.1);
+      padding: 2px 8px;
+      border-radius: 4px;
     }
 
-    .brand-name {
-      font-size: 16px;
-      font-weight: 600;
-      color: #303133;
+    .status-tag {
+      font-size: 11px;
     }
   }
 
+  // Logo 区域
   .brand-card-logo {
-    height: 90px;
+    flex: 1;
+    height: 60px;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 12px;
+    padding: 6px 16px;
 
     .logo-img {
-      max-height: 90px;
-      max-width: 140px;
+      max-height: 48px;
+      max-width: 120px;
       width: auto;
       height: auto;
     }
 
     .logo-placeholder {
       color: #c0c4cc;
-      font-size: 32px;
+      font-size: 36px;
     }
   }
 
+  // 品牌名称
+  .brand-card-name {
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: #1d2129;
+    padding: 0 14px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  // 操作栏
   .brand-card-footer {
-    padding-top: 12px;
-    border-top: 1px solid #ebeef5;
+    padding: 7px 12px;
+    border-top: 1px solid #f0f2f5;
+    background: #fafbfc;
     display: flex;
     justify-content: center;
-    gap: 16px;
+    gap: 8px;
   }
 }
 </style>

@@ -71,6 +71,7 @@ declare module 'vue' {
     FileUpload: typeof import('./../components/FileUpload/index.vue')['default']
     FlowChart: typeof import('./../components/Process/flowChart.vue')['default']
     FlowChartImg: typeof import('./../components/Process/flowChartImg.vue')['default']
+    GuideDialog: typeof import('./../components/GuideDialog/index.vue')['default']
     Hamburger: typeof import('./../components/Hamburger/index.vue')['default']
     IconifyIconSelect: typeof import('./../components/IconifyIconSelect/index.vue')['default']
     IconSelect: typeof import('./../components/IconSelect/index.vue')['default']
