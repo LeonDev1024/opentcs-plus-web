@@ -120,13 +120,7 @@
             >
               <span class="map-toolbar-btn__inner">
                 <span class="map-toolbar-btn__icon">
-                  <PathTypeIcon
-                    type="curve"
-                    :active="
-                      currentTool === 'path' &&
-                      currentPathConnectionType === 'curve'
-                    "
-                  />
+                  <SvgIcon icon-class="bezier" class="curve-type-svg-icon" />
                 </span>
                 <span class="map-toolbar-btn__label">曲线</span>
               </span>
