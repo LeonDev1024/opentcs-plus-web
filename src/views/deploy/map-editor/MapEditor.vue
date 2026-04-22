@@ -1703,18 +1703,11 @@ function drawSingleRuler(
         ctx.fillText(label, sp, 2)
       } else {
         ctx.save()
-<<<<<<< HEAD
         // 数字显示在左侧（靠近画布），顶部对齐
         ctx.translate(2, sp)
         ctx.rotate(-Math.PI / 2)
         ctx.textAlign    = 'left'
         ctx.textBaseline = 'top'
-=======
-        ctx.translate(cssW - tickLen - 2, sp)
-        ctx.rotate(-Math.PI / 2)
-        ctx.textAlign    = 'center'
-        ctx.textBaseline = 'bottom'
->>>>>>> origin/master
         ctx.fillText(label, 0, 0)
         ctx.restore()
       }
@@ -1826,11 +1819,7 @@ function handleAlign(cmd: string) {
   ElMessage.success('对齐完成');
 }
 
-<<<<<<< HEAD
 type PathConnectionType = "direct" | "curve";
-=======
-type PathConnectionType = "direct" | "orthogonal" | "curve";
->>>>>>> origin/master
 
 const currentPathConnectionType = computed<PathConnectionType>(() => {
   const t = mapEditorStore.pathConnectionType as PathConnectionType;
