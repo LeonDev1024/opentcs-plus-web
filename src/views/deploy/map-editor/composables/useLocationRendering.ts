@@ -3,6 +3,7 @@ import type { ComputedRef, Ref, ShallowRef } from 'vue'
 import { ToolMode } from '@/types/mapEditor'
 import type { MapLocation, MapPoint, MapLayerVisibility } from '@/types/mapEditor'
 import {
+  DEFAULT_POINT_OUTER_RADIUS,
   DASHED_LINK_STROKE_WIDTH,
   DASHED_LINK_DASH_PATTERN,
 } from '@/utils/mapEditor/mapVisualTokens'
@@ -14,7 +15,7 @@ const BUSINESS_LOCATION_OVERLAY_SIZE = BUSINESS_LOCATION_BOX_SIZE + 4
 const BUSINESS_LOCATION_OVERLAY_HALF = BUSINESS_LOCATION_OVERLAY_SIZE / 2
 
 const LOCATION_TYPE_CONFIG: Record<string, { fill: string; stroke: string; symbol: string }> = {
-  default:   { fill: '#ffffff', stroke: '#409EFF', symbol: 'L' },
+  default:   { fill: '#67C23A', stroke: '#237804', symbol: 'A' },   // 绿色 - 默认位置点
   loading:   { fill: '#E6A23C', stroke: '#D48806', symbol: '↓' },
   unloading: { fill: '#67C23A', stroke: '#529B2E', symbol: '↑' },
   charge:    { fill: '#F56C6C', stroke: '#C21F1F', symbol: '⚡' },
@@ -82,34 +83,84 @@ export function useLocationRendering(
     return LOCATION_TYPE_CONFIG[locationTypeId] || LOCATION_TYPE_CONFIG['default']
   }
 
-  const getLocationRectConfig = (location: MapLocation) => {
+  // 位置点（Station）配置：与导航点样式一致，绿色
+  const getLocationOuterConfig = (location: MapLocation) => {
     const centroid = getLocationCentroid(location)
     const isSelected = mapEditorStore.selection.selectedIds.has(location.id)
-    const size = BUSINESS_LOCATION_BOX_SIZE
-    const half = size / 2
-    const visualConfig = getLocationVisualConfig(location)
+    const radius = DEFAULT_POINT_OUTER_RADIUS
+    // 选中时红色阴影，未选中时绿色边框
+    const shadow = isSelected
+      ? { shadowColor: '#ff4d4f', shadowBlur: 12, shadowOpacity: 0.6, shadowOffset: { x: 0, y: 0 } }
+      : {}
     return {
-      id: `${location.id}-rect`,
-      x: centroid.x - half, y: centroid.y - half,
-      width: size, height: size,
-      stroke: isSelected ? '#ff4d4f' : visualConfig.stroke,
-      strokeWidth: isSelected ? 3 : 2,
-      fill: location.editorProps?.fillColor || visualConfig.fill,
+      id: `${location.id}-outer`,
+      x: centroid.x,
+      y: centroid.y,
+      radius,
+      fill: '#ffffff',
+      stroke: isSelected ? '#ff4d4f' : '#237804',
+      strokeWidth: isSelected ? 2 : 2.4,
+      listening: false,
+      perfectDrawEnabled: true,
+      ...shadow,
+    }
+  }
+
+  const getLocationInnerConfig = (location: MapLocation) => {
+    const centroid = getLocationCentroid(location)
+    const isSelected = mapEditorStore.selection.selectedIds.has(location.id)
+    const radius = DEFAULT_POINT_OUTER_RADIUS * 0.66
+    return {
+      id: `${location.id}-inner`,
+      x: centroid.x,
+      y: centroid.y,
+      radius,
+      fill: isSelected ? '#ff4d4f' : '#67C23A',
+      stroke: isSelected ? '#ff7875' : 'transparent',
+      strokeWidth: isSelected ? 2 : 0,
+      listening: false,
+      perfectDrawEnabled: true,
+    }
+  }
+
+  // 碰撞检测层：透明，仅用于接收点击事件
+  const getLocationRectConfig = (location: MapLocation) => {
+    const centroid = getLocationCentroid(location)
+    const radius = DEFAULT_POINT_OUTER_RADIUS
+    return {
+      id: `${location.id}-circle`,
+      x: centroid.x,
+      y: centroid.y,
+      radius,
+      fill: 'rgba(0,0,0,0.0001)',
+      stroke: 'transparent',
+      strokeWidth: 0,
       listening: true,
       draggable: false,
-      opacity: location.editorProps?.fillOpacity || 0.9,
+    }
+  }
+
+  const getLocationCenterDotConfig = (location: MapLocation) => {
+    const centroid = getLocationCentroid(location)
+    return {
+      id: `${location.id}-dot`,
+      x: centroid.x,
+      y: centroid.y,
+      radius: Math.max(1.2, DEFAULT_POINT_OUTER_RADIUS * 0.22),
+      fill: '#ffffff',
+      listening: false,
     }
   }
 
   const getLocationDragOverlayConfig = (location: MapLocation) => {
     if (isRuleRegionLocation(location)) return null
     const centroid = getLocationCentroid(location)
-    const size = BUSINESS_LOCATION_OVERLAY_SIZE
-    const half = size / 2
+    const radius = DEFAULT_POINT_OUTER_RADIUS
     return {
       id: `${location.id}-drag-overlay`,
-      x: centroid.x - half, y: centroid.y - half,
-      width: size, height: size,
+      x: centroid.x,
+      y: centroid.y,
+      radius,
       fill: 'transparent',
       listening: isSelectInteractionTool.value && !isDragging.value,
       draggable: false,
@@ -119,18 +170,17 @@ export function useLocationRendering(
   const getLocationSymbolConfig = (location: MapLocation) => {
     const centroid = getLocationCentroid(location)
     const isSelected = mapEditorStore.selection.selectedIds.has(location.id)
-    const customSymbol = getSymbolForLocationTypeId(location.locationTypeId)
-    const visualConfig = getLocationVisualConfig(location)
-    const text = customSymbol || visualConfig.symbol || location.editorProps?.label || 'L'
+    // 标签在圆圈正上方，显示位置名称如 "A1"
+    const text = location.name || 'A1'
+    const labelOffset = -DEFAULT_POINT_OUTER_RADIUS - 12
     return {
-      x: centroid.x, y: centroid.y,
+      x: centroid.x, y: centroid.y + labelOffset,
       text,
-      fontSize: customSymbol ? 20 : 16,
+      fontSize: 12,
       fontStyle: 'bold',
-      fill: isSelected ? '#ff4d4f' : '#ffffff',
+      fill: isSelected ? '#ff4d4f' : '#666666',
       align: 'center', verticalAlign: 'middle',
       listening: false,
-      shadowColor: '#000', shadowBlur: 2, shadowOpacity: 0.3,
     }
   }
 
@@ -177,11 +227,11 @@ export function useLocationRendering(
       }
     }
 
-    const labelOffset = location.editorProps?.labelOffset ?? { x: -30, y: -30 }
     return {
       ...common,
-      x: centroid.x + labelOffset.x,
-      y: centroid.y + labelOffset.y,
+      x: centroid.x - 30,
+      y: centroid.y - DEFAULT_POINT_OUTER_RADIUS - 16,
+      width: 60,
     }
   }
 
@@ -189,8 +239,11 @@ export function useLocationRendering(
     for (const location of visibleLocationsLayer.value) {
       if (!isRuleRegionLocation(location)) {
         const centroid = getLocationCentroid(location)
-        const half = BUSINESS_LOCATION_BOX_SIZE / 2
-        if (x >= centroid.x - half && x <= centroid.x + half && y >= centroid.y - half && y <= centroid.y + half) {
+        const radius = DEFAULT_POINT_OUTER_RADIUS
+        // 圆形碰撞检测
+        const dx = x - centroid.x
+        const dy = y - centroid.y
+        if (dx * dx + dy * dy <= radius * radius) {
           return location
         }
       } else {
@@ -286,6 +339,9 @@ export function useLocationRendering(
     isRuleRegionLocation,
     visibleLocationsLayer,
     getLocationVisualConfig,
+    getLocationOuterConfig,
+    getLocationInnerConfig,
+    getLocationCenterDotConfig,
     getLocationRectConfig,
     getLocationDragOverlayConfig,
     getLocationSymbolConfig,

@@ -77,15 +77,23 @@
       <!-- 位置层 -->
       <v-layer ref="locationLayerRef" :config="{ name: 'location' }">
         <template v-for="location in visibleLocationsLayer" :key="location.id">
-          <!-- 业务位置：显示为中心点的小正方形方框；规则区域仍显示为多边形 -->
-          <v-rect
-            v-if="!isRuleRegionLocation(location)"
-            :config="getLocationRectConfig(location)"
-            @click="handleLocationClick(location, $event)"
-            @contextmenu.prevent="handleLocationContextMenu(location, $event)"
-            @mouseover="handleLocationMouseOver(location)"
-            @mouseout="handleLocationMouseOut(location, $event)"
-          />
+          <!-- 业务位置：显示为双层圆圈（与导航点一致）；规则区域仍显示为多边形 -->
+          <template v-if="!isRuleRegionLocation(location)">
+            <!-- 外圈：白色填充+绿色边框（先渲染） -->
+            <v-circle :config="getLocationOuterConfig(location)" />
+            <!-- 内圈：绿色实心（后渲染，显示在外圈上方） -->
+            <v-circle :config="getLocationInnerConfig(location)" />
+            <!-- 中心白点（与导航点一致） -->
+            <v-circle :config="getLocationCenterDotConfig(location)" />
+            <!-- 碰撞检测层（透明，接收点击事件） -->
+            <v-circle
+              :config="getLocationRectConfig(location)"
+              @click="handleLocationClick(location, $event)"
+              @contextmenu.prevent="handleLocationContextMenu(location, $event)"
+              @mouseover="handleLocationMouseOver(location)"
+              @mouseout="handleLocationMouseOut(location, $event)"
+            />
+          </template>
           <v-line
             v-else
             :config="getLocationConfig(location)"
@@ -97,21 +105,13 @@
             @dragstart="handleLocationDragStart"
             @dragend="handleLocationLineDragEnd(location, $event)"
           />
-          <!-- 位置方框内嵌图标：来自位置类型 properties 中 name 为 symbol 的 value -->
+          <!-- 位置点图标（来自位置类型 symbol 属性） -->
           <v-image
-            v-if="
-              !isRuleRegionLocation(location) && getLocationIconConfig(location)
-            "
+            v-if="!isRuleRegionLocation(location) && getLocationIconConfig(location)"
             :key="`${location.id}-icon`"
             :config="getLocationIconConfig(location)"
           />
-          <!-- 无图标时显示 label 文本 -->
-          <v-text
-            v-else-if="location.editorProps?.label"
-            :key="`${location.id}-symbol`"
-            :config="getLocationSymbolConfig(location)"
-          />
-          <!-- 位置名称标签 -->
+          <!-- 位置名称标签（固定在点位上方，唯一渲染） -->
           <v-text
             v-if="shouldShowLocationLabel(location)"
             :key="`${location.id}-label`"
@@ -1042,7 +1042,7 @@ const {
 const layerVisibilityRef = computed(() => props.layerVisibility)
 const {
   getLocationCentroid, isRuleRegionLocation, visibleLocationsLayer,
-  getLocationVisualConfig, getLocationRectConfig, getLocationDragOverlayConfig,
+  getLocationVisualConfig, getLocationOuterConfig, getLocationInnerConfig, getLocationCenterDotConfig, getLocationRectConfig, getLocationDragOverlayConfig,
   getLocationSymbolConfig, getLocationSymbol, getLocationIconConfig,
   shouldShowLocationLabel, getLocationLabelConfig, findLocationAtPosition,
   tempDashedLinkPreview, boxSelectConfig,
@@ -1384,21 +1384,13 @@ const handleStageAreaMouseDown = (e: any) => {
     evt.preventDefault?.();
     startCanvasPanWindowListeners();
   } else if (currentTool.value === ToolMode.SELECT) {
-    // 选择工具：空白点击拖拽为平移画布，Shift+拖拽为框选
-    if (evt.shiftKey) {
-      mapEditorStore.clearSelection();
-      isBoxSelecting.value = true;
-      boxSelectAppend.value = true;
-      boxSelectStart.value = { x, y };
-      boxSelectEnd.value = { x, y };
-      stage.container().style.cursor = "crosshair";
-    } else {
-      // 默认支持平移画布
-      isDragging.value = true;
-      dragStartPos.value = { x: pointerPos.x, y: pointerPos.y };
-      stage.container().style.cursor = "grabbing";
-      startCanvasPanWindowListeners();
-    }
+    // 选择工具：直接拖拽为框选；Shift+拖拽为追加框选（保留已有选中）
+    isBoxSelecting.value = true;
+    boxSelectAppend.value = evt.shiftKey;
+    if (!evt.shiftKey) mapEditorStore.clearSelection();
+    boxSelectStart.value = { x, y };
+    boxSelectEnd.value = { x, y };
+    stage.container().style.cursor = "crosshair";
     evt.preventDefault?.();
   } else if (currentTool.value === ToolMode.POINT) {
     // 绘制点
@@ -1787,58 +1779,52 @@ const handleMouseUp = (e: any) => {
 
     // 如果框选区域太小，不进行选择
     if (width > 5 && height > 5) {
-      // 如果不是追加模式，清除现有选择
-      if (!boxSelectAppend.value) {
-        mapEditorStore.clearSelection();
-      }
-
       // 收集框选区域内的所有元素ID
       const selectedPointIds: string[] = [];
       const selectedPathIds: string[] = [];
       const selectedLocationIds: string[] = [];
 
-      // 查找框选区域内的点
       for (const point of visiblePoints.value) {
         if (isPointInBox(point, boxStart, boxEnd)) {
           selectedPointIds.push(point.id);
         }
       }
 
-      // 查找框选区域内的位置
       for (const location of visibleLocations.value) {
         if (isLocationInBox(location, boxStart, boxEnd)) {
           selectedLocationIds.push(location.id);
         }
       }
 
-      // 查找框选区域内的路径
       for (const path of visiblePaths.value) {
         if (isPathInBox(path, boxStart, boxEnd)) {
           selectedPathIds.push(path.id);
         }
       }
 
-      // 批量选中元素
-      if (selectedPointIds.length > 0) {
-        mapEditorStore.selectElements(
-          selectedPointIds,
-          "point",
-          boxSelectAppend.value,
-        );
+      // 非追加模式先整体清空一次，然后三次调用全部追加，避免后调用覆盖前调用
+      if (!boxSelectAppend.value) {
+        mapEditorStore.clearSelection();
       }
+
+      // 优先级：location > point > path，用于确定 selectedType
+      // 三次调用均使用 append=true，保证所有命中元素都留在 selectedIds 中
       if (selectedLocationIds.length > 0) {
-        mapEditorStore.selectElements(
-          selectedLocationIds,
-          "location",
-          boxSelectAppend.value,
-        );
+        mapEditorStore.selectElements(selectedLocationIds, "location", true);
+      }
+      if (selectedPointIds.length > 0) {
+        mapEditorStore.selectElements(selectedPointIds, "point", true);
       }
       if (selectedPathIds.length > 0) {
-        mapEditorStore.selectElements(
-          selectedPathIds,
-          "path",
-          boxSelectAppend.value,
-        );
+        mapEditorStore.selectElements(selectedPathIds, "path", true);
+      }
+
+      // selectElements 会把 selectedType 设为最后一次调用的类型；
+      // 按优先级重置为最重要的类型，确保对齐等功能判断正确
+      if (selectedLocationIds.length > 0) {
+        mapEditorStore.selectElements([], "location", true);
+      } else if (selectedPointIds.length > 0) {
+        mapEditorStore.selectElements([], "point", true);
       }
     }
 
@@ -1988,45 +1974,9 @@ const updateResizeHandles = () => {
 
   const id = Array.from(selectedIds)[0];
 
-  // 点的旋转手柄已移除，不再显示
-  if (selectedType === "point") {
-    // 不显示任何手柄
+  // 点和位置点均为圆形，不显示角点控制柄
+  if (selectedType === "point" || selectedType === "location") {
     return;
-  } else if (selectedType === "location") {
-    const location = mapEditorStore.locations.find((l) => l.id === id);
-    if (location) {
-      const centroid = getLocationCentroid(location);
-      // 手柄外移，避免盖住位置导致无法拖拽（手柄放在方框外侧）
-      const size = BUSINESS_LOCATION_BOX_SIZE;
-      const half = size / 2;
-      const handleOffset = 10; // 手柄离边角外移 10，留出整块区域用于拖拽
-      resizeHandles.value = [
-        {
-          id: `${id}_nw`,
-          x: centroid.x - half - handleOffset,
-          y: centroid.y - half - handleOffset,
-          type: "nw",
-        },
-        {
-          id: `${id}_ne`,
-          x: centroid.x + half + handleOffset,
-          y: centroid.y - half - handleOffset,
-          type: "ne",
-        },
-        {
-          id: `${id}_sw`,
-          x: centroid.x - half - handleOffset,
-          y: centroid.y + half + handleOffset,
-          type: "sw",
-        },
-        {
-          id: `${id}_se`,
-          x: centroid.x + half + handleOffset,
-          y: centroid.y + half + handleOffset,
-          type: "se",
-        },
-      ];
-    }
   }
 };
 
@@ -3127,11 +3077,7 @@ onUnmounted(() => {
   height: 100%;
   position: relative;
   overflow: hidden;
-  background-color: #ffffff;
-  background-image:
-    linear-gradient(to right, #eef0f4 1px, transparent 1px),
-    linear-gradient(to bottom, #eef0f4 1px, transparent 1px);
-  background-size: 18px 18px;
+  background-color: #f7f8fa;
 
   // 确保 Konva Stage 占满容器
   :deep(canvas) {

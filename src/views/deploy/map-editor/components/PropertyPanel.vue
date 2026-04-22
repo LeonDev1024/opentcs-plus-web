@@ -48,9 +48,64 @@
         </table>
       </div>
 
-      <!-- 无选择状态 -->
-      <div v-else-if="!resolvedSelectedElement" class="no-selection">
-        <el-empty description="请选择一个元素或布局" />
+      <!-- 无选择状态：显示地图信息 -->
+      <div v-else-if="!resolvedSelectedElement" class="map-info-panel">
+        <div class="element-title">地图信息</div>
+        <table class="kv-table">
+          <thead>
+            <tr>
+              <th class="kv-header-key">属性</th>
+              <th class="kv-header-value">值</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="kv-key">地图 ID</td>
+              <td class="kv-value">{{ mapInfoData.id || '-' }}</td>
+            </tr>
+            <tr>
+              <td class="kv-key">地图名称</td>
+              <td class="kv-value">{{ mapInfoData.name || '-' }}</td>
+            </tr>
+            <tr>
+              <td class="kv-key">版本号</td>
+              <td class="kv-value">{{ mapInfoData.mapVersion || '-' }}</td>
+            </tr>
+            <tr>
+              <td class="kv-key">状态</td>
+              <td class="kv-value">{{ mapInfoData.statusText || '-' }}</td>
+            </tr>
+            <tr>
+              <td class="kv-key">X 比例尺</td>
+              <td class="kv-value">{{ mapInfoData.scaleX || '-' }} mm/单位</td>
+            </tr>
+            <tr>
+              <td class="kv-key">Y 比例尺</td>
+              <td class="kv-value">{{ mapInfoData.scaleY || '-' }} mm/单位</td>
+            </tr>
+            <tr>
+              <td class="kv-key">原点在布局坐标系 X</td>
+              <td class="kv-value">{{ formatNumber(mapInfoData.originX) }}</td>
+            </tr>
+            <tr>
+              <td class="kv-key">原点在布局坐标系 Y</td>
+              <td class="kv-value">{{ formatNumber(mapInfoData.originY) }}</td>
+            </tr>
+            <tr>
+              <td class="kv-key">地图宽度</td>
+              <td class="kv-value">{{ mapInfoData.width || '-' }} 单位</td>
+            </tr>
+            <tr>
+              <td class="kv-key">地图高度</td>
+              <td class="kv-value">{{ mapInfoData.height || '-' }} 单位</td>
+            </tr>
+            <tr>
+              <td class="kv-key">楼层</td>
+              <td class="kv-value">{{ mapInfoData.floor || '-' }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="map-info-tip">选择元素后在此显示属性</div>
       </div>
 
       <!-- 点属性编辑：Key / Value 表格形式（对齐 openTCS Point 属性） -->
@@ -584,6 +639,32 @@ const layoutForm = ref({ name: '', scaleX: 50, scaleY: 50 });
 const defaultLayerName = computed(() => mapEditorStore.layers[0]?.name || 'Default layer');
 const defaultLayerGroupName = computed(() => mapEditorStore.layerGroups[0]?.name || 'Default layer group');
 
+// 地图信息数据（无选中时展示）
+const mapInfoData = computed(() => {
+  const md = mapEditorStore.mapData;
+  const info = md?.mapInfo;
+  const vl = md?.visualLayout;
+  return {
+    id: mapEditorStore.currentMapId ?? '-',
+    name: vl?.name ?? info?.name ?? '-',
+    mapVersion: info?.mapVersion ?? '-',
+    status: info?.status,
+    statusText: info?.status === '1' ? '已发布' : '未发布',
+    scaleX: info?.scaleX ?? vl?.scaleX ?? '-',
+    scaleY: info?.scaleY ?? vl?.scaleY ?? '-',
+    originX: info?.originX ?? vl?.originX,
+    originY: info?.originY ?? vl?.originY,
+    width: info?.width ?? vl?.width,
+    height: info?.height ?? vl?.height,
+    floor: (info as any)?.floor ?? (vl as any)?.floor,
+  };
+});
+
+const formatNumber = (val: number | undefined | null): string => {
+  if (val == null) return '-';
+  return Number.isInteger(val) ? String(val) : val.toFixed(2);
+};
+
 watch(
   () => [resolvedSelectedType.value, mapEditorStore.mapData] as const,
   () => {
@@ -909,6 +990,15 @@ const toggleLocationLock = () => {
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+
+    .map-info-panel {
+      .map-info-tip {
+        margin-top: 12px;
+        font-size: 11px;
+        color: #909399;
+        text-align: center;
+      }
     }
 
     .kv-table {

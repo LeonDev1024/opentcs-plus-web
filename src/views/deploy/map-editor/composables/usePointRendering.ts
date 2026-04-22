@@ -47,21 +47,16 @@ export function usePointRendering(
     const labelText = point.name || point.id
     const isSelected = mapEditorStore.selection.selectedIds.has(point.id)
 
-    // 标签偏移：默认在右上方，可自定义调整
-    const labelOffset = point.editorProps?.labelOffset ?? { x: -10, y: -10 }
-    const offsetX = labelOffset.x
-    const offsetY = labelOffset.y
-
     return {
-      x: point.x + offsetX,
-      y: point.y + offsetY,
+      x: point.x - 30,
+      y: point.y - visual.radius - 16,
       text: labelText,
       fontSize: 12,
       fontFamily: 'Arial, sans-serif',
       fill: isSelected ? '#ff4d4f' : '#303133',
       align: 'center',
-      verticalAlign: 'top',
-      padding: 2,
+      width: 60,
+      padding: 0,
       listening: false,
       perfectDrawEnabled: false,
     }
