@@ -93,8 +93,8 @@ export function useCanvasAxis(mapEditorStore: ReturnType<typeof useMapEditorStor
 
   // 地图原点标签 O(0,0)
   const originLabelConfig = {
-    x: 8,
-    y: -8,
+    x: -20,
+    y: -20,
     text: 'O(0,0)',
     fontSize: 11,
     fontFamily: 'Arial, sans-serif',
