@@ -1309,15 +1309,16 @@ const handleStageMouseDown = (e: any) => {
       return;
     }
   }
-  // 位置：透明 overlay 或规则区域 Line
+  // 位置：透明 overlay、圆形碰撞层 或规则区域 Line
   if (layerName === "location") {
     const id = target.id?.();
-    if (typeof id === "string" && id.endsWith("-drag-overlay")) {
-      const locationId = id.replace(/-drag-overlay$/, "");
+    // 业务位置：-drag-overlay 或 -circle（碰撞层）
+    if (typeof id === "string" && (id.endsWith("-drag-overlay") || id.endsWith("-circle"))) {
+      const locationId = id.replace(/-drag-overlay$|-circle$/, "");
       const location = visibleLocations.value.find(
         (l) => String(l.id) === locationId,
       );
-      if (location) {
+      if (location && !isRuleRegionLocation(location)) {
         manualDragState.value = {
           kind: "location",
           location,
