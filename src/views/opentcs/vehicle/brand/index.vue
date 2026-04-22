@@ -39,8 +39,8 @@
 
       <!-- 品牌卡片列表 -->
       <div v-loading="loading" class="brand-card-list">
-        <el-row :gutter="20">
-          <el-col v-for="brand in brandList" :key="brand.id" :xs="24" :sm="12" :md="8" :lg="6">
+        <el-row :gutter="16">
+          <el-col v-for="brand in brandList" :key="brand.id" :xs="6" :sm="6" :md="6" :lg="6">
             <div class="brand-card" :class="{ 'is-disabled': !brand.enabled }">
               <!-- 顶部色带 -->
               <div class="brand-card-ribbon">
@@ -335,6 +335,7 @@ onMounted(() => {
   transition: transform 0.25s ease, box-shadow 0.25s ease;
   display: flex;
   flex-direction: column;
+  height: 100%;
 
   &:hover {
     transform: translateY(-4px);
