@@ -1587,7 +1587,7 @@ const zoomPercent = computed(() => {
 
 // ── 标尺 ──────────────────────────────────────────────────────────────────
 const RULER_H = 20   // 水平标尺高度 (px)
-const RULER_W = 24   // 垂直标尺宽度 (px)
+const RULER_W = 32   // 垂直标尺宽度 (px)
 const RULER_BG = '#f7f8fa'
 const RULER_FG = '#888'
 const RULER_BORDER = '#ddd'
@@ -1735,7 +1735,7 @@ function drawSingleRuler(
         ctx.fillText(label, sp, 2)
       } else {
         ctx.save()
-        ctx.translate(cssW - tickLen - 2, sp)
+        ctx.translate(cssW - tickLen - 4, sp)
         ctx.rotate(-Math.PI / 2)
         ctx.textAlign    = 'center'
         ctx.textBaseline = 'bottom'
@@ -4190,7 +4190,7 @@ onUnmounted(() => {
         border-bottom: 1px solid #ddd;
 
         .ruler-corner {
-          width: 24px;
+          width: 32px;
           flex-shrink: 0;
           background: #f7f8fa;
           border-right: 1px solid #ddd;
@@ -4223,7 +4223,7 @@ onUnmounted(() => {
         overflow: hidden;
 
         .ruler-v-canvas {
-          width: 24px;
+          width: 32px;
           flex-shrink: 0;
           display: block;
           background: #f7f8fa;
