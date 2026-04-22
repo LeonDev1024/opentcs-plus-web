@@ -1735,10 +1735,10 @@ function drawSingleRuler(
         ctx.fillText(label, sp, 2)
       } else {
         ctx.save()
-        // 数字显示在左侧（靠近画布）
-        ctx.translate(tickLen + 10, sp)
+        // 数字显示在左侧（靠近画布），左对齐
+        ctx.translate(2, sp)
         ctx.rotate(-Math.PI / 2)
-        ctx.textAlign    = 'center'
+        ctx.textAlign    = 'left'
         ctx.textBaseline = 'bottom'
         ctx.fillText(label, 0, 0)
         ctx.restore()
