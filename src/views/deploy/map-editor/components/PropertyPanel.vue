@@ -105,7 +105,6 @@
             </tr>
           </tbody>
         </table>
-        <div class="map-info-tip">选择元素后在此显示属性</div>
       </div>
 
       <!-- 点属性编辑：Key / Value 表格形式（对齐 openTCS Point 属性） -->
@@ -993,12 +992,6 @@ const toggleLocationLock = () => {
     }
 
     .map-info-panel {
-      .map-info-tip {
-        margin-top: 12px;
-        font-size: 11px;
-        color: #909399;
-        text-align: center;
-      }
     }
 
     .kv-table {

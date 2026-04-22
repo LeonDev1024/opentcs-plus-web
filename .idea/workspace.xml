@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="68659fab-5c1c-4a5b-bbc5-08bb17bf7f1d" name="更改" comment="">
+      <change beforePath="$PROJECT_DIR$/src/store/modules/mapEditor.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/store/modules/mapEditor.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/types/components.d.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/types/components.d.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/types/mapEditor.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/types/mapEditor.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/mapEditor/command.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/mapEditor/command.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/views/deploy/map-editor/MapEditor.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/views/deploy/map-editor/MapEditor.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/views/deploy/map-editor/components/ComponentsPanel.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/views/deploy/map-editor/components/ComponentsPanel.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/views/deploy/map-editor/components/MapCanvas.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/views/deploy/map-editor/components/MapCanvas.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/views/deploy/map-editor/components/PropertyPanel.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/views/deploy/map-editor/components/PropertyPanel.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/views/deploy/map-editor/composables/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/views/deploy/map-editor/composables/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/views/opentcs/map/editor/MapEditor.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/views/opentcs/map/editor/MapEditor.vue" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;LeonDev1024&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/LeonDev1024/opentcs-plus-web.git&quot;,
+    &quot;accountId&quot;: &quot;0338e79e-37e6-48e7-82aa-31e8a4829990&quot;
+  }
+}</component>
+  <component name="KubernetesApiPersistence"><![CDATA[{}]]></component>
+  <component name="KubernetesApiProvider"><![CDATA[{
+  "isMigrated": true
+}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 6
+}</component>
+  <component name="ProjectId" id="3COrBdKMQlCGeBJN3qOSUj4xqM2" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;release/v1.0.1&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/Users/liuyichun/Documents/code/opentcsplus/opentcs-plus-web&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-jdk-9823dce3aa75-bf35d07a577b-intellij.indexing.shared.core-IU-252.26830.84" />
+        <option value="bundled-js-predefined-d6986cc7102b-3aa1da707db6-JavaScript-IU-252.26830.84" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="默认任务">
+      <changelist id="68659fab-5c1c-4a5b-bbc5-08bb17bf7f1d" name="更改" comment="" />
+      <created>1776267322337</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1776267322337</updated>
+      <workItem from="1776267323502" duration="793000" />
+      <workItem from="1776268333001" duration="1773000" />
+      <workItem from="1776389054075" duration="599000" />
+      <workItem from="1776837183667" duration="173000" />
+    </task>
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="OPEN_GENERIC_TABS">
+      <map>
+        <entry key="9a4c7602-0c38-41fe-bcb1-c5fa49963fa7" value="TOOL_WINDOW" />
+      </map>
+    </option>
+    <option name="TAB_STATES">
+      <map>
+        <entry key="9a4c7602-0c38-41fe-bcb1-c5fa49963fa7">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="HEAD" />
+                      </list>
+                    </value>
+                  </entry>
+                  <entry key="roots">
+                    <value>
+                      <list>
+                        <option value="$PROJECT_DIR$" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+              <option name="SHOW_ONLY_AFFECTED_CHANGES" value="true" />
+            </State>
+          </value>
+        </entry>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>

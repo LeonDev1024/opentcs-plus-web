@@ -286,6 +286,8 @@
         <v-line :config="axisYLineConfig" />
         <v-line :config="axisXArrowConfig" />
         <v-line :config="axisYArrowConfig" />
+        <!-- 原点标签 O(0,0) -->
+        <v-text :config="originLabelConfig" />
       </v-layer>
     </v-stage>
 
@@ -958,6 +960,7 @@ const {
 
 const {
   axisXLineConfig, axisYLineConfig, axisXArrowConfig, axisYArrowConfig,
+  originLabelConfig,
   mapOriginCoord, mapOriginXLineConfig, mapOriginYLineConfig,
   mapOriginXArrowConfig, mapOriginYArrowConfig,
 } = useCanvasAxis(mapEditorStore)
@@ -1318,16 +1321,45 @@ const handleStageMouseDown = (e: any) => {
         (l) => String(l.id) === locationId,
       );
       if (location) {
-        manualDragState.value = {
-          kind: "location",
-          location,
-          node: target,
-          isOverlay: true,
-          startModelX: modelX,
-          startModelY: modelY,
-        };
-        isDragging.value = true;
-        stage.container().style.cursor = "move";
+        // 选中该位置（单选）
+        mapEditorStore.selectElement(locationId, "location");
+        // 如果不是规则区域，也允许拖拽
+        if (!isRuleRegionLocation(location)) {
+          manualDragState.value = {
+            kind: "location",
+            location,
+            node: target,
+            isOverlay: true,
+            startModelX: modelX,
+            startModelY: modelY,
+          };
+          isDragging.value = true;
+          stage.container().style.cursor = "move";
+        }
+        if (e.evt) e.evt.preventDefault();
+        return;
+      }
+    }
+    if (className === "Circle" && typeof id === "string" && id.endsWith("-circle")) {
+      // 业务位置的圆形碰撞层 - 选中并可拖拽
+      const locationId = id.replace(/-circle$/, "");
+      const location = visibleLocations.value.find(
+        (l) => String(l.id) === locationId,
+      );
+      if (location) {
+        mapEditorStore.selectElement(locationId, "location");
+        if (!isRuleRegionLocation(location)) {
+          manualDragState.value = {
+            kind: "location",
+            location,
+            node: target,
+            isOverlay: true,
+            startModelX: modelX,
+            startModelY: modelY,
+          };
+          isDragging.value = true;
+          stage.container().style.cursor = "move";
+        }
         if (e.evt) e.evt.preventDefault();
         return;
       }

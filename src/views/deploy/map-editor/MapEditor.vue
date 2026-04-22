@@ -107,32 +107,6 @@
               </span>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="直角线路径" :show-after="50" placement="bottom">
-            <el-button
-              class="map-toolbar-btn"
-              :type="
-                currentTool === 'path' &&
-                currentPathConnectionType === 'orthogonal'
-                  ? 'primary'
-                  : 'default'
-              "
-              size="small"
-              @click="handlePathToolClick('orthogonal')"
-            >
-              <span class="map-toolbar-btn__inner">
-                <span class="map-toolbar-btn__icon">
-                  <PathTypeIcon
-                    type="orthogonal"
-                    :active="
-                      currentTool === 'path' &&
-                      currentPathConnectionType === 'orthogonal'
-                    "
-                  />
-                </span>
-                <span class="map-toolbar-btn__label">直角</span>
-              </span>
-            </el-button>
-          </el-tooltip>
           <el-tooltip content="贝塞尔曲线路径" :show-after="50" placement="bottom">
             <el-button
               class="map-toolbar-btn"
@@ -146,13 +120,7 @@
             >
               <span class="map-toolbar-btn__inner">
                 <span class="map-toolbar-btn__icon">
-                  <PathTypeIcon
-                    type="curve"
-                    :active="
-                      currentTool === 'path' &&
-                      currentPathConnectionType === 'curve'
-                    "
-                  />
+                  <SvgIcon icon-class="bezier" class="curve-type-svg-icon" />
                 </span>
                 <span class="map-toolbar-btn__label">曲线</span>
               </span>
@@ -1735,10 +1703,18 @@ function drawSingleRuler(
         ctx.fillText(label, sp, 2)
       } else {
         ctx.save()
+<<<<<<< HEAD
+        // 数字显示在左侧（靠近画布），顶部对齐
+        ctx.translate(2, sp)
+        ctx.rotate(-Math.PI / 2)
+        ctx.textAlign    = 'left'
+        ctx.textBaseline = 'top'
+=======
         ctx.translate(cssW - tickLen - 2, sp)
         ctx.rotate(-Math.PI / 2)
         ctx.textAlign    = 'center'
         ctx.textBaseline = 'bottom'
+>>>>>>> origin/master
         ctx.fillText(label, 0, 0)
         ctx.restore()
       }
@@ -1850,11 +1826,15 @@ function handleAlign(cmd: string) {
   ElMessage.success('对齐完成');
 }
 
+<<<<<<< HEAD
+type PathConnectionType = "direct" | "curve";
+=======
 type PathConnectionType = "direct" | "orthogonal" | "curve";
+>>>>>>> origin/master
 
 const currentPathConnectionType = computed<PathConnectionType>(() => {
   const t = mapEditorStore.pathConnectionType as PathConnectionType;
-  return t === "direct" || t === "orthogonal" || t === "curve" ? t : "direct";
+  return t === "direct" || t === "curve" ? t : "direct";
 });
 
 const TOOL_TOAST_LABEL: Record<ToolMode, string> = {
