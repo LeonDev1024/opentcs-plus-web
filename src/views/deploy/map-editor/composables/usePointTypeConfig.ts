@@ -30,8 +30,8 @@ export function usePointTypeConfig() {
       radius: POINT_TYPE_RADIUS[POINT_TYPE.PARK]
     },
     [POINT_TYPE.STATION]: {
-      fill: '#E6A23C',      // 橙色 - 工作站点
-      stroke: '#D48806',
+      fill: '#67C23A',      // 绿色 - 工作站点（与导航点一致）
+      stroke: '#237804',
       glyph: 'S',
       glyphColor: '#FFFFFF',
       radius: POINT_TYPE_RADIUS[POINT_TYPE.STATION]

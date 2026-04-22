@@ -85,7 +85,7 @@ watch(
   height: 100%;
   display: flex;
   flex-direction: column;
-  padding: 12px 16px;
+  padding: 6px 8px;
   box-sizing: border-box;
   background: #f5f7fa;
   overflow: hidden;
@@ -107,7 +107,7 @@ watch(
     flex-direction: column;
     background: #fff;
     border: 1px solid #e6e8ee;
-    border-radius: 10px;
+    border-radius: 6px;
     overflow: hidden;
   }
 

@@ -565,10 +565,10 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     };
   };
 
-  const POINT_NAME_REGEX = /^Point-(\d+)$/i;
+  const POINT_NAME_REGEX = /^P(\d+)$/i;
 
   const formatPointName = (index: number) => {
-    return `Point-${index.toString().padStart(4, '0')}`;
+    return `P${index}`;
   };
 
   const updateCounterByName = (name?: string) => {
@@ -592,10 +592,10 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     return formatPointName(pointNameCounter.value);
   };
 
-  const LOCATION_NAME_REGEX = /^Location-(\d+)$/i;
+  const LOCATION_NAME_REGEX = /^A(\d+)$/i;
 
   const formatLocationName = (index: number) => {
-    return `Location-${index.toString().padStart(4, '0')}`;
+    return `A${index}`;
   };
 
   const updateLocationCounterByName = (name?: string) => {
@@ -969,8 +969,11 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         canvasState.width = data.mapInfo.width || 1920;
         canvasState.height = data.mapInfo.height || 1080;
         canvasState.scale = data.mapInfo.scale || 1;
-        canvasState.offsetX = data.mapInfo.offsetX || 0;
-        canvasState.offsetY = data.mapInfo.offsetY || 0;
+        // 默认将坐标原点 (0,0) 放在画布中心
+        const initOffsetX = data.mapInfo.offsetX ?? (canvasState.width / 2);
+        const initOffsetY = data.mapInfo.offsetY ?? (canvasState.height / 2);
+        canvasState.offsetX = initOffsetX;
+        canvasState.offsetY = initOffsetY;
 
         // 设置默认的 scaleX 和 scaleY（如果不存在）
         if (data.mapInfo.scaleX === undefined) {

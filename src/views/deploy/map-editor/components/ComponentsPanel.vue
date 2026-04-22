@@ -3,43 +3,41 @@
     <el-tabs v-model="activeTab" class="components-tabs">
       <el-tab-pane label="模型元素" name="components">
         <div class="components-content">
-          <div class="components-tree">
-            <el-tree
-              :data="treeData"
-              :props="treeProps"
-              node-key="id"
-              :default-expand-all="true"
-              :highlight-current="true"
-              @node-click="handleNodeClick"
-            >
-              <template #default="{ node, data }">
-                <div 
-                  class="tree-node"
-                  :class="{ 'is-selected-layout': data.type === 'layout' && isLayoutSelected }"
-                  @dblclick="handleNodeDoubleClick(data)"
-                  @contextmenu.prevent="handleNodeContextMenu($event, data)"
+          <div class="search-box">
+            <el-input
+              v-model="searchKeyword"
+              placeholder="搜索元素..."
+              size="small"
+              clearable
+              :prefix-icon="Search"
+            />
+          </div>
+          <div class="elements-list">
+            <template v-for="group in flatElementGroups" :key="group.label">
+              <div
+                class="element-group-header"
+                @click="toggleGroup(group.label)"
+              >
+                <span class="group-arrow" :class="{ collapsed: collapsedGroups.has(group.label) }">▶</span>
+                <span class="group-label-text">{{ group.label }}</span>
+                <span class="group-count">{{ group.items.length }}</span>
+              </div>
+              <template v-if="!collapsedGroups.has(group.label)">
+                <div
+                  v-for="(item, idx) in group.items"
+                  :key="item.elementId"
+                  class="element-row"
+                  :class="{ 'is-selected': isSelected(item.elementId, item.elementType) }"
+                  @click="handleElementSelect(item.elementId, item.elementType)"
+                  @dblclick="handleElementDblClick(item)"
+                  @contextmenu.prevent="handleElementContextMenu($event, item)"
                 >
-                  <el-icon v-if="data.type === 'folder'" class="node-icon"><Folder /></el-icon>
-                  <span
-                    v-else-if="data.type === 'element' && data.elementType === 'path'"
-                    class="tree-element-icon path-icon"
-                  >
-                    <svg viewBox="0 0 24 24">
-                      <line x1="4" y1="12" x2="18" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                      <polygon points="18,8 22,12 18,16" fill="currentColor" />
-                    </svg>
-                  </span>
-                  <el-radio
-                    v-if="data.type === 'element'"
-                    :model-value="isSelected(data.elementId, data.elementType)"
-                    @click.stop
-                    @change="handleElementSelect(data.elementId, data.elementType)"
-                    class="element-radio"
-                  />
-                  <span class="node-label">{{ node.label }}</span>
+                  <span class="element-index">{{ idx + 1 }}</span>
+                  <span class="element-name">{{ item.label }}</span>
                 </div>
+                <div v-if="group.items.length === 0" class="element-empty">无</div>
               </template>
-            </el-tree>
+            </template>
           </div>
         </div>
       </el-tab-pane>
@@ -189,7 +187,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { Grid, Folder, Edit } from '@element-plus/icons-vue';
+import { Grid, Folder, Edit, Search } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import type { MapPath, MapPoint, MapBlock } from '@/types/mapEditor';
@@ -199,6 +197,15 @@ import PointEditDialog from './PointEditDialog.vue';
 const mapEditorStore = useMapEditorStore();
 
 const activeTab = ref('components');
+const searchKeyword = ref('');
+const collapsedGroups = ref<Set<string>>(new Set());
+
+const toggleGroup = (label: string) => {
+  const next = new Set(collapsedGroups.value)
+  if (next.has(label)) next.delete(label)
+  else next.add(label)
+  collapsedGroups.value = next
+};
 const showDetailDialog = ref(false);
 const showEditDialog = ref(false);
 const currentPoint = ref<MapPoint | null>(null);
@@ -340,7 +347,7 @@ const treeData = computed(() => {
     const startName = getPointDisplayName(path.startPointId);
     const endName = getPointDisplayName(path.endPointId);
     if (startName && endName) {
-      return path.name || `Path ${startName} --- ${endName}`;
+      return path.name || `${startName} --- ${endName}`;
     }
     return path.name || path.id;
   };
@@ -419,6 +426,40 @@ const treeData = computed(() => {
   return data;
 });
 
+const filteredTreeData = computed(() => {
+  const kw = searchKeyword.value.trim().toLowerCase()
+  if (!kw) return treeData.value
+  return treeData.value.map(rootNode => ({
+    ...rootNode,
+    children: (rootNode.children || []).map((folder: any) => ({
+      ...folder,
+      children: (folder.children || []).filter((item: any) =>
+        item.label?.toLowerCase().includes(kw)
+      ),
+    })).filter((folder: any) => folder.children.length > 0),
+  }))
+})
+
+// 平铺分组列表（Points / Paths / Locations / Links）
+const FOLDER_LABELS: Record<string, string> = {
+  'points-folder': 'Points',
+  'paths-folder': 'Paths',
+  'locations-folder': 'Locations',
+  'links-folder': 'Links',
+}
+
+const flatElementGroups = computed(() => {
+  const kw = searchKeyword.value.trim().toLowerCase()
+  const rootNode = treeData.value[0]
+  if (!rootNode) return []
+  return (rootNode.children || []).map((folder: any) => {
+    const items = (folder.children || []).filter((item: any) =>
+      !kw || item.label?.toLowerCase().includes(kw)
+    )
+    return { label: FOLDER_LABELS[folder.id] || folder.label, items }
+  })
+})
+
 const isSelected = (id: string, elementType: string) => {
   return mapEditorStore.selection.selectedIds.has(id) &&
          mapEditorStore.selection.selectedType === elementType;
@@ -451,14 +492,31 @@ const handleNodeDoubleClick = (data: any) => {
   }
 };
 
+// 平铺列表双击
+const handleElementDblClick = (item: any) => {
+  if (item.elementType === 'point') {
+    const point = mapEditorStore.points.find(p => p.id === item.elementId);
+    if (point) { currentPoint.value = point; showDetailDialog.value = true; }
+  }
+};
+
 // 右键菜单事件
 const handleNodeContextMenu = (event: MouseEvent, data: any) => {
   if (data.type === 'element' && data.elementType === 'point') {
     const point = mapEditorStore.points.find(p => p.id === data.elementId);
     if (point) {
-      // 选中该点
       mapEditorStore.selectElement(point.id, 'point', false);
-      // 显示右键菜单
+      showPointContextMenu(event, point);
+    }
+  }
+};
+
+// 平铺列表右键
+const handleElementContextMenu = (event: MouseEvent, item: any) => {
+  if (item.elementType === 'point') {
+    const point = mapEditorStore.points.find(p => p.id === item.elementId);
+    if (point) {
+      mapEditorStore.selectElement(point.id, 'point', false);
       showPointContextMenu(event, point);
     }
   }
@@ -673,65 +731,119 @@ const handlePointUpdated = () => {
     flex: 1;
     overflow: hidden;
     padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
-  
-  .components-tree {
-    height: 100%;
-    overflow: auto;
-    
-    :deep(.el-tree-node__content) {
-      min-width: max-content;
+
+  .search-box {
+    flex-shrink: 0;
+  }
+
+  .elements-list {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .element-group-header {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #606266;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid #f0f0f0;
+    margin-top: 2px;
+    background: #f5f7fa;
+    cursor: pointer;
+    user-select: none;
+
+    &:first-child {
+      margin-top: 0;
     }
-    
-    .tree-node {
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 6px;
-      flex-wrap: nowrap;
+
+    &:hover {
+      background: #ecf5ff;
+      color: #409eff;
+    }
+
+    .group-arrow {
+      font-size: 9px;
+      color: #c0c4cc;
+      transition: transform 0.15s;
+      transform: rotate(90deg);
+
+      &.collapsed {
+        transform: rotate(0deg);
+      }
+    }
+
+    .group-label-text {
       flex: 1;
-      white-space: nowrap;
+    }
 
-      &.is-selected-layout {
-        background: #ecf5ff;
+    .group-count {
+      font-size: 11px;
+      color: #c0c4cc;
+      font-weight: normal;
+    }
+  }
+
+  .element-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background 0.1s;
+
+    &:hover {
+      background: #f5f7fa;
+    }
+
+    &.is-selected {
+      background: #ecf5ff;
+      color: #409eff;
+
+      .element-index {
         color: #409eff;
       }
 
-      .node-icon {
-        font-size: 16px;
-        color: #606266;
-      }
-      
-      .node-label {
-        font-size: 13px;
-        text-align: left;
-      }
-      
-      .tree-element-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 16px;
-        height: 16px;
+      .element-name {
         color: #409eff;
-        flex-shrink: 0;
-        
-        svg {
-          width: 100%;
-          height: 100%;
-        }
-      }
-      
-      .element-radio {
-        width: auto;
-        margin: 0;
-        flex-shrink: 0;
-        
-        :deep(.el-radio__label) {
-          padding-left: 4px;
-        }
+        font-weight: 500;
       }
     }
+  }
+
+  .element-index {
+    flex-shrink: 0;
+    width: 22px;
+    font-size: 11px;
+    color: #c0c4cc;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .element-name {
+    flex: 1;
+    font-size: 13px;
+    color: #303133;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .element-empty {
+    padding: 4px 8px;
+    font-size: 12px;
+    color: #c0c4cc;
+    font-style: italic;
   }
   
   .blocks-content {
