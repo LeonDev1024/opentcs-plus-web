@@ -107,32 +107,6 @@
               </span>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="直角线路径" :show-after="50" placement="bottom">
-            <el-button
-              class="map-toolbar-btn"
-              :type="
-                currentTool === 'path' &&
-                currentPathConnectionType === 'orthogonal'
-                  ? 'primary'
-                  : 'default'
-              "
-              size="small"
-              @click="handlePathToolClick('orthogonal')"
-            >
-              <span class="map-toolbar-btn__inner">
-                <span class="map-toolbar-btn__icon">
-                  <PathTypeIcon
-                    type="orthogonal"
-                    :active="
-                      currentTool === 'path' &&
-                      currentPathConnectionType === 'orthogonal'
-                    "
-                  />
-                </span>
-                <span class="map-toolbar-btn__label">直角</span>
-              </span>
-            </el-button>
-          </el-tooltip>
           <el-tooltip content="贝塞尔曲线路径" :show-after="50" placement="bottom">
             <el-button
               class="map-toolbar-btn"
@@ -1851,11 +1825,11 @@ function handleAlign(cmd: string) {
   ElMessage.success('对齐完成');
 }
 
-type PathConnectionType = "direct" | "orthogonal" | "curve";
+type PathConnectionType = "direct" | "curve";
 
 const currentPathConnectionType = computed<PathConnectionType>(() => {
   const t = mapEditorStore.pathConnectionType as PathConnectionType;
-  return t === "direct" || t === "orthogonal" || t === "curve" ? t : "direct";
+  return t === "direct" || t === "curve" ? t : "direct";
 });
 
 const TOOL_TOAST_LABEL: Record<ToolMode, string> = {
