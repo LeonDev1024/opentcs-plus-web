@@ -286,6 +286,8 @@
         <v-line :config="axisYLineConfig" />
         <v-line :config="axisXArrowConfig" />
         <v-line :config="axisYArrowConfig" />
+        <!-- 原点标签 O(0,0) -->
+        <v-text :config="originLabelConfig" />
       </v-layer>
     </v-stage>
 
@@ -958,6 +960,7 @@ const {
 
 const {
   axisXLineConfig, axisYLineConfig, axisXArrowConfig, axisYArrowConfig,
+  originLabelConfig,
   mapOriginCoord, mapOriginXLineConfig, mapOriginYLineConfig,
   mapOriginXArrowConfig, mapOriginYArrowConfig,
 } = useCanvasAxis(mapEditorStore)

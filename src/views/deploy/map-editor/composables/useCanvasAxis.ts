@@ -91,11 +91,23 @@ export function useCanvasAxis(mapEditorStore: ReturnType<typeof useMapEditorStor
     }
   })
 
+  // 地图原点标签 O(0,0)
+  const originLabelConfig = {
+    x: 8,
+    y: -8,
+    text: 'O(0,0)',
+    fontSize: 11,
+    fontFamily: 'Arial, sans-serif',
+    fill: '#666',
+    opacity: 0.8,
+  }
+
   return {
     axisXLineConfig,
     axisYLineConfig,
     axisXArrowConfig,
     axisYArrowConfig,
+    originLabelConfig,
     mapOriginCoord,
     mapOriginXLineConfig,
     mapOriginYLineConfig,
