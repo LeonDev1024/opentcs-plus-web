@@ -356,6 +356,8 @@ export interface MapLayerVisibility {
   raster: boolean;
   /** 路径线 */
   path: boolean;
+  /** 网格 */
+  grid: boolean;
 }
 
 export function defaultMapLayerVisibility(): MapLayerVisibility {
@@ -364,5 +366,6 @@ export function defaultMapLayerVisibility(): MapLayerVisibility {
     pathDirection: true,
     raster: true,
     path: true,
+    grid: true,
   };
 }
