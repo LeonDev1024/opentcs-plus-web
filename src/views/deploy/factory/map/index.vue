@@ -53,11 +53,6 @@
       <div class="rcs-stage2">
         <!-- 预览模式：MapCanvas readonly -->
         <div v-if="!isEditingOrigin" class="stage2-preview">
-          <div class="map-info-bar" v-if="activeMap">
-            <span class="info-item"><span class="label">分辨率：</span><span class="value">{{ activeMapResolution }} mm/px</span></span>
-            <span class="info-item"><span class="label">宽度：</span><span class="value">{{ activeMapWidthM }} m</span></span>
-            <span class="info-item"><span class="label">高度：</span><span class="value">{{ activeMapHeightM }} m</span></span>
-          </div>
           <MapCanvasRuler class="map-canvas-wrapper">
             <MapCanvas
               v-if="activeMap"
@@ -2848,35 +2843,11 @@ onBeforeUnmount(() => {
   inset: 0;
   left: 196px;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.map-info-bar {
-  height: 28px;
-  padding: 0 12px;
-  background: #f5f7fa;
-  border-bottom: 1px solid #e6e8ee;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  font-size: 12px;
-  flex-shrink: 0;
-
-  .info-item {
-    .label {
-      color: #909399;
-    }
-    .value {
-      color: #303133;
-      font-weight: 500;
-    }
-  }
 }
 
 .map-canvas-wrapper {
-  flex: 1;
-  overflow: hidden;
+  width: 100%;
+  height: 100%;
 }
 
 .stage2-left {
