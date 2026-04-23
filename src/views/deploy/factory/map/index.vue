@@ -53,7 +53,12 @@
       <div class="rcs-stage2">
         <!-- 预览模式：MapCanvas readonly -->
         <div v-if="!isEditingOrigin" class="stage2-preview">
-          <MapCanvasRuler>
+          <div class="map-info-bar" v-if="activeMap">
+            <span class="info-item"><span class="label">分辨率：</span><span class="value">{{ activeMapResolution }} mm/px</span></span>
+            <span class="info-item"><span class="label">宽度：</span><span class="value">{{ activeMapWidthM }} m</span></span>
+            <span class="info-item"><span class="label">高度：</span><span class="value">{{ activeMapHeightM }} m</span></span>
+          </div>
+          <MapCanvasRuler class="map-canvas-wrapper">
             <MapCanvas
               v-if="activeMap"
               ref="mapCanvasPreviewRef"
@@ -1266,6 +1271,34 @@ const formRef = ref<FormInstance>();
 const activeMap = computed(() =>
   mapList.value.find((m) => String(m.mapId) === selectedMapId.value),
 );
+
+// 获取当前地图的分辨率（mm/px）
+const activeMapResolution = computed(() => {
+  const meta = previewMapEditorMeta.value?.[selectedMapId.value];
+  const mi = meta?.mapInfo as { scaleX?: number | string } | null | undefined;
+  return mi?.scaleX ?? '-';
+});
+
+// 获取当前地图宽度（米）
+const activeMapWidthM = computed(() => {
+  const meta = previewMapEditorMeta.value?.[selectedMapId.value];
+  const mi = meta?.mapInfo as { scaleX?: number | string; width?: number } | null | undefined;
+  const scale = Number(mi?.scaleX);
+  const w = mi?.width;
+  if (!scale || !w) return '-';
+  return (w * scale / 1000).toFixed(2);
+});
+
+// 获取当前地图高度（米）
+const activeMapHeightM = computed(() => {
+  const meta = previewMapEditorMeta.value?.[selectedMapId.value];
+  const mi = meta?.mapInfo as { scaleY?: number | string; height?: number } | null | undefined;
+  // 优先用 scaleY，没有则用 scaleX
+  const scale = Number(mi?.scaleY ?? mi?.scaleX);
+  const h = mi?.height;
+  if (!scale || !h) return '-';
+  return (h * scale / 1000).toFixed(2);
+});
 
 // 处理路径数据，添加端点坐标
 const processedPaths = computed(() => {
@@ -2682,8 +2715,8 @@ onBeforeUnmount(() => {
 
 .canvas-footer {
   position: absolute;
-  left: 260px;
-  bottom: 10px;
+  left: 40px;
+  bottom: 20px;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -2814,6 +2847,35 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
   left: 196px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.map-info-bar {
+  height: 28px;
+  padding: 0 12px;
+  background: #f5f7fa;
+  border-bottom: 1px solid #e6e8ee;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 12px;
+  flex-shrink: 0;
+
+  .info-item {
+    .label {
+      color: #909399;
+    }
+    .value {
+      color: #303133;
+      font-weight: 500;
+    }
+  }
+}
+
+.map-canvas-wrapper {
+  flex: 1;
   overflow: hidden;
 }
 

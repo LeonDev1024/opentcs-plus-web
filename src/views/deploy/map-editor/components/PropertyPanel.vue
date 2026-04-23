@@ -72,16 +72,8 @@
               <td class="kv-value">{{ mapInfoData.mapVersion || '-' }}</td>
             </tr>
             <tr>
-              <td class="kv-key">状态</td>
-              <td class="kv-value">{{ mapInfoData.statusText || '-' }}</td>
-            </tr>
-            <tr>
-              <td class="kv-key">X 比例尺</td>
-              <td class="kv-value">{{ mapInfoData.scaleX || '-' }} mm/单位</td>
-            </tr>
-            <tr>
-              <td class="kv-key">Y 比例尺</td>
-              <td class="kv-value">{{ mapInfoData.scaleY || '-' }} mm/单位</td>
+              <td class="kv-key">分辨率</td>
+              <td class="kv-value">{{ mapInfoData.resolution || '-' }} mm/px</td>
             </tr>
             <tr>
               <td class="kv-key">原点在布局坐标系 X</td>
@@ -93,11 +85,11 @@
             </tr>
             <tr>
               <td class="kv-key">地图宽度</td>
-              <td class="kv-value">{{ mapInfoData.width || '-' }} 单位</td>
+              <td class="kv-value">{{ mapInfoData.widthM || '-' }} m</td>
             </tr>
             <tr>
               <td class="kv-key">地图高度</td>
-              <td class="kv-value">{{ mapInfoData.height || '-' }} 单位</td>
+              <td class="kv-value">{{ mapInfoData.heightM || '-' }} m</td>
             </tr>
             <tr>
               <td class="kv-key">楼层</td>
@@ -643,18 +635,27 @@ const mapInfoData = computed(() => {
   const md = mapEditorStore.mapData;
   const info = md?.mapInfo;
   const vl = md?.visualLayout;
+  // 从 scaleX 计算分辨率（假设 scaleX 是 mm/px）
+  const resolution = info?.scaleX ?? vl?.scaleX ?? '-';
+  // 将单位转换为米 (假设原单位是 0.1mm 或类似，需要根据实际情况调整)
+  // 这里假设原 width/height 单位是 0.1mm，需要除以 10000 转为米
+  // 或者根据 scaleX 换算：width(单位) * scaleX(mm/单位) / 1000 = 宽度(米)
+  const rawWidth = info?.width ?? vl?.width;
+  const rawHeight = info?.height ?? vl?.height;
+  const scale = Number(resolution);
+  const widthM = rawWidth && scale ? (rawWidth * scale / 1000).toFixed(2) : '-';
+  const heightM = rawHeight && scale ? (rawHeight * scale / 1000).toFixed(2) : '-';
   return {
     id: mapEditorStore.currentMapId ?? '-',
     name: vl?.name ?? info?.name ?? '-',
     mapVersion: info?.mapVersion ?? '-',
-    status: info?.status,
-    statusText: info?.status === '1' ? '已发布' : '未发布',
-    scaleX: info?.scaleX ?? vl?.scaleX ?? '-',
-    scaleY: info?.scaleY ?? vl?.scaleY ?? '-',
+    resolution: resolution,
     originX: info?.originX ?? vl?.originX,
     originY: info?.originY ?? vl?.originY,
-    width: info?.width ?? vl?.width,
-    height: info?.height ?? vl?.height,
+    width: rawWidth,
+    height: rawHeight,
+    widthM: widthM,
+    heightM: heightM,
     floor: (info as any)?.floor ?? (vl as any)?.floor,
   };
 });
