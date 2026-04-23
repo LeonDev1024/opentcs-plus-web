@@ -261,29 +261,14 @@
     <div class="editor-content">
       <!-- 中间：画布区域 -->
       <div class="canvas-area">
-        <!-- 标尺顶行：左上角 + 水平标尺 -->
-        <div class="ruler-top-row">
-          <div class="ruler-corner"><span class="ruler-unit">{{ rulerCornerUnit }}</span></div>
-          <canvas ref="rulerHRef" class="ruler-h-canvas" />
-        </div>
-        <!-- 内容行：垂直标尺 + 画布 -->
-        <div class="canvas-body-row">
-          <canvas ref="rulerVRef" class="ruler-v-canvas" />
-          <div class="canvas-wrapper" ref="canvasWrapperRef" @mousemove="handleRulerMouseMove">
-            <MapCanvas
-              ref="mapCanvasRef"
-              :layer-visibility="layerVisibility"
-              @point-double-click="handlePointDoubleClick"
-              @path-context-menu="handlePathContextMenu"
-            />
-            <!-- 左上角坐标信息（相对画布绝对定位） -->
-            <div class="ruler-info-box">
-              <div class="rib-scale">{{ scaleBarLabel }}</div>
-              <div class="rib-coord">x: {{ mouseRealXStr }}</div>
-              <div class="rib-coord">y: {{ mouseRealYStr }}</div>
-            </div>
-          </div>
-        </div>
+        <MapCanvasRuler>
+          <MapCanvas
+            ref="mapCanvasRef"
+            :layer-visibility="layerVisibility"
+            @point-double-click="handlePointDoubleClick"
+            @path-context-menu="handlePathContextMenu"
+          />
+        </MapCanvasRuler>
         <div class="canvas-floating-controls">
           <div class="floating-slot">
             <el-popover placement="left" trigger="click" :width="200">
@@ -1001,6 +986,7 @@ import { useMapStore } from "@/store/modules/map";
 import layerIconUrl from "@/assets/icons/svg/layer.svg?url";
 import propertyPanelIconUrl from "@/assets/icons/svg/shuxing-guanli.svg?url";
 import MapCanvas from "./components/MapCanvas.vue";
+import MapCanvasRuler from "./components/MapCanvasRuler.vue";
 import LayerPanel from "./components/LayerPanel.vue";
 import ComponentsPanel from "./components/ComponentsPanel.vue";
 import PropertyPanel from "./components/PropertyPanel.vue";
@@ -1072,6 +1058,7 @@ const layerMenuItems: { key: keyof MapLayerVisibility; label: string }[] = [
   { key: "station", label: "站点显隐" },
   { key: "pathDirection", label: "方向显隐" },
   { key: "raster", label: "底图显隐" },
+  { key: "grid", label: "网格显隐" },
 ];
 
 function toggleLayerKey(key: keyof MapLayerVisibility) {
@@ -1553,195 +1540,6 @@ const zoomPercent = computed(() => {
   return Math.round((canvasScale.value / denom) * 100);
 });
 
-// ── 标尺 ──────────────────────────────────────────────────────────────────
-const RULER_H = 20   // 水平标尺高度 (px)
-const RULER_W = 24   // 垂直标尺宽度 (px)
-const RULER_BG = '#f7f8fa'
-const RULER_FG = '#888'
-const RULER_BORDER = '#ddd'
-const RULER_TICK = '#bbb'
-
-const canvasWrapperRef = ref<HTMLElement | null>(null)
-const rulerHRef = ref<HTMLCanvasElement | null>(null)
-const rulerVRef = ref<HTMLCanvasElement | null>(null)
-const mouseScreenX = ref(0)
-const mouseScreenY = ref(0)
-
-const mouseMapX = computed(() => {
-  const cs = canvasState.value
-  return cs ? (mouseScreenX.value - cs.offsetX) / cs.scale : 0
-})
-const mouseMapY = computed(() => {
-  const cs = canvasState.value
-  return cs ? (mouseScreenY.value - cs.offsetY) / cs.scale : 0
-})
-
-function fmtRulerCoord(mapUnits: number, mmPerUnit: number | null): string {
-  if (mmPerUnit != null && mmPerUnit > 0) {
-    const mm = mapUnits * mmPerUnit
-    return Math.abs(mm) >= 1000 ? `${(mm / 1000).toFixed(3)} m` : `${mm.toFixed(1)} mm`
-  }
-  return `${Math.round(mapUnits)}`
-}
-
-const mouseRealXStr = computed(() => fmtRulerCoord(mouseMapX.value, scaleX.value))
-const mouseRealYStr = computed(() => fmtRulerCoord(mouseMapY.value, scaleY.value))
-
-function handleRulerMouseMove(e: MouseEvent) {
-  const el = e.currentTarget as HTMLElement
-  const r = el.getBoundingClientRect()
-  mouseScreenX.value = e.clientX - r.left
-  mouseScreenY.value = e.clientY - r.top
-}
-
-// 比例尺标签（左上角显示当前缩放下 ~100px 对应的真实距离）
-const SCALE_BAR_STEPS_MM = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000]
-const SCALE_BAR_STEPS_PX = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000]
-const scaleBarLabel = computed(() => {
-  const zoom = canvasScale.value
-  const mmPerUnit = scaleX.value
-  if (mmPerUnit != null && mmPerUnit > 0) {
-    const rawMm = 100 * mmPerUnit / zoom
-    const nice = SCALE_BAR_STEPS_MM.reduce((a, b) =>
-      Math.abs(b - rawMm) < Math.abs(a - rawMm) ? b : a)
-    return nice >= 1000 ? `${nice / 1000} m` : `${nice} mm`
-  }
-  const rawPx = 100 / zoom
-  const nice = SCALE_BAR_STEPS_PX.reduce((a, b) =>
-    Math.abs(b - rawPx) < Math.abs(a - rawPx) ? b : a)
-  return `${nice} px`
-})
-
-const rulerCornerUnit = 'cm'
-
-// 在目标单位空间（cm 或 px）里取整数步长，目标约 80 屏幕像素一个主刻度
-function pickNiceStep(visibleRange: number, screenPx: number): number {
-  const rough = visibleRange / Math.max(1, screenPx / 80)
-  if (!rough || !isFinite(rough) || rough <= 0) return 1
-  const mag = Math.pow(10, Math.floor(Math.log10(rough)))
-  const n = rough / mag
-  return (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10) * mag
-}
-
-function drawSingleRuler(
-  canvas: HTMLCanvasElement,
-  isH: boolean,
-  scale: number,        // 屏幕像素 / 地图单位 (zoom)
-  offset: number,       // 画布偏移 (offsetX 或 offsetY)
-  mmPerUnit: number | null,  // mm / 地图单位（来自 scaleX/scaleY）
-): boolean {
-  const cssW = canvas.offsetWidth
-  const cssH = canvas.offsetHeight
-  if (!cssW || !cssH) return false
-
-  const dpr = window.devicePixelRatio || 1
-  canvas.width  = Math.round(cssW * dpr)
-  canvas.height = Math.round(cssH * dpr)
-  const ctx = canvas.getContext('2d')!
-  ctx.scale(dpr, dpr)
-
-  const length    = isH ? cssW : cssH
-  const thickness = isH ? cssH : cssW
-
-  ctx.fillStyle = RULER_BG
-  ctx.fillRect(0, 0, cssW, cssH)
-
-  ctx.strokeStyle = RULER_BORDER
-  ctx.lineWidth = 1
-  ctx.beginPath()
-  if (isH) { ctx.moveTo(0, cssH - 0.5); ctx.lineTo(cssW, cssH - 0.5) }
-  else      { ctx.moveTo(cssW - 0.5, 0); ctx.lineTo(cssW - 0.5, cssH) }
-  ctx.stroke()
-
-  // 全程在 cm 空间计算：cmPerUnit = mm/unit ÷ 10
-  // 若无 scaleX，fallback 到像素空间（cmPerUnit=1，单位变成 px）
-  const cmPerUnit = (mmPerUnit != null && mmPerUnit > 0) ? mmPerUnit / 10 : 1
-
-  // 屏幕像素 ↔ cm
-  const screenToCm = (px: number) => (px - offset) / scale * cmPerUnit
-  const cmToScreen = (cm: number) => cm / cmPerUnit * scale + offset
-
-  const cmAtStart = screenToCm(0)
-  const cmAtEnd   = screenToCm(length)
-  const cmMin     = Math.min(cmAtStart, cmAtEnd)
-  const cmMax     = Math.max(cmAtStart, cmAtEnd)
-
-  // 主刻度步长（cm），目标约 80px 一格
-  const step = pickNiceStep(cmMax - cmMin, length)
-  if (step <= 0) return true
-
-  // 步长整除 10 用 10 等分，否则 5 等分
-  const subDivs   = step % 10 < 0.0001 ? 10 : 5
-  const minorStep = step / subDivs
-
-  ctx.font = `9px Arial, system-ui, sans-serif`
-
-  // 从第一个小刻度开始遍历
-  const firstMinor = Math.floor(cmMin / minorStep) * minorStep
-  for (let cm = firstMinor; cm <= cmMax + minorStep * 0.001; cm += minorStep) {
-    const sp = cmToScreen(cm)
-    if (sp < -1 || sp > length + 1) continue
-
-    // 判断是否为主刻度（cm 是 step 的整数倍）
-    const isMajor = Math.abs(cm / step - Math.round(cm / step)) < 0.0001
-
-    const tickLen = isMajor ? thickness * 0.6 : thickness * 0.35
-    ctx.strokeStyle = isMajor ? RULER_TICK : RULER_TICK
-    ctx.lineWidth   = isMajor ? 1 : 0.5
-    ctx.beginPath()
-    if (isH) { ctx.moveTo(sp, cssH); ctx.lineTo(sp, cssH - tickLen) }
-    else      { ctx.moveTo(cssW, sp); ctx.lineTo(cssW - tickLen, sp) }
-    ctx.stroke()
-
-    if (isMajor) {
-      const rounded = Math.round(cm * 10) / 10
-      const label   = Number.isInteger(rounded) ? `${Math.round(rounded)}` : rounded.toFixed(1)
-      ctx.fillStyle = RULER_FG
-      if (isH) {
-        ctx.textAlign    = 'center'
-        ctx.textBaseline = 'top'
-        ctx.fillText(label, sp, 2)
-      } else {
-        ctx.save()
-        // 数字显示在左侧（靠近画布），顶部对齐
-        ctx.translate(2, sp)
-        ctx.rotate(-Math.PI / 2)
-        ctx.textAlign    = 'left'
-        ctx.textBaseline = 'top'
-        ctx.fillText(label, 0, 0)
-        ctx.restore()
-      }
-    }
-  }
-  return true
-}
-
-function redrawRulers() {
-  const cs = canvasState.value
-  if (!cs) { requestAnimationFrame(redrawRulers); return }
-  const mmX = scaleX.value
-  const mmY = scaleY.value
-  const okH = rulerHRef.value ? drawSingleRuler(rulerHRef.value, true,  cs.scale, cs.offsetX, mmX) : false
-  const okV = rulerVRef.value ? drawSingleRuler(rulerVRef.value, false, cs.scale, cs.offsetY, mmY) : false
-  if (!okH || !okV) requestAnimationFrame(redrawRulers)  // retry until layout is ready
-}
-
-// watch canvas state changes (pan / zoom)
-watch(
-  () => [canvasState.value?.scale, canvasState.value?.offsetX, canvasState.value?.offsetY],
-  redrawRulers,
-)
-
-// ruler ResizeObserver
-let rulerResizeObs: ResizeObserver | null = null
-onMounted(() => {
-  requestAnimationFrame(redrawRulers)   // first draw after layout
-  if (typeof ResizeObserver !== 'undefined' && canvasWrapperRef.value) {
-    rulerResizeObs = new ResizeObserver(redrawRulers)
-    rulerResizeObs.observe(canvasWrapperRef.value)
-  }
-})
-onUnmounted(() => { rulerResizeObs?.disconnect() })
 
 // 模型坐标 → 实际长度显示（单位 mm，≥1000 时显示为 m）
 const formatModelLength = (
@@ -4149,95 +3947,6 @@ onUnmounted(() => {
       overflow: hidden;
       min-width: 0;
       position: relative;
-
-      // 标尺顶行
-      .ruler-top-row {
-        display: flex;
-        flex-shrink: 0;
-        height: 20px;
-        background: #f7f8fa;
-        border-bottom: 1px solid #ddd;
-
-        .ruler-corner {
-          width: 24px;
-          flex-shrink: 0;
-          background: #f7f8fa;
-          border-right: 1px solid #ddd;
-          box-sizing: border-box;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-
-          .ruler-unit {
-            font-size: 9px;
-            color: #888;
-            font-family: Arial, system-ui, sans-serif;
-            line-height: 1;
-          }
-        }
-
-        .ruler-h-canvas {
-          flex: 1;
-          height: 20px;
-          display: block;
-          min-width: 0;
-        }
-      }
-
-      // 内容行：垂直标尺 + 画布
-      .canvas-body-row {
-        flex: 1;
-        display: flex;
-        min-height: 0;
-        overflow: hidden;
-
-        .ruler-v-canvas {
-          width: 24px;
-          flex-shrink: 0;
-          display: block;
-          background: #f7f8fa;
-          border-right: 1px solid #ddd;
-        }
-      }
-
-      .canvas-wrapper {
-        flex: 1;
-        position: relative;
-        min-height: 0;
-        min-width: 0;
-
-        :deep(.map-canvas-container) {
-          width: 100%;
-          height: 100%;
-        }
-      }
-
-      .ruler-info-box {
-        position: absolute;
-        top: 4px;
-        left: 4px;
-        z-index: 6;
-        pointer-events: none;
-        user-select: none;
-        background: rgba(247, 248, 250, 0.92);
-        border: 1px solid #ddd;
-        border-radius: 3px;
-        padding: 3px 6px;
-        line-height: 1.7;
-
-        .rib-scale {
-          font-size: 11px;
-          font-weight: 600;
-          color: #303133;
-        }
-
-        .rib-coord {
-          font-size: 10px;
-          color: #666;
-          font-variant-numeric: tabular-nums;
-          white-space: nowrap;
-        }
-      }
 
       .canvas-floating-controls {
         position: absolute;

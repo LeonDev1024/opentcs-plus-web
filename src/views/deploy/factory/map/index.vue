@@ -17,11 +17,32 @@
         </div>
         <div class="header-actions">
           <el-button
-            :type="isEditingOrigin ? 'warning' : 'default'"
+            type="primary"
+            plain
+            size="small"
+            icon="EditPen"
+            :disabled="!activeMap || isEditingOrigin"
+            @click="activeMap && handleEdit(activeMap)"
+          >
+            地图编辑
+          </el-button>
+          <el-button
+            type="danger"
+            plain
+            size="small"
+            icon="Delete"
+            :disabled="!activeMap || isEditingOrigin"
+            @click="activeMap && handleDelete(activeMap)"
+          >
+            删除地图
+          </el-button>
+          <el-divider direction="vertical" style="margin: 0 4px;" />
+          <el-button
+            :type="isEditingOrigin ? 'warning' : 'warning'"
             :plain="!isEditingOrigin"
             size="small"
             icon="Aim"
-            :disabled="!selectedFactoryId || filteredMaps.length === 0"
+            :disabled="!activeMap"
             @click="toggleOriginEditing"
           >
             {{ isEditingOrigin ? "退出原点编辑" : "原点编辑" }}
@@ -30,227 +51,30 @@
       </div>
 
       <div class="rcs-stage2">
-        <div
-          class="stage2-canvas"
-          ref="canvasRef"
-          @mousedown="startPan"
-          @wheel.prevent="handleCanvasWheel"
-        >
-          <!-- 地图层：随视图平移+缩放，被 canvas overflow:hidden 裁切 -->
-          <div class="canvas-map-layer" :style="mapLayerStyle">
-            <!-- 预览模式：底图与元素可叠加显示（编辑模式只显示拓扑元素） -->
-            <div
-              v-if="
-                !isEditingOrigin &&
-                activeMap?.rasterUrl &&
-                layerVisibility.raster &&
-                previewMapEditorMeta?.mapInfo
-              "
-              class="map-layer-image"
-              :style="rasterPreviewLayoutStyle"
-            >
-              <img
-                class="canvas-img"
-                :src="activeMap.rasterUrl"
-                alt="地图底图"
-              />
-            </div>
-
-            <!-- 普通模式：单张地图渲染 -->
-            <MapRenderer
-              v-if="
-                !isEditingOrigin &&
-                previewUseRenderer &&
-                activeMap &&
-                hasRenderableElements
-              "
-              class="preview-konva-layer"
-              :style="{
-                width: `${previewCanvasSize.w}px`,
-                height: `${previewCanvasSize.h}px`,
-                left: `${rendererCanvasOffset.x}px`,
-                top: `${rendererCanvasOffset.y}px`,
-              }"
-              :points="rendererPointsVisible"
-              :paths="rendererPathsVisible"
-              :locations="rendererLocationsVisible"
-              :width="previewCanvasSize.w"
-              :height="previewCanvasSize.h"
-              :scale="1"
-              :offset-x="0"
-              :offset-y="0"
+        <!-- 预览模式：MapCanvas readonly -->
+        <div v-if="!isEditingOrigin" class="stage2-preview">
+          <MapCanvasRuler>
+            <MapCanvas
+              v-if="activeMap"
+              ref="mapCanvasPreviewRef"
               :readonly="true"
-              :auto-center="false"
+              :layer-visibility="layerVisibility"
             />
-
-            <!-- 原点编辑模式：所有地图叠加渲染（底图 + 拓扑元素） -->
-            <template v-if="isEditingOrigin">
-              <!-- 各地图栅格底图 -->
-              <template v-for="em in editModeMapsWithCache" :key="'edit-raster-' + em.mapId">
-                <div
-                  v-if="em.rasterUrl && getEditMapCache(em)?.raster"
-                  class="map-layer-image"
-                  :style="getEditMapRasterStyle(em)"
-                >
-                  <img class="canvas-img" :src="em.rasterUrl" alt="底图" />
-                </div>
-              </template>
-              <!-- 各地图拓扑元素 -->
-              <MapRenderer
-                v-for="em in editModeMapsWithCache"
-                :key="'edit-renderer-' + em.mapId"
-                class="preview-konva-layer"
-                :style="getEditMapRendererStyle(em)"
-                :points="getEditMapRendererPoints(em)"
-                :paths="getEditMapRendererPaths(em)"
-                :locations="getEditMapRendererLocations(em)"
-                :width="getEditMapCache(em)!.canvasW"
-                :height="getEditMapCache(em)!.canvasH"
-                :scale="1"
-                :offset-x="0"
-                :offset-y="0"
-                :readonly="true"
-                :auto-center="false"
-              />
-            </template>
-
-            <svg
-              v-if="!isEditingOrigin && !previewUseRenderer && activeMap && hasRenderableElements"
-              class="map-layer-svg"
-            >
-              <g :transform="previewSvgCenterTransform">
-                <g
-                  v-for="path in pathsForPreviewVisible"
-                  :key="'path-' + path.id"
-                >
-                  <path
-                    v-if="path.preview.mode === 'path'"
-                    :d="path.preview.d"
-                    fill="none"
-                    stroke="#409eff"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                  <polyline
-                    v-else-if="path.preview.mode === 'polyline'"
-                    :points="path.preview.points"
-                    fill="none"
-                    stroke="#409eff"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                  <line
-                    v-else-if="path.preview.mode === 'line'"
-                    :x1="path.preview.x1"
-                    :y1="path.preview.y1"
-                    :x2="path.preview.x2"
-                    :y2="path.preview.y2"
-                    stroke="#409eff"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                </g>
-
-                <g
-                  v-for="point in pointsForPreviewVisible"
-                  :key="'pt-' + point.id"
-                >
-                  <circle
-                    :cx="point.x * SCALE"
-                    :cy="point.y * SCALE"
-                    :r="point.editorProps?.radius || 8"
-                    :fill="point.editorProps?.color || '#409eff'"
-                    stroke="#fff"
-                    stroke-width="2"
-                  />
-                  <text
-                    v-if="
-                      point.editorProps?.labelVisible !== false && point.name
-                    "
-                    :x="point.x * SCALE"
-                    :y="point.y * SCALE - 12"
-                    fill="#666"
-                    font-size="10"
-                    text-anchor="middle"
-                  >
-                    {{ point.name }}
-                  </text>
-                </g>
-
-                <g
-                  v-for="location in locationsForPreviewVisible"
-                  :key="'loc-' + location.id"
-                >
-                  <rect
-                    :x="
-                      (location.x - (location.editorProps?.width || 20) / 2) *
-                      SCALE
-                    "
-                    :y="
-                      (location.y - (location.editorProps?.height || 20) / 2) *
-                      SCALE
-                    "
-                    :width="(location.editorProps?.width || 20) * SCALE"
-                    :height="(location.editorProps?.height || 20) * SCALE"
-                    :fill="location.editorProps?.color || '#67c23a'"
-                    stroke="#fff"
-                    stroke-width="1"
-                  />
-                </g>
-              </g>
-            </svg>
-
-            <MapManagementCanvasAxes
-              :is-editing-origin="isEditingOrigin"
-              :active-map="activeMap"
-              :is-map-origin-at-factory="isMapOriginAtFactory"
-              :map-origin-layer-style="mapOriginLayerStyle"
-              :filtered-maps="filteredMaps"
-              :get-map-layer-offset="getMapLayerOffset"
-            />
-          </div>
-
-          <!-- 拖拽手柄：在地图层外部，使用屏幕坐标定位，避免 CSS transform 影响点击 -->
-          <template v-if="isEditingOrigin">
-            <div
-              v-for="m in filteredMaps"
-              :key="'handle-' + m.mapId"
-              class="origin-drag-handle"
-              :class="{ active: originEditingMapId === String(m.mapId) }"
-              :style="getHandleScreenStyle(m)"
-              @mousedown.stop.prevent="startDragMapOriginById(m, $event)"
-            />
-          </template>
-
-          <!-- 空状态提示（在地图层外，不缩放） -->
-          <div v-if="!activeMap" class="canvas-empty">
-            <div v-if="!selectedFactoryId" class="muted">请选择工厂</div>
-            <div v-else-if="filteredMaps.length === 0" class="muted">
-              当前工厂暂无地图，请先新建地图
+            <div v-else class="canvas-empty">
+              <div v-if="!selectedFactoryId" class="muted">请选择工厂</div>
+              <div v-else-if="filteredMaps.length === 0" class="muted">
+                当前工厂暂无地图，请先新建地图
+              </div>
+              <div v-else class="muted">请选择左侧一张地图</div>
             </div>
-            <div v-else class="muted">请选择左侧一张地图</div>
-          </div>
+          </MapCanvasRuler>
           <div class="canvas-footer">
-            <template v-if="isEditingOrigin">
-              <span class="muted" style="color: #e6a23c">拓扑原点编辑模式</span>
-              <span class="footer-sep">·</span>
-              <span class="muted">共 {{ filteredMaps.length }} 张地图</span>
-            </template>
-            <template v-else>
-              <span class="muted">预览模式</span>
-              <span class="footer-sep">，</span>
-              <span class="muted">地图ID：</span>
-              <span class="mono">{{ activeMap?.mapId || "-" }}</span>
-            </template>
-            <span class="footer-sep">·</span>
-            <span class="zoom-indicator" @click="resetView">
-              {{ Math.round(canvasScale * 100) }}%
-            </span>
+            <span class="muted">预览模式</span>
+            <span class="footer-sep">，</span>
+            <span class="muted">地图ID：</span>
+            <span class="mono">{{ activeMap?.mapId || "-" }}</span>
           </div>
-
-          <div class="canvas-floating-controls" v-if="!isEditingOrigin">
+          <div class="canvas-floating-controls">
             <div class="floating-slot">
               <el-popover placement="left" trigger="click" :width="200">
                 <template #reference>
@@ -259,11 +83,7 @@
                     :class="{ 'is-active': !layerAllVisible }"
                     size="small"
                   >
-                    <img
-                      class="floating-layer-icon"
-                      :src="layerIconUrl"
-                      alt=""
-                    />
+                    <img class="floating-layer-icon" :src="layerIconUrl" alt="" />
                   </el-button>
                 </template>
                 <ul class="layer-visibility-menu" @click.stop>
@@ -278,9 +98,7 @@
                       <View v-if="layerVisibility[item.key]" />
                       <Hide v-else />
                     </el-icon>
-                    <span class="layer-visibility-menu__text">{{
-                      item.label
-                    }}</span>
+                    <span class="layer-visibility-menu__text">{{ item.label }}</span>
                   </li>
                 </ul>
               </el-popover>
@@ -289,11 +107,75 @@
               <el-button
                 class="floating-btn mono-btn"
                 size="small"
-                @click="resetView"
-              >
-                1:1
-              </el-button>
+                @click="mapCanvasPreviewRef?.resetZoom?.()"
+              >1:1</el-button>
             </div>
+          </div>
+        </div>
+
+        <!-- 原点编辑模式：保留原有多图叠加渲染 -->
+        <div
+          v-else
+          class="stage2-canvas"
+          ref="canvasRef"
+          @mousedown="startPan"
+          @wheel.prevent="handleCanvasWheel"
+        >
+          <div class="canvas-map-layer" :style="mapLayerStyle">
+            <!-- 各地图栅格底图 -->
+            <template v-for="em in editModeMapsWithCache" :key="'edit-raster-' + em.mapId">
+              <div
+                v-if="em.rasterUrl && getEditMapCache(em)?.raster"
+                class="map-layer-image"
+                :style="getEditMapRasterStyle(em)"
+              >
+                <img class="canvas-img" :src="em.rasterUrl" alt="底图" />
+              </div>
+            </template>
+            <!-- 各地图拓扑元素 -->
+            <MapRenderer
+              v-for="em in editModeMapsWithCache"
+              :key="'edit-renderer-' + em.mapId"
+              class="preview-konva-layer"
+              :style="getEditMapRendererStyle(em)"
+              :points="getEditMapRendererPoints(em)"
+              :paths="getEditMapRendererPaths(em)"
+              :locations="getEditMapRendererLocations(em)"
+              :width="getEditMapCache(em)!.canvasW"
+              :height="getEditMapCache(em)!.canvasH"
+              :scale="1"
+              :offset-x="0"
+              :offset-y="0"
+              :readonly="true"
+              :auto-center="false"
+            />
+            <MapManagementCanvasAxes
+              :is-editing-origin="isEditingOrigin"
+              :active-map="activeMap"
+              :is-map-origin-at-factory="isMapOriginAtFactory"
+              :map-origin-layer-style="mapOriginLayerStyle"
+              :filtered-maps="filteredMaps"
+              :get-map-layer-offset="getMapLayerOffset"
+            />
+          </div>
+
+          <!-- 拖拽手柄 -->
+          <div
+            v-for="m in filteredMaps"
+            :key="'handle-' + m.mapId"
+            class="origin-drag-handle"
+            :class="{ active: originEditingMapId === String(m.mapId) }"
+            :style="getHandleScreenStyle(m)"
+            @mousedown.stop.prevent="startDragMapOriginById(m, $event)"
+          />
+          <div class="canvas-footer">
+            <span class="muted" style="color: #e6a23c">拓扑原点编辑模式</span>
+            <span class="footer-sep">·</span>
+            <span class="muted">共 {{ filteredMaps.length }} 张地图</span>
+            <span class="footer-sep">·</span>
+            <span class="zoom-indicator" @click="resetView">
+              {{ Math.round(canvasScale * 100) }}%
+            </span>
           </div>
 
           <!-- 原点编辑模式：右上角显示选中地图的坐标编辑面板 -->
@@ -397,35 +279,6 @@
           </div>
         </div>
 
-        <!-- 放在 stage2 层、canvas 外，避免预览层叠遮挡导致按钮不可见 -->
-        <div class="stage2-actions" v-if="!isEditingOrigin">
-          <el-button
-            type="primary"
-            icon="Plus"
-            :disabled="!selectedFactoryId"
-            @click="handleAdd"
-          >
-            新建地图
-          </el-button>
-          <el-button
-            type="primary"
-            plain
-            icon="EditPen"
-            :disabled="!activeMap"
-            @click="activeMap && handleEdit(activeMap)"
-          >
-            地图编辑
-          </el-button>
-          <el-button
-            type="danger"
-            plain
-            icon="Delete"
-            :disabled="!activeMap"
-            @click="activeMap && handleDelete(activeMap)"
-          >
-            删除地图
-          </el-button>
-        </div>
       </div>
     </div>
 
@@ -566,6 +419,9 @@ import type {
 } from "@/api/deploy/map-editor/types";
 import MapRenderer from "@/components/map/MapRenderer.vue";
 import MapManagementCanvasAxes from "@/components/map/MapManagementCanvasAxes.vue";
+import MapCanvas from "@/views/deploy/map-editor/components/MapCanvas.vue";
+import MapCanvasRuler from "@/views/deploy/map-editor/components/MapCanvasRuler.vue";
+import { useMapEditorStore } from "@/store/modules/mapEditor";
 import type { MapLayerVisibility } from "@/types/mapEditor";
 import { defaultMapLayerVisibility } from "@/types/mapEditor";
 import { getDefaultPointRadiusForType } from "@/utils/mapEditor/mapVisualTokens";
@@ -593,6 +449,9 @@ import { watch, onBeforeUnmount } from "vue";
 const router = useRouter();
 const mapEditorTabsStore = useMapEditorTabsStore();
 const appStore = useAppStore();
+const mapEditorStore = useMapEditorStore();
+
+const mapCanvasPreviewRef = ref<InstanceType<typeof MapCanvas> | null>(null);
 
 const loading = ref(true);
 const mapList = ref<NavigationMapVO[]>([]);
@@ -619,6 +478,7 @@ const layerMenuItems: { key: keyof MapLayerVisibility; label: string }[] = [
   { key: "path", label: "路径显隐" },
   { key: "pathDirection", label: "方向显隐" },
   { key: "raster", label: "底图显隐" },
+  { key: "grid", label: "网格显隐" },
 ];
 function toggleLayerKey(key: keyof MapLayerVisibility) {
   layerVisibility[key] = !layerVisibility[key];
@@ -2097,16 +1957,9 @@ const loadMaps = async () => {
   } finally {
     loading.value = false;
   }
-  // 无论当前选中来自列表默认还是 URL，统一拉取元素（避免仅因 mapId 判断错误导致空白）
+  // 初始选中地图：只加载 store 供预览用，进入原点编辑时再按需加载 mapElements
   if (selectedMapId.value) {
-    const selectedMap = mapList.value.find(
-      (m) => String(m.mapId) === selectedMapId.value,
-    );
-    if (selectedMap) {
-      await loadMapElements(selectedMap);
-    } else {
-      await loadMapElements(selectedMapId.value);
-    }
+    await mapEditorStore.loadMap(selectedMapId.value);
   }
 };
 
@@ -2161,6 +2014,7 @@ const selectFactory = (factory: FactoryModelVO) => {
   originEditingMapId.value = "";
   originDrafts.value.clear();
   allMapEditCaches.value = new Map();
+  mapEditorStore.reset();
   loadMaps();
 };
 
@@ -2515,8 +2369,8 @@ const selectMap = (row: NavigationMapVO) => {
       mapId: selectedMapId.value,
     },
   });
-  // 加载地图元素
-  loadMapElements(row);
+  // 加载数据到 mapEditorStore 供 MapCanvas 预览渲染（原点编辑进入时再按需加载 mapElements）
+  mapEditorStore.loadMap(row.mapId);
 };
 
 // 提交
@@ -2828,7 +2682,7 @@ onBeforeUnmount(() => {
 
 .canvas-footer {
   position: absolute;
-  left: 210px;
+  left: 260px;
   bottom: 10px;
   display: flex;
   align-items: center;
@@ -2955,18 +2809,12 @@ onBeforeUnmount(() => {
   }
 }
 
-.stage2-actions {
+
+.stage2-preview {
   position: absolute;
-  top: 18px;
-  right: 18px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  max-width: min(420px, calc(100% - 200px));
-  z-index: 30;
-  pointer-events: auto;
+  inset: 0;
+  left: 196px;
+  overflow: hidden;
 }
 
 .stage2-left {

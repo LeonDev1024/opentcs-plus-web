@@ -1,5 +1,5 @@
 <template>
-  <div class="map-canvas-container" ref="containerRef">
+  <div class="map-canvas-container" ref="containerRef" :class="{ 'grid-visible': props.layerVisibility?.grid !== false }">
     <v-stage
       ref="stageRef"
       :config="stageConfig"
@@ -377,6 +377,7 @@ const props = withDefaults(
     isSimulating?: boolean;
     simulationPathId?: string | null;
     simulationProgress?: number;
+    readonly?: boolean;
     mapIssues?: Array<{
       id: string;
       type: "disconnected" | "intersection" | "radius" | "overlap";
@@ -388,6 +389,7 @@ const props = withDefaults(
   }>(),
   {
     layerVisibility: () => defaultMapLayerVisibility(),
+    readonly: false,
   },
 );
 
@@ -1151,6 +1153,7 @@ const getLocationCenterPointConfig = (location: MapLocation) => {
 
 // 位置中心点鼠标按下
 const handleLocationCenterMouseDown = (location: MapLocation, e: any) => {
+  if (props.readonly) return;
   e.cancelBubble = true;
   if (e.evt) {
     e.evt.stopPropagation();
@@ -1182,6 +1185,7 @@ const handleLocationCenterMouseUp = (location: MapLocation, e: any) => {
 
 // 位置中心点点击
 const handleLocationCenterClick = (location: MapLocation, e: any) => {
+  if (props.readonly) return;
   e.cancelBubble = true;
   if (e.evt) {
     e.evt.stopPropagation();
@@ -1277,6 +1281,18 @@ const getPolygonPersistStyles = (tool: ToolMode | null) => {
 const handleStageMouseDown = (e: any) => {
   const stage = e.target?.getStage?.();
   if (!stage) return;
+
+  if (props.readonly) {
+    const pointerPos = stage.getPointerPosition();
+    if (!pointerPos) return;
+    isDragging.value = true;
+    dragStartPos.value = { x: pointerPos.x, y: pointerPos.y };
+    stage.container().style.cursor = "grabbing";
+    e.evt?.preventDefault();
+    startCanvasPanWindowListeners();
+    return;
+  }
+
   const target = e.target;
   // 透明底未命中时事件会落在 Stage，需与空白层一致处理（漫游/选框/绘制点等）
   if (target === stage) {
@@ -1408,6 +1424,15 @@ const handleStageAreaMouseDown = (e: any) => {
 
   // 兼容 Konva 事件对象确保有 evt
   const evt = e.evt || e;
+
+  if (props.readonly) {
+    isDragging.value = true;
+    dragStartPos.value = { x: pointerPos.x, y: pointerPos.y };
+    stage.container().style.cursor = "grabbing";
+    evt.preventDefault?.();
+    startCanvasPanWindowListeners();
+    return;
+  }
 
   if (currentTool.value === ToolMode.PAN || isSpacePressed.value) {
     isDragging.value = true;
@@ -2317,6 +2342,7 @@ const CLICK_DELAY = 250; // 250ms 内的第二次点击视为双击
 
 // 点点击
 const handlePointClick = (point: MapPoint, e: any) => {
+  if (props.readonly) return;
   e.cancelBubble = true;
 
   if (currentTool.value === ToolMode.DASHED_LINK) {
@@ -2393,6 +2419,7 @@ const handlePointClick = (point: MapPoint, e: any) => {
 
 // 点双击
 const handlePointDoubleClick = (point: MapPoint, e: any) => {
+  if (props.readonly) return;
   e.cancelBubble = true;
 
   // 取消单击事件
@@ -2483,6 +2510,7 @@ const handlePointDragEnd = (point: MapPoint) => {
 
 // 路径点击
 const handlePathClick = (path: MapPath, e: any) => {
+  if (props.readonly) return;
   e.cancelBubble = true;
   // 选择：在 SELECT 下允许编辑拖拽；在 PAN 下仅允许选中（用于查看属性）
   if (currentTool.value !== ToolMode.SELECT && currentTool.value !== ToolMode.PAN) return;
@@ -2492,6 +2520,7 @@ const handlePathClick = (path: MapPath, e: any) => {
 };
 
 const handlePathContextMenu = (path: MapPath, e: any) => {
+  if (props.readonly) return;
   e.cancelBubble = true;
   if (e.evt) e.evt.preventDefault();
   // 选中路径
@@ -2504,6 +2533,7 @@ const handlePathContextMenu = (path: MapPath, e: any) => {
 
 // 位置点击
 const handleLocationClick = (location: MapLocation, e: any) => {
+  if (props.readonly) return;
   e.cancelBubble = true;
 
   // 虚线链接模式下，点击位置本身不处理，由中心点处理
@@ -2689,6 +2719,7 @@ const editingLocationId = ref<string>("");
 
 // 处理位置右键菜单
 const handleLocationContextMenu = (location: MapLocation, e: any) => {
+  if (props.readonly) return;
   e.cancelBubble = true;
 
   // 阻止浏览器默认右键菜单
@@ -2712,6 +2743,7 @@ const handleLocationEditSave = (location: MapLocation) => {
 
 // 处理点右键菜单（预留功能）
 const handlePointContextMenu = (point: MapPoint, e: any) => {
+  if (props.readonly) return;
   e.cancelBubble = true;
 
   // 阻止浏览器默认右键菜单
@@ -2979,6 +3011,10 @@ watch(currentTool, (tool) => {
   }
 });
 
+const resetZoom = () => {
+  mapEditorStore.updateCanvasState({ scale: 1, offsetX: 0, offsetY: 0 });
+};
+
 // 暴露方法供父组件调用
 defineExpose({
   setGridSize,
@@ -2986,6 +3022,7 @@ defineExpose({
   gridSize,
   getMousePosition: () => mousePosition.value,
   exportAsImage,
+  resetZoom,
 });
 
 // 键盘事件处理
@@ -3109,11 +3146,18 @@ onUnmounted(() => {
   height: 100%;
   position: relative;
   overflow: hidden;
-  background-color: #f7f8fa;
+  background-color: #eef2f7;
 
-  // 确保 Konva Stage 占满容器
   :deep(canvas) {
     display: block;
+  }
+
+  &.grid-visible {
+    background-image:
+      linear-gradient(rgba(180, 200, 220, 0.45) 1px,
+      transparent 1px),
+      linear-gradient(90deg, rgba(180, 200, 220, 0.45) 1px, transparent 1px);
+    background-size: 20px 20px;
   }
 }
 
