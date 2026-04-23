@@ -1540,6 +1540,7 @@ const zoomPercent = computed(() => {
   return Math.round((canvasScale.value / denom) * 100);
 });
 
+//  ── 标尺逻辑已迁移至 MapCanvasRuler 组件 ─────────────────────────────
 
 // 模型坐标 → 实际长度显示（单位 mm，≥1000 时显示为 m）
 const formatModelLength = (
