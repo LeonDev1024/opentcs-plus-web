@@ -107,7 +107,7 @@
               </span>
             </el-button>
           </el-tooltip>
-          <el-tooltip content="贝塞尔曲线路径" :show-after="50" placement="bottom">
+          <el-tooltip content="三阶贝塞尔曲线" :show-after="50" placement="bottom">
             <el-button
               class="map-toolbar-btn"
               :type="
