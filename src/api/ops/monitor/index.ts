@@ -84,3 +84,100 @@ const simulationApi = {
 }
 
 export { simulationApi }
+
+// ========== 监控大屏 API ==========
+
+import { AxiosPromise } from 'axios';
+
+/** 车辆状态枚举 */
+export type VehicleState = 'IDLE' | 'WORKING' | 'CHARGING' | 'ERROR' | 'UNKNOWN' | 'UNAVAILABLE';
+
+/** 位置信息 */
+export interface Position {
+  pointId?: string;
+  x: number;
+  y: number;
+  orientation: number;
+}
+
+/** 车辆运行时状态 */
+export interface VehicleRuntimeVO {
+  vehicleId: string;
+  name: string;
+  typeId: string;
+  state: VehicleState;
+  position: Position;
+  currentOrderId?: string;
+  energyLevel?: number;
+  factoryId?: number;
+  factoryName?: string;
+  /** 当前速度（m/s），可选 —— 后端有则展示 */
+  velocity?: number;
+  /** 当前任务/充电预计完成分钟数，可选 */
+  estimatedFinishMinutes?: number;
+  /** 任务可读描述，例如「取货 A3→拣选」「C 区→出货口」，后端拼好后下发 */
+  taskDescription?: string;
+}
+
+/** AMR 统计 */
+export interface AmrStats {
+  totalVehicles: number;
+  idleVehicles: number;
+  executingVehicles: number;
+  chargingVehicles: number;
+  errorVehicles: number;
+  offlineVehicles?: number;
+}
+
+/** 任务统计 */
+export interface TaskStats {
+  totalOrders: number;
+  waitingOrders: number;
+  activeOrders: number;
+  finishedOrders: number;
+  cancelledOrders: number;
+  failedOrders: number;
+}
+
+/** 机器人卡片数据 */
+export interface RobotCardVO {
+  vehicleId: string;
+  name: string;
+  state: VehicleState;
+  currentOrderId?: string;
+  orderNo?: string;
+  position: Position;
+  energyLevel?: number;
+  targetLocationName?: string;
+  /** 速度（m/s） */
+  velocity?: number;
+  /** 预计完成分钟数（充电或任务） */
+  estimatedFinishMinutes?: number;
+  /** 任务可读描述 */
+  taskDescription?: string;
+}
+
+const monitorApi = {
+  /** 获取 AMR 运行时状态列表 */
+  listVehicleRuntime: (factoryId?: number): AxiosPromise<VehicleRuntimeVO[]> => {
+    return request({ url: '/vehicle/runtime/status/all', method: 'get', params: { factoryId } });
+  },
+  /** 获取车辆统计 */
+  getVehicleStatistics: (factoryId?: number): AxiosPromise<AmrStats> => {
+    return request({ url: '/vehicle/statistics', method: 'get', params: { factoryId } });
+  },
+  /** 获取任务统计 */
+  getOrderStatistics: (factoryId?: number): AxiosPromise<TaskStats> => {
+    return request({ url: '/transport-order/statistics', method: 'get', params: { factoryId } });
+  },
+  /** 获取可调度车辆列表 */
+  listAvailableVehicles: (factoryId?: number): AxiosPromise<VehicleRuntimeVO[]> => {
+    return request({ url: '/vehicle/runtime/available', method: 'get', params: { factoryId } });
+  },
+  /** 获取单个车辆运行时状态 */
+  getVehicleRuntime: (vehicleId: string): AxiosPromise<VehicleRuntimeVO> => {
+    return request({ url: '/vehicle/runtime/status/' + vehicleId, method: 'get' });
+  }
+};
+
+export { monitorApi };
