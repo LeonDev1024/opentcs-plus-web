@@ -12,7 +12,7 @@ export type TopNavCategoryDef = {
 export const TOP_NAV_CATEGORIES: TopNavCategoryDef[] = [
   { id: 'home',      title: '首页',   icon: 'dashboard', pathPrefixes: ['/dashboard'] },
   { id: 'deploy',    title: '部署管理', icon: 'build',     pathPrefixes: ['/deploy', '/map-editor'] },
-  { id: 'ops',       title: '运维管理', icon: 'guide',     pathPrefixes: ['/ops', '/live'] },
+  { id: 'ops',       title: '运维管理', icon: 'guide',     pathPrefixes: ['/ops', '/operationsdesk'] },
   { id: 'analytics', title: '运营分析', icon: 'chart',     pathPrefixes: ['/analytics'] },
   { id: 'system',    title: '系统管理', icon: 'system',    pathPrefixes: ['/system'] }
 ];

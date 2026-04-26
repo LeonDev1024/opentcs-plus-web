@@ -71,15 +71,15 @@ export const constantRoutes: RouteRecordRaw[] = [
     ]
   },
   {
-    path: '/live',
+    path: '/operationsdesk',
     component: Layout,
     hidden: true,
     children: [
       {
         path: '',
-        component: () => import('@/views/ops/monitor/live/index.vue'),
-        name: 'OpsLiveOverview',
-        meta: { title: '实时监控', icon: 'monitor', noCache: true }
+        component: () => import('@/views/ops/monitor/operationsdesk/index.vue'),
+        name: 'OperationsDesk',
+        meta: { title: '运维管理', icon: 'monitor', noCache: true }
       }
     ]
   },
