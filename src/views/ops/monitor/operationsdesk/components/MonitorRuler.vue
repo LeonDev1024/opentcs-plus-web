@@ -18,16 +18,30 @@ const props = withDefaults(
     offsetX: number;
     /** 工厂原点 O(0,0) 在画布内容区的垂直像素位置（屏幕像素，y 向下） */
     offsetY: number;
-    /** 1 模型单位等于多少 mm（默认 1） */
+    /** 1 模型单位等于多少 mm（与地图 mapInfo.scaleX 一致；1m=1000, 1mm=1） */
     mmPerUnit?: number;
   }>(),
   {
     scale: 1,
     offsetX: 0,
     offsetY: 0,
-    mmPerUnit: 1
+    mmPerUnit: 1000
   }
 );
+
+/**
+ * 刻度尺固定以 cm 显示（用户需求：始终 cm，不随 mmPerUnit 切换到 m）。
+ * 极小比例尺（mmPerUnit < 1，理论上不存在）退回 mm。
+ */
+const rulerUnit = computed<'cm' | 'mm'>(() => {
+  return (props.mmPerUnit ?? 1) >= 1 ? 'cm' : 'mm';
+});
+
+/** mmPerUnit → 1 模型单位 = 多少个「显示单位」 */
+const displayUnitsPerModelUnit = computed(() => {
+  const mpu = props.mmPerUnit ?? 1;
+  return rulerUnit.value === 'cm' ? mpu / 10 : mpu;
+});
 
 const rulerHRef = ref<HTMLCanvasElement | null>(null);
 const rulerVRef = ref<HTMLCanvasElement | null>(null);
@@ -42,31 +56,56 @@ const mouseMapY = computed(
   () => (mouseScreenY.value - props.offsetY) / props.scale
 );
 
+/**
+ * 坐标信息框始终以最合适的单位格式化（不跟随 rulerUnit），
+ * 保证无论刻度单位如何，显示的都是易读的 m/cm/mm。
+ * 单位关系：1 模型单位 = mmPerUnit mm
+ */
 function fmtCoord(mapUnits: number): string {
   const mm = mapUnits * (props.mmPerUnit ?? 1);
-  return Math.abs(mm) >= 1000
-    ? `${(mm / 1000).toFixed(3)} m`
-    : `${mm.toFixed(1)} mm`;
+  const abs = Math.abs(mm);
+  if (abs >= 10000) return `${(mm / 1000).toFixed(2)} m`;
+  if (abs >= 1000) return `${(mm / 1000).toFixed(3)} m`;
+  if (abs >= 100) return `${(mm / 10).toFixed(1)} cm`;
+  return `${mm.toFixed(1)} mm`;
 }
 
 const mouseRealXStr = computed(() => fmtCoord(mouseMapX.value));
 const mouseRealYStr = computed(() => fmtCoord(mouseMapY.value));
 
 // —— 比例尺标签：缩放下「100 像素 ≈ 多少现实距离」 ——
-const SCALE_BAR_STEPS_MM = [
+const SCALE_BAR_STEPS = [
+  0.001, 0.002, 0.005,
+  0.01, 0.02, 0.05,
+  0.1, 0.2, 0.5,
   1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000
 ];
 const SCALE_BAR_STEPS_PX = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
 
+/**
+ * 比例尺标签：100 屏幕像素约对应多少实际距离。
+ * 步骤：
+ *   1. rawMm = 100px / zoom * mmPerUnit（= 100px 对应的毫米数）
+ *   2. 从步距表（mm 单位）选最接近的 nice 值
+ *   3. 转为最合适的单位输出
+ */
+const SCALE_BAR_STEPS_MM = [
+  1, 2, 5, 10, 20, 50, 100, 200, 500,
+  1000, 2000, 5000, 10000, 20000, 50000, 100000, 200000, 500000
+];
+
 const scaleBarLabel = computed(() => {
   const zoom = props.scale || 1;
-  const mmPerUnit = props.mmPerUnit ?? 1;
-  if (mmPerUnit > 0) {
-    const rawMm = (100 * mmPerUnit) / zoom;
+  const mpu = props.mmPerUnit ?? 1;
+  if (mpu > 0) {
+    // 100 屏幕像素对应多少 mm
+    const rawMm = (100 / zoom) * mpu;
     const nice = SCALE_BAR_STEPS_MM.reduce((a, b) =>
       Math.abs(b - rawMm) < Math.abs(a - rawMm) ? b : a
     );
-    return nice >= 1000 ? `${nice / 1000} m` : `${nice} mm`;
+    if (nice >= 1000) return `${nice / 1000} m`;
+    if (nice >= 10) return `${nice / 10} cm`;
+    return `${nice} mm`;
   }
   const rawPx = 100 / zoom;
   const nice = SCALE_BAR_STEPS_PX.reduce((a, b) =>
@@ -132,16 +171,19 @@ function drawSingleRuler(
   }
   ctx.stroke();
 
-  const cmPerUnit = mmPerUnit > 0 ? mmPerUnit / 10 : 1;
-  const screenToCm = (px: number) => ((px - offset) / scale) * cmPerUnit;
-  const cmToScreen = (cm: number) => (cm / cmPerUnit) * scale + offset;
+  // 显示单位换算：1 模型单位 = displayPerUnit 个「显示单位」
+  const unit = rulerUnit.value;
+  const displayPerUnit = displayUnitsPerModelUnit.value;
+  // screen px → 显示单位
+  const screenToDisplay = (px: number) => ((px - offset) / scale) * displayPerUnit;
+  const displayToScreen = (d: number) => (d / displayPerUnit) * scale + offset;
 
-  const cmAtStart = screenToCm(0);
-  const cmAtEnd = screenToCm(length);
-  const cmMin = Math.min(cmAtStart, cmAtEnd);
-  const cmMax = Math.max(cmAtStart, cmAtEnd);
+  const dAtStart = screenToDisplay(0);
+  const dAtEnd = screenToDisplay(length);
+  const dMin = Math.min(dAtStart, dAtEnd);
+  const dMax = Math.max(dAtStart, dAtEnd);
 
-  const step = pickNiceStep(cmMax - cmMin, length);
+  const step = pickNiceStep(dMax - dMin, length);
   if (step <= 0) return true;
 
   const subDivs = step % 10 < 0.0001 ? 10 : 5;
@@ -149,12 +191,12 @@ function drawSingleRuler(
 
   ctx.font = '9px Arial, system-ui, sans-serif';
 
-  const firstMinor = Math.floor(cmMin / minorStep) * minorStep;
-  for (let cm = firstMinor; cm <= cmMax + minorStep * 0.001; cm += minorStep) {
-    const sp = cmToScreen(cm);
+  const firstMinor = Math.floor(dMin / minorStep) * minorStep;
+  for (let d = firstMinor; d <= dMax + minorStep * 0.001; d += minorStep) {
+    const sp = displayToScreen(d);
     if (sp < -1 || sp > length + 1) continue;
 
-    const isMajor = Math.abs(cm / step - Math.round(cm / step)) < 0.0001;
+    const isMajor = Math.abs(d / step - Math.round(d / step)) < 0.0001;
     const tickLen = isMajor ? thickness * 0.6 : thickness * 0.35;
     ctx.strokeStyle = RULER_TICK;
     ctx.lineWidth = isMajor ? 1 : 0.5;
@@ -169,7 +211,7 @@ function drawSingleRuler(
     ctx.stroke();
 
     if (isMajor) {
-      const rounded = Math.round(cm * 10) / 10;
+      const rounded = Math.round(d * 10) / 10;
       const label = Number.isInteger(rounded)
         ? `${Math.round(rounded)}`
         : rounded.toFixed(1);
@@ -234,7 +276,7 @@ onUnmounted(() => {
 <template>
   <div class="ruler-wrap">
     <div class="ruler-top-row">
-      <div class="ruler-corner"><span class="ruler-unit">cm</span></div>
+      <div class="ruler-corner"><span class="ruler-unit">{{ rulerUnit }}</span></div>
       <canvas ref="rulerHRef" class="ruler-h-canvas" />
     </div>
     <div class="canvas-body-row">

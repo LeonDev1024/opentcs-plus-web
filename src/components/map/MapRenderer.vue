@@ -112,6 +112,8 @@ interface Props {
   originX?: number;
   originY?: number;
   autoCenter?: boolean;
+  /** 监控大屏专用：标签居中显示在点正上方 30px 处 */
+  centerLabelsAbove?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -128,6 +130,7 @@ const props = withDefaults(defineProps<Props>(), {
   originX: 0,
   originY: 0,
   autoCenter: false,
+  centerLabelsAbove: false,
 });
 
 const emit = defineEmits<{
@@ -372,7 +375,27 @@ function getPointLabelConfig(point: MapPoint) {
   const pos = transformPoint(Number(point.x ?? 0), Number(point.y ?? 0));
   const labelText = point.name || point.id;
 
-  // 标签偏移：默认在右上方 (x = -10, y = -20)，可自定义调整
+  // 监控大屏模式：标签居中显示在点正上方 30px
+  // 使用固定宽度 80px + align:'center' 实现水平居中，x 向左移半宽确保对齐点中心
+  if (props.centerLabelsAbove) {
+    const labelWidth = 80;
+    return {
+      x: pos.x - labelWidth / 2,
+      y: pos.y - 30,
+      width: labelWidth,
+      text: String(labelText ?? ""),
+      fontSize: 11,
+      fontFamily: "Arial, sans-serif",
+      fill: "#303133",
+      align: "center",
+      verticalAlign: "bottom",
+      scaleY: labelScaleY,
+      listening: false,
+      perfectDrawEnabled: false,
+    };
+  }
+
+  // 编辑器默认模式：按 editorProps.labelOffset 偏移
   const labelOffset = point.editorProps?.labelOffset ?? { x: -30, y: -30 };
   const offsetX = labelOffset.x;
   const offsetY = labelOffset.y;

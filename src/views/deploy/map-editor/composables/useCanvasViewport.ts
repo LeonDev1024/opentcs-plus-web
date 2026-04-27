@@ -212,6 +212,9 @@ export function useCanvasViewport(
   const visiblePoints = computed(() => {
     const bounds = viewportBounds.value
     const padding = 100
+    // 调试日志
+    console.log('[CanvasViewport] viewportBounds:', bounds);
+    console.log('[CanvasViewport] mapEditorStore.points 数量:', mapEditorStore.points.length);
     return mapEditorStore.points.filter((point) => {
       const layer = mapEditorStore.layers.find((l) => l.id === point.layerId)
       if (layer?.visible === false) return false

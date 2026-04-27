@@ -30,6 +30,7 @@ import {
   unwrapAjaxMapPayload
 } from '../utils/mapElementNormalize';
 import { parseNavigationMapOrigin } from '@/utils/mapEditor/navigationMapOrigin';
+import { getLayoutScaleMm } from '@/utils/mapEditor/rasterAlignment';
 import layerIconUrl from '@/assets/icons/svg/layer.svg?url';
 import type { VehicleRuntimeVO } from '@/api/ops/monitor';
 
@@ -87,7 +88,9 @@ const emit = defineEmits<{
 const mapData = ref<FactoryMapData | null>(null);
 const loading = ref(false);
 
-const SCALE = 1; // 1 模型单位 = 1 mm
+const SCALE = 1; // 1 模型单位 = 1 px（CSS 定位用，与实际物理单位无关）
+/** mm/模型单位，从地图 mapInfo.scaleX 读取；1m 单位时 = 1000，1mm 单位时 = 1 */
+const mapMmPerUnit = ref(1000); // 默认按 m 单位展示
 const SCALE_MIN = 0.05;
 const SCALE_MAX = 20;
 const SCALE_STEP = 1.1;
@@ -166,6 +169,7 @@ const loadMap = async () => {
   if (!props.factoryId) return;
   loading.value = true;
   mapData.value = null;
+  mapMmPerUnit.value = 1000; // 切换工厂时重置
   try {
     const listRes: any = await listMapsByFactory(props.factoryId);
     const list: any[] =
@@ -184,12 +188,19 @@ const loadMap = async () => {
     let cssMaxX = -Infinity;
     let cssMinY = Infinity;
     let cssMaxY = -Infinity;
+    let mmPerUnitResolved = false;
 
     results.forEach((r, idx) => {
       if (r.status !== 'fulfilled' || !r.value) return;
       const meta = list[idx] || {};
       // 必须先 unwrap 再 normalize（与 deploy/factory/map/index.vue loadMapElements 一致）
       const unwrapped = unwrapAjaxMapPayload(r.value);
+
+      // 从第一张有效地图提取 scaleX（mm/unit），与地图管理控制台保持一致
+      if (!mmPerUnitResolved) {
+        mapMmPerUnit.value = getLayoutScaleMm(unwrapped);
+        mmPerUnitResolved = true;
+      }
       const { points, paths, locations } = normalizeMapEditorPayload(
         unwrapped
       );
@@ -205,15 +216,19 @@ const loadMap = async () => {
       const origin = parseNavigationMapOrigin(meta as any);
 
       // 负坐标补偿 & Konva 画布尺寸
-      const clip = computeClipForElements(points, locations, paths);
+      // LABEL_PAD：为点标签（默认 labelOffset=-30）和点圆半径（~20px）预留边距，
+      // 防止最边缘的点/标签被 Konva canvas 裁切
+      const LABEL_PAD = 60;
+      const rawClip = computeClipForElements(points, locations, paths);
+      const clip = { x: rawClip.x + LABEL_PAD, y: rawClip.y + LABEL_PAD };
       const { maxX, maxY } = computeMaxExtentForElements(
         points,
         locations,
         paths,
         clip
       );
-      const canvasW = Math.max(1, Math.ceil(maxX) + 8);
-      const canvasH = Math.max(1, Math.ceil(maxY) + 8);
+      const canvasW = Math.max(1, Math.ceil(maxX) + LABEL_PAD);
+      const canvasH = Math.max(1, Math.ceil(maxY) + LABEL_PAD);
 
       // map-local 元素包围盒（不含 clip，用于工厂级 bounds 计算）
       let lMinX = Infinity;
@@ -324,6 +339,63 @@ function getMapOriginAxisStyle(
 }
 
 // ============================================================================
+// 地图层元素坐标补偿（与 deploy/factory/map/index.vue 保持一致）
+// 负坐标元素若不加 clip 偏移，会渲染到 Konva canvas 之外导致显示不全
+// ============================================================================
+function getLayerPoints(layer: FactoryMapLayer): any[] {
+  const { clip } = layer;
+  if (clip.x === 0 && clip.y === 0) return layer.points;
+  return layer.points.map((p: any) => ({
+    ...p,
+    x: Number(p.x ?? 0) + clip.x,
+    y: Number(p.y ?? 0) + clip.y
+  }));
+}
+
+function getLayerPaths(layer: FactoryMapLayer): any[] {
+  const { clip } = layer;
+  if (clip.x === 0 && clip.y === 0) return layer.paths;
+  return layer.paths.map((path: any) => {
+    const cps: any[] = path?.geometry?.controlPoints ?? [];
+    const controlPoints = cps.map((cp: any) => ({
+      ...cp,
+      x: Number(cp.x ?? 0) + clip.x,
+      y: Number(cp.y ?? 0) + clip.y
+    }));
+    return {
+      ...path,
+      geometry: { ...(path.geometry || {}), controlPoints }
+    };
+  });
+}
+
+function getLayerLocations(layer: FactoryMapLayer): any[] {
+  const { clip } = layer;
+  if (clip.x === 0 && clip.y === 0) return layer.locations;
+  return layer.locations.map((l: any) => {
+    const x = Number(l.x ?? 0) + clip.x;
+    const y = Number(l.y ?? 0) + clip.y;
+    return {
+      ...l,
+      x,
+      y,
+      geometry: l.geometry
+        ? {
+            ...l.geometry,
+            vertices: Array.isArray(l.geometry.vertices)
+              ? l.geometry.vertices.map((v: any) => ({
+                  ...v,
+                  x: Number(v.x ?? 0) + clip.x,
+                  y: Number(v.y ?? 0) + clip.y
+                }))
+              : l.geometry.vertices
+          }
+        : l.geometry
+    };
+  });
+}
+
+// ============================================================================
 // 车辆标记
 // ============================================================================
 const VEHICLE_RADIUS = 12;
@@ -340,15 +412,22 @@ function vehicleColor(state: string): string {
   return map[state] || '#909399';
 }
 
-/** 工厂坐标系 Y-up → CSS Y-down */
+/**
+ * 车辆坐标转换：机器人 API 返回 m，模型坐标单位由 mapMmPerUnit 决定
+ * 转换公式：modelUnit = meters × 1000 / mmPerUnit
+ *   - mmPerUnit=1000（1模型单位=1m）：除数=1，直接对应
+ *   - mmPerUnit=50（1模型单位=50mm=5cm）：需乘以20
+ */
 const vehicleMarkers = computed(() => {
+  const mpu = mapMmPerUnit.value || 1000;
+  const metersToModel = 1000 / mpu;
   return props.vehicles.map((v) => ({
     vehicleId: v.vehicleId,
     name: v.name,
     state: v.state,
     color: vehicleColor(v.state),
-    cssX: (v.position?.x ?? 0) * SCALE,
-    cssY: -(v.position?.y ?? 0) * SCALE,
+    cssX: (v.position?.x ?? 0) * metersToModel,
+    cssY: -(v.position?.y ?? 0) * metersToModel,
     isActive: v.vehicleId === props.activeVehicleId
   }));
 });
@@ -484,7 +563,7 @@ function resetZoom() {
       :scale="canvasScale"
       :offset-x="viewOffset.x"
       :offset-y="rulerOffsetY"
-      :mm-per-unit="SCALE"
+      :mm-per-unit="mapMmPerUnit"
       class="ruler-wrap"
     >
       <!-- 画布主体：CSS 网格 + 鼠标平移/缩放 -->
@@ -509,9 +588,9 @@ function resetZoom() {
             <MapRenderer
               class="preview-konva-layer"
               :style="getMapRendererStyle(layer)"
-              :points="layerVisibility.station ? layer.points : []"
-              :paths="layerVisibility.path ? layer.paths : []"
-              :locations="layerVisibility.station ? layer.locations : []"
+              :points="layerVisibility.station ? getLayerPoints(layer) : []"
+              :paths="layerVisibility.path ? getLayerPaths(layer) : []"
+              :locations="layerVisibility.station ? getLayerLocations(layer) : []"
               :width="layer.canvasW"
               :height="layer.canvasH"
               :scale="1"
@@ -519,6 +598,7 @@ function resetZoom() {
               :offset-y="0"
               :auto-center="false"
               :flip-y="false"
+              :center-labels-above="true"
               readonly
             />
             <div
