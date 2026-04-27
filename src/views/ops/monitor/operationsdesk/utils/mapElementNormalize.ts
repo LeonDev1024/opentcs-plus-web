@@ -370,6 +370,99 @@ export function normalizeLocations(locations: any[]): any[] {
 }
 
 // ============================================================================
+// 路径控制点提取 + 负坐标裁切补偿 + Konva 画布尺寸
+// （与 deploy/factory/map 同源，让监控页能正确处理跨地图叠加渲染）
+// ============================================================================
+
+export function extractPathControlPoints(path: any): any[] {
+  if (!path) return [];
+  const cps = path?.geometry?.controlPoints;
+  if (Array.isArray(cps)) return cps;
+  if (Array.isArray(path?.layoutControlPoints)) return path.layoutControlPoints;
+  return [];
+}
+
+/** 计算一组元素的负坐标裁切补偿 */
+export function computeClipForElements(
+  points: any[],
+  locations: any[],
+  paths: any[]
+): { x: number; y: number } {
+  let minX = 0;
+  let minY = 0;
+  const push = (x: number, y: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+  };
+  for (const p of points) {
+    push(Number(p.x ?? p.xPosition ?? 0), Number(p.y ?? p.yPosition ?? 0));
+  }
+  for (const l of locations) {
+    push(Number(l.x ?? l.xPosition ?? 0), Number(l.y ?? l.yPosition ?? 0));
+    if (Array.isArray(l.geometry?.vertices)) {
+      for (const v of l.geometry.vertices) {
+        push(Number(v.x ?? v.xPosition ?? 0), Number(v.y ?? v.yPosition ?? 0));
+      }
+    }
+  }
+  for (const path of paths) {
+    for (const cp of extractPathControlPoints(path)) {
+      push(Number(cp.x ?? cp.xPosition ?? 0), Number(cp.y ?? cp.yPosition ?? 0));
+    }
+    if (path.startPoint) {
+      push(
+        Number(path.startPoint.x ?? path.startPoint.xPosition ?? 0),
+        Number(path.startPoint.y ?? path.startPoint.yPosition ?? 0)
+      );
+    }
+    if (path.endPoint) {
+      push(
+        Number(path.endPoint.x ?? path.endPoint.xPosition ?? 0),
+        Number(path.endPoint.y ?? path.endPoint.yPosition ?? 0)
+      );
+    }
+  }
+  return {
+    x: minX < 0 ? Math.ceil(-minX) + 8 : 0,
+    y: minY < 0 ? Math.ceil(-minY) + 8 : 0
+  };
+}
+
+/** Konva 画布尺寸（用于 MapRenderer width/height） */
+export function computeMaxExtentForElements(
+  points: any[],
+  locations: any[],
+  paths: any[],
+  clip: { x: number; y: number }
+): { maxX: number; maxY: number } {
+  let maxX = 0;
+  let maxY = 0;
+  const push = (x: number, y: number) => {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    maxX = Math.max(maxX, x + clip.x);
+    maxY = Math.max(maxY, y + clip.y);
+  };
+  for (const p of points) {
+    push(Number(p.x ?? p.xPosition ?? 0), Number(p.y ?? p.yPosition ?? 0));
+  }
+  for (const l of locations) {
+    push(Number(l.x ?? l.xPosition ?? 0), Number(l.y ?? l.yPosition ?? 0));
+    if (Array.isArray(l.geometry?.vertices)) {
+      for (const v of l.geometry.vertices) {
+        push(Number(v.x ?? v.xPosition ?? 0), Number(v.y ?? v.yPosition ?? 0));
+      }
+    }
+  }
+  for (const path of paths) {
+    for (const cp of extractPathControlPoints(path)) {
+      push(Number(cp.x ?? cp.xPosition ?? 0), Number(cp.y ?? cp.yPosition ?? 0));
+    }
+  }
+  return { maxX, maxY };
+}
+
+// ============================================================================
 // 一站式：从原始响应取出归一化后的 points/paths/locations
 // ============================================================================
 

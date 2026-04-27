@@ -15,7 +15,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useFullscreen } from '@vueuse/core';
 import { Bell, FullScreen } from '@element-plus/icons-vue';
 import { useMonitorStats } from './composables/useMonitorStats';
-import { useRealtimeData, POLL_INTERVAL } from './composables/useRealtimeData';
+import { useRealtimeData } from './composables/useRealtimeData';
 import MonitorCanvas from './components/MonitorCanvas.vue';
 import RobotPanel from './components/RobotPanel.vue';
 import type { AmrFilterKey } from './components/AmrStatsBar.vue';
@@ -63,20 +63,18 @@ const robotCards = computed<RobotCardVO[]>(() =>
 /** 顶栏「告警」角标：当前以异常车辆数兜底，PR2 后接告警中心实际值 */
 const alarmCount = computed(() => amrStats.value.errorVehicles ?? 0);
 
-/** 最后刷新文本（HH:mm:ss） */
+/** 数据加载时间（yyyy-MM-dd HH:mm:ss） */
 const lastUpdatedText = computed(() => {
   if (!lastUpdated.value) return '—';
   const d = new Date(lastUpdated.value);
   const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 });
 
-/** 连接状态：基于 isActive 与最近一次刷新距今的时长 */
+/** 连接状态 */
 const connectionState = computed<'live' | 'stale' | 'offline'>(() => {
   if (!isActive.value) return 'offline';
   if (!lastUpdated.value) return 'stale';
-  const gap = Date.now() - lastUpdated.value;
-  if (gap > POLL_INTERVAL * 2) return 'stale';
   return 'live';
 });
 
@@ -112,8 +110,10 @@ function handleVehicleClick(vehicle: any) {
 }
 
 // 手动刷新
-function handleRefresh() {
-  if (currentFactoryId.value) fetchStats(currentFactoryId.value);
+async function handleRefresh() {
+  if (!currentFactoryId.value) return;
+  await fetchStats(currentFactoryId.value);
+  lastUpdated.value = Date.now();
 }
 
 // 告警角标点击：PR2 接告警中心路由
@@ -156,12 +156,12 @@ onMounted(async () => {
         <div
           class="conn-indicator"
           :class="`conn-${connectionState}`"
-          :title="`轮询每 ${POLL_INTERVAL / 1000}s · 点击立即刷新`"
+          title="点击刷新数据"
           @click="handleRefresh"
         >
           <span class="conn-dot"></span>
           <span class="conn-label">{{ connectionLabel }}</span>
-          <span class="conn-time">· 上次刷新 {{ lastUpdatedText }}</span>
+          <span v-if="lastUpdated" class="conn-time">· {{ lastUpdatedText }}</span>
         </div>
 
         <el-badge

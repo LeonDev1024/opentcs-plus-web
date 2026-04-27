@@ -956,9 +956,11 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       }
       
       // 更新元素数据（已由 normalizer 处理后端字段与默认值）
+      console.log('[MapEditor] 加载元素数据 - points:', data.elements?.points?.length, 'paths:', data.elements?.paths?.length, 'locations:', data.elements?.locations?.length);
       points.value = data.elements.points || [];
       paths.value = data.elements.paths || [];
       locations.value = data.elements.locations || [];
+      console.log('[MapEditor] store points 数量:', points.value.length, 'store paths:', paths.value.length);
       blocks.value = data.blocks || [];
 
       syncPointNameCounter();
