@@ -1,22 +1,21 @@
 <script setup lang="ts">
 /**
- * 监控画布：与「部署管理 / 地图管理」控制台保持一致的画布行为
+ * 监控画布：把工厂下所有地图按各自的 mapOrigin 摆到同一张语义画布
  *
- * 架构（对齐 deploy/factory/map 的多图模式）：
- *   ┌──────────────────────────────── stage-canvas ─────────────────────────────┐
- *   │  CSS 网格底纹 · 滚轮缩放 · 鼠标拖拽平移                                       │
- *   │  ┌──── canvas-map-layer (transform: translate + scale) ────┐               │
- *   │  │   • MapRenderer（合并后的所有地图元素，scale=1，由外层缩放）              │
- *   │  │   • 车辆 SVG 标记（map 坐标系，跟随外层缩放）                             │
- *   │  │   • 工厂坐标原点 O(0,0) 实线 X/Y 轴                                      │
- *   │  └────────────────────────────────────────────────────────────────────────┘ │
- *   └──────────────────────────────────────────────────────────────────────────────┘
- *   叠加层：左上角合并地图徽章 / 左下角图例 / 右下角浮动工具栏 / 顶部+左侧 cm 刻度尺
+ * 架构（对齐 deploy/factory/map 的「原点编辑」多图模式）：
  *
- * 说明：
- *   • viewOffset 为工厂原点 O(0,0) 在画布内容区的屏幕像素位置（参考左下角）
- *   • canvasScale 与 deploy/factory/map 同名同义，与 MapRenderer 内部 scale 解耦
- *   • 1px = 1mm（项目默认约定）
+ *   stage-canvas（背景网格 + 鼠标平移/缩放）
+ *   └─ canvas-map-layer（CSS transform: translate + scale，统一 pan/zoom）
+ *      ├─ 工厂坐标原点 O(0,0) 实线 X/Y 轴
+ *      ├─ 每张地图：MapRenderer + 该地图的 mapOrigin 虚线轴
+ *      │    位置：left = ox - clip.x, top = -oy - clip.y
+ *      │    内部：MapRenderer 用「scale=1, autoCenter=false」直出
+ *      └─ 车辆 SVG（按车辆在工厂坐标系下的位置渲染）
+ *
+ * 关键约定：
+ *   • 工厂坐标系 Y 向上为正；CSS / Konva 内部 Y 向下为正 → 通过 top: -oy 翻转
+ *   • mapOrigin 来自后端 `mapOrigin` / `map_origin` 字段（[ox, oy, θ]）
+ *   • 1px = 1mm（项目默认）
  */
 import { ref, watch, computed, reactive, onMounted, onBeforeUnmount } from 'vue';
 import { Monitor, View, Hide } from '@element-plus/icons-vue';
@@ -24,22 +23,54 @@ import { loadMapEditorData } from '@/api/deploy/map-editor';
 import { listMapsByFactory } from '@/api/deploy/factory/map';
 import MapRenderer from '@/components/map/MapRenderer.vue';
 import MonitorRuler from './MonitorRuler.vue';
-import { normalizeMapEditorPayload } from '../utils/mapElementNormalize';
+import {
+  normalizeMapEditorPayload,
+  computeClipForElements,
+  computeMaxExtentForElements,
+  unwrapAjaxMapPayload
+} from '../utils/mapElementNormalize';
+import { parseNavigationMapOrigin } from '@/utils/mapEditor/navigationMapOrigin';
 import layerIconUrl from '@/assets/icons/svg/layer.svg?url';
 import type { VehicleRuntimeVO } from '@/api/ops/monitor';
 
-interface MergedMapData {
+// ============================================================================
+// 类型
+// ============================================================================
+/** 单张地图在工厂场景内的渲染单元 */
+interface FactoryMapLayer {
+  mapId: string;
+  name: string;
+  /** 该地图原点在工厂坐标系下的位置（mm） */
+  originX: number;
+  originY: number;
+  rotation: number;
+  /** 归一化后的点位/路径/库位（map-local 坐标） */
   points: any[];
   paths: any[];
   locations: any[];
-  /** 内容包围盒（已含负坐标补偿后的视觉范围） */
-  bounds: { minX: number; maxX: number; minY: number; maxY: number } | null;
-  /** 参与合并的地图数量 */
-  mapCount: number;
+  /** 负坐标补偿与 Konva 画布尺寸 */
+  clip: { x: number; y: number };
+  canvasW: number;
+  canvasH: number;
+  /** map-local 元素包围盒（含 clip 后） */
+  localBounds: { minX: number; maxX: number; minY: number; maxY: number };
 }
 
-// 响应解包 + 元素归一化全部抽到 utils/mapElementNormalize.ts
+/** 整张工厂语义画布的数据 */
+interface FactoryMapData {
+  layers: FactoryMapLayer[];
+  /** 工厂坐标系 CSS（Y-down）下的整体包围盒 */
+  layerBoundsCss: {
+    minX: number;
+    maxX: number;
+    minY: number;
+    maxY: number;
+  } | null;
+}
 
+// ============================================================================
+// Props / Emits
+// ============================================================================
 const props = defineProps<{
   factoryId?: number;
   vehicles: VehicleRuntimeVO[];
@@ -50,13 +81,14 @@ const emit = defineEmits<{
   (e: 'vehicle-click', vehicle: VehicleRuntimeVO): void;
 }>();
 
-// ==================== 数据 ====================
-const mapData = ref<MergedMapData | null>(null);
+// ============================================================================
+// 数据 / 视图状态
+// ============================================================================
+const mapData = ref<FactoryMapData | null>(null);
 const loading = ref(false);
 
-// ==================== 视图状态 ====================
-const SCALE = 1; // mm → px
-const SCALE_MIN = 0.1;
+const SCALE = 1; // 1 模型单位 = 1 mm
+const SCALE_MIN = 0.05;
 const SCALE_MAX = 20;
 const SCALE_STEP = 1.1;
 
@@ -70,7 +102,7 @@ const viewStart = reactive({ x: 0, y: 0 });
 
 const clampScale = (s: number) => Math.max(SCALE_MIN, Math.min(SCALE_MAX, s));
 
-/** 画布内容区尺寸（响应式跟随 ResizeObserver 更新） */
+/** 画布内容区尺寸（响应式） */
 const canvasSize = reactive({ w: 800, h: 600 });
 
 function getCanvasRect() {
@@ -80,24 +112,19 @@ function getCanvasRect() {
   return { w: rect.width, h: rect.height };
 }
 
-/** 地图层 transform：把工厂原点 O(0,0) 落在画布内容区的指定位置 */
-const mapLayerStyle = computed(() => {
-  return {
-    transform: `translate(${viewOffset.x}px, ${
-      canvasSize.h - viewOffset.y
-    }px) scale(${canvasScale.value})`
-  };
-});
+/** 地图层 transform：让工厂原点 O(0,0) 落在画布内 (viewOffset.x, h - viewOffset.y) */
+const mapLayerStyle = computed(() => ({
+  transform: `translate(${viewOffset.x}px, ${
+    canvasSize.h - viewOffset.y
+  }px) scale(${canvasScale.value})`
+}));
 
-/** 刻度尺需要：工厂原点 O(0,0) 在画布内容区的「屏幕 y 像素位置（自顶向下）」 */
+/** 刻度尺：把工厂原点的「自顶向下屏幕 y」喂给它 */
 const rulerOffsetY = computed(() => canvasSize.h - viewOffset.y);
 
-// ==================== 图层显隐 ====================
-/**
- * 图层菜单项与地图管理控制台 / 编辑器对齐：
- *   站点 / 路径 / 方向 / 网格
- * 监控模式补充：车辆显隐
- */
+// ============================================================================
+// 图层显隐（与地图管理控制台 / 编辑器对齐 + 监控专属车辆）
+// ============================================================================
 interface LayerVisibility {
   station: boolean;
   path: boolean;
@@ -132,15 +159,17 @@ const layerAllVisible = computed(() =>
   )
 );
 
-// ==================== 加载地图 ====================
-/** 监控模式：合并工厂下所有地图的 points/paths/locations */
+// ============================================================================
+// 加载地图
+// ============================================================================
 const loadMap = async () => {
   if (!props.factoryId) return;
   loading.value = true;
   mapData.value = null;
   try {
     const listRes: any = await listMapsByFactory(props.factoryId);
-    const list: any[] = (listRes as any)?.data || (listRes as any)?.rows || [];
+    const list: any[] =
+      (listRes as any)?.data || (listRes as any)?.rows || [];
     if (list.length === 0) {
       mapData.value = null;
       return;
@@ -150,88 +179,112 @@ const loadMap = async () => {
       list.map((m) => loadMapEditorData(m.mapId))
     );
 
-    const merged: MergedMapData = {
-      points: [],
-      paths: [],
-      locations: [],
-      bounds: null,
-      mapCount: 0
-    };
+    const layers: FactoryMapLayer[] = [];
+    let cssMinX = Infinity;
+    let cssMaxX = -Infinity;
+    let cssMinY = Infinity;
+    let cssMaxY = -Infinity;
 
-    let minX = Infinity;
-    let maxX = -Infinity;
-    let minY = Infinity;
-    let maxY = -Infinity;
-
-    for (const r of results) {
-      if (r.status !== 'fulfilled' || !r.value) continue;
-      // 与地图管理控制台同源：解包 + 归一化（x/y 兜底、layout/properties 解析）
-      const { points, paths, locations } = normalizeMapEditorPayload(r.value);
+    results.forEach((r, idx) => {
+      if (r.status !== 'fulfilled' || !r.value) return;
+      const meta = list[idx] || {};
+      // 必须先 unwrap 再 normalize（与 deploy/factory/map/index.vue loadMapElements 一致）
+      const unwrapped = unwrapAjaxMapPayload(r.value);
+      const { points, paths, locations } = normalizeMapEditorPayload(
+        unwrapped
+      );
       if (
         points.length === 0 &&
         paths.length === 0 &&
         locations.length === 0
       ) {
-        continue;
+        return;
       }
-      merged.points.push(...points);
-      merged.paths.push(...paths);
-      merged.locations.push(...locations);
-      merged.mapCount++;
 
-      // 累积包围盒（用于 fitView）—— 归一化后 x/y 总是数字
-      for (const p of points) {
-        const x = Number(p.x);
-        const y = Number(p.y);
+      // 解析该地图在工厂场景下的原点
+      const origin = parseNavigationMapOrigin(meta as any);
+
+      // 负坐标补偿 & Konva 画布尺寸
+      const clip = computeClipForElements(points, locations, paths);
+      const { maxX, maxY } = computeMaxExtentForElements(
+        points,
+        locations,
+        paths,
+        clip
+      );
+      const canvasW = Math.max(1, Math.ceil(maxX) + 8);
+      const canvasH = Math.max(1, Math.ceil(maxY) + 8);
+
+      // map-local 元素包围盒（不含 clip，用于工厂级 bounds 计算）
+      let lMinX = Infinity;
+      let lMaxX = -Infinity;
+      let lMinY = Infinity;
+      let lMaxY = -Infinity;
+      const accept = (x: number, y: number) => {
         if (Number.isFinite(x)) {
-          minX = Math.min(minX, x);
-          maxX = Math.max(maxX, x);
+          lMinX = Math.min(lMinX, x);
+          lMaxX = Math.max(lMaxX, x);
         }
         if (Number.isFinite(y)) {
-          minY = Math.min(minY, y);
-          maxY = Math.max(maxY, y);
+          lMinY = Math.min(lMinY, y);
+          lMaxY = Math.max(lMaxY, y);
         }
-      }
-      for (const l of locations) {
-        const x = Number(l.x);
-        const y = Number(l.y);
-        if (Number.isFinite(x)) {
-          minX = Math.min(minX, x);
-          maxX = Math.max(maxX, x);
-        }
-        if (Number.isFinite(y)) {
-          minY = Math.min(minY, y);
-          maxY = Math.max(maxY, y);
-        }
-      }
-      // 路径控制点也参与包围盒
+      };
+      for (const p of points) accept(Number(p.x), Number(p.y));
+      for (const l of locations) accept(Number(l.x), Number(l.y));
       for (const path of paths) {
-        const cps = path?.geometry?.controlPoints ?? [];
-        for (const cp of cps) {
-          const x = Number(cp?.x);
-          const y = Number(cp?.y);
-          if (Number.isFinite(x)) {
-            minX = Math.min(minX, x);
-            maxX = Math.max(maxX, x);
-          }
-          if (Number.isFinite(y)) {
-            minY = Math.min(minY, y);
-            maxY = Math.max(maxY, y);
-          }
+        for (const cp of path?.geometry?.controlPoints ?? []) {
+          accept(Number(cp?.x), Number(cp?.y));
         }
       }
+      // 防御性：空 bounds → 给一个零范围
+      if (!Number.isFinite(lMinX)) {
+        lMinX = lMaxX = lMinY = lMaxY = 0;
+      }
+
+      layers.push({
+        mapId: String(meta.mapId ?? meta.id ?? `map-${idx}`),
+        name: String(meta.name ?? meta.mapId ?? `map ${idx + 1}`),
+        originX: origin.originX,
+        originY: origin.originY,
+        rotation: origin.rotation,
+        points,
+        paths,
+        locations,
+        clip,
+        canvasW,
+        canvasH,
+        localBounds: { minX: lMinX, maxX: lMaxX, minY: lMinY, maxY: lMaxY }
+      });
+
+      // 工厂坐标系 CSS Y-down 包围盒：
+      //   factoryX = originX + localX
+      //   factoryY-CSS = -originY + localY  （Konva 内部 y 向下，工厂 y 向上 → CSS y 翻转）
+      const fXmin = origin.originX + lMinX;
+      const fXmax = origin.originX + lMaxX;
+      const fYmin = -origin.originY + lMinY;
+      const fYmax = -origin.originY + lMaxY;
+      cssMinX = Math.min(cssMinX, fXmin);
+      cssMaxX = Math.max(cssMaxX, fXmax);
+      cssMinY = Math.min(cssMinY, fYmin);
+      cssMaxY = Math.max(cssMaxY, fYmax);
+    });
+
+    if (layers.length === 0) {
+      mapData.value = null;
+      return;
     }
 
-    if (Number.isFinite(minX)) {
-      merged.bounds = { minX, maxX, minY, maxY };
-    }
+    mapData.value = {
+      layers,
+      layerBoundsCss: Number.isFinite(cssMinX)
+        ? { minX: cssMinX, maxX: cssMaxX, minY: cssMinY, maxY: cssMaxY }
+        : null
+    };
 
-    mapData.value = merged.mapCount > 0 ? merged : null;
-
-    // 加载完成后自动适应窗口
-    if (mapData.value) {
-      requestAnimationFrame(() => fitView());
-    }
+    // 加载完成后自动 fit；下一帧等 ResizeObserver 落定再 fit 一次
+    requestAnimationFrame(() => fitView());
+    setTimeout(() => fitView(), 80);
   } catch (e) {
     console.error('[monitor] load maps error:', e);
     mapData.value = null;
@@ -248,25 +301,34 @@ watch(
   { immediate: true }
 );
 
-// ==================== MapRenderer 容器尺寸 ====================
-/**
- * MapRenderer 的画布尺寸：覆盖到内容包围盒最远边
- * - 内容坐标可能为负（被 Konva 自动裁切），所以左上角 (0,0) 不一定可视
- * - 这里给一个相对宽松的画布，让所有内容都能在 (0,0)~(W,H) 内被绘制到
- */
-const rendererSize = computed(() => {
-  const b = mapData.value?.bounds;
-  if (!b) return { w: 1, h: 1 };
-  // 外扩 200mm 防止被 Konva 默认裁切
-  const w = Math.max(1, Math.ceil(b.maxX) + 200);
-  const h = Math.max(1, Math.ceil(b.maxY) + 200);
-  return { w, h };
-});
+// ============================================================================
+// 单张地图的样式
+// ============================================================================
+function getMapRendererStyle(layer: FactoryMapLayer): Record<string, string> {
+  return {
+    width: `${layer.canvasW}px`,
+    height: `${layer.canvasH}px`,
+    left: `${layer.originX * SCALE - layer.clip.x}px`,
+    top: `${-layer.originY * SCALE - layer.clip.y}px`
+  };
+}
 
-// ==================== 车辆标记 ====================
+/** 该地图原点的虚线 X/Y 轴位置（工厂 CSS Y-down） */
+function getMapOriginAxisStyle(
+  layer: FactoryMapLayer
+): Record<string, string> {
+  return {
+    left: `${layer.originX * SCALE}px`,
+    top: `${-layer.originY * SCALE}px`
+  };
+}
+
+// ============================================================================
+// 车辆标记
+// ============================================================================
 const VEHICLE_RADIUS = 12;
 
-const vehicleColor = (state: string): string => {
+function vehicleColor(state: string): string {
   const map: Record<string, string> = {
     IDLE: '#67C23A',
     WORKING: '#409EFF',
@@ -276,33 +338,24 @@ const vehicleColor = (state: string): string => {
     UNAVAILABLE: '#909399'
   };
   return map[state] || '#909399';
-};
+}
 
-/** 车辆在 map 坐标系下的位置（mm），由 .canvas-map-layer 的 transform 自动缩放 */
+/** 工厂坐标系 Y-up → CSS Y-down */
 const vehicleMarkers = computed(() => {
-  if (!mapData.value) return [];
   return props.vehicles.map((v) => ({
     vehicleId: v.vehicleId,
     name: v.name,
     state: v.state,
     color: vehicleColor(v.state),
-    // 与 useCanvasAxis 一致：屏幕 y 向下 = 模型 -y
-    x: v.position?.x ?? 0,
-    y: v.position?.y ?? 0,
+    cssX: (v.position?.x ?? 0) * SCALE,
+    cssY: -(v.position?.y ?? 0) * SCALE,
     isActive: v.vehicleId === props.activeVehicleId
   }));
 });
 
-// ==================== 图例 ====================
-const legend = [
-  { label: '空闲', color: '#67C23A' },
-  { label: '任务中', color: '#409EFF' },
-  { label: '充电中', color: '#E6A23C' },
-  { label: '异常', color: '#F56C6C' },
-  { label: '离线', color: '#909399' }
-];
-
-// ==================== 缩放与平移 ====================
+// ============================================================================
+// 缩放与平移
+// ============================================================================
 function handleCanvasWheel(e: WheelEvent) {
   const el = canvasRef.value;
   if (!el) return;
@@ -323,10 +376,14 @@ function handleCanvasWheel(e: WheelEvent) {
 }
 
 function startPan(e: MouseEvent) {
-  // 点到工具栏 / 浮层时不触发拖拽
   const target = e.target as HTMLElement;
-  if (target.closest('.map-toolbar, .map-legend, .map-count-badge')) return;
-  // 仅左键
+  if (
+    target.closest(
+      '.canvas-floating-controls, .map-count-badge, .ruler-info-box'
+    )
+  ) {
+    return;
+  }
   if (e.button !== 0) return;
 
   isDragging.value = true;
@@ -354,7 +411,9 @@ function endPan() {
   document.removeEventListener('mouseup', endPan);
 }
 
-// 跟踪画布内容区尺寸，让 mapLayerStyle 与刻度尺响应窗口/侧栏变化
+// ============================================================================
+// 容器尺寸观察
+// ============================================================================
 let canvasResizeObs: ResizeObserver | null = null;
 onMounted(() => {
   if (!canvasRef.value || typeof ResizeObserver === 'undefined') return;
@@ -366,7 +425,6 @@ onMounted(() => {
     }
   });
   canvasResizeObs.observe(canvasRef.value);
-  // 初始读一次，避免首帧 (800,600) 默认值
   const rect = canvasRef.value.getBoundingClientRect();
   canvasSize.w = rect.width;
   canvasSize.h = rect.height;
@@ -379,13 +437,12 @@ onBeforeUnmount(() => {
   canvasResizeObs = null;
 });
 
-// ==================== 工具栏动作 ====================
-// 放大/缩小由滚轮承担（与地图管理控制台一致），右下角浮动控件仅保留：图层 + 1:1
-// fitView 仅在地图加载完成时内部调用，用于自动聚焦内容
-
-/** 适应窗口：根据内容包围盒计算合适缩放，并居中 */
+// ============================================================================
+// 工具栏动作
+// ============================================================================
+/** 适应窗口：根据工厂 CSS Y-down 包围盒计算合适缩放并居中 */
 function fitView() {
-  const b = mapData.value?.bounds;
+  const b = mapData.value?.layerBoundsCss;
   const { w, h } = getCanvasRect();
   if (!b || w <= 0 || h <= 0) {
     resetZoom();
@@ -393,18 +450,21 @@ function fitView() {
   }
   const contentW = Math.max(1, b.maxX - b.minX);
   const contentH = Math.max(1, b.maxY - b.minY);
-  const padding = 80;
+  const padding = 64;
   const sx = (w - padding * 2) / contentW;
   const sy = (h - padding * 2) / contentH;
   const s = clampScale(Math.min(sx, sy));
   canvasScale.value = s;
 
-  // 内容中心点（map 坐标系）
+  // 内容中心（工厂 CSS Y-down）
   const cx = (b.minX + b.maxX) / 2;
   const cy = (b.minY + b.maxY) / 2;
-  // 让内容中心落在画布中心：viewOffset 是工厂原点 O(0,0) 的位置
-  // map 坐标 (cx, cy) 在屏幕上的位置 = viewOffset.x + cx*s, h - (h - viewOffset.y + cy*s)
-  // 要让 (cx, cy) 居中：
+
+  // mapLayer transform: translate(viewOffset.x, h - viewOffset.y) scale(s)
+  // 一个点 (px, py) 在 CSS Y-down 工厂坐标下，最终屏幕位置：
+  //   sx = viewOffset.x + px * s
+  //   sy = (h - viewOffset.y) + py * s
+  // 让 (cx, cy) 落到画布中心 (w/2, h/2)：
   viewOffset.x = w / 2 - cx * s;
   viewOffset.y = h / 2 + cy * s;
 }
@@ -435,37 +495,53 @@ function resetZoom() {
         @mousedown="startPan"
         @wheel.prevent="handleCanvasWheel"
       >
-        <!-- 地图层（CSS transform 实现 pan + zoom） -->
+        <!-- 地图层（工厂坐标系 CSS Y-down，由 transform 统一 pan/zoom） -->
         <div class="canvas-map-layer" :style="mapLayerStyle">
-          <!-- 合并后的地图元素：scale=1，由外层 transform 缩放 -->
-          <MapRenderer
-            v-if="mapData"
-            class="preview-konva-layer"
-            :points="layerVisibility.station ? (mapData.points || []) : []"
-            :paths="layerVisibility.path ? (mapData.paths || []) : []"
-            :locations="layerVisibility.station ? (mapData.locations || []) : []"
-            :width="rendererSize.w"
-            :height="rendererSize.h"
-            :scale="1"
-            :offset-x="0"
-            :offset-y="0"
-            :auto-center="false"
-            :flip-y="false"
-            readonly
-          />
+          <!-- 工厂坐标原点 O(0,0) 实线坐标轴 -->
+          <div class="layer-axis">
+            <div class="axis-line axis-x" />
+            <div class="axis-line axis-y" />
+            <div class="axis-origin">O(0,0)</div>
+          </div>
 
-          <!-- 车辆标记（map 坐标系）—— 跟随外层缩放 -->
+          <!-- 各地图：MapRenderer + 该地图原点虚线轴 -->
+          <template v-for="layer in mapData?.layers || []" :key="layer.mapId">
+            <MapRenderer
+              class="preview-konva-layer"
+              :style="getMapRendererStyle(layer)"
+              :points="layerVisibility.station ? layer.points : []"
+              :paths="layerVisibility.path ? layer.paths : []"
+              :locations="layerVisibility.station ? layer.locations : []"
+              :width="layer.canvasW"
+              :height="layer.canvasH"
+              :scale="1"
+              :offset-x="0"
+              :offset-y="0"
+              :auto-center="false"
+              :flip-y="false"
+              readonly
+            />
+            <div
+              class="layer-axis map-origin-axis"
+              :style="getMapOriginAxisStyle(layer)"
+            >
+              <div class="axis-line axis-x" />
+              <div class="axis-line axis-y" />
+            </div>
+          </template>
+
+          <!-- 车辆标记（工厂坐标系，单一 SVG） -->
           <svg
-            v-if="mapData && layerVisibility.vehicle"
+            v-if="layerVisibility.vehicle"
             class="vehicle-svg"
-            :width="rendererSize.w"
-            :height="rendererSize.h"
-            :viewBox="`0 0 ${rendererSize.w} ${rendererSize.h}`"
+            width="1"
+            height="1"
+            overflow="visible"
           >
             <g v-for="v in vehicleMarkers" :key="v.vehicleId">
               <circle
-                :cx="v.x"
-                :cy="v.y"
+                :cx="v.cssX"
+                :cy="v.cssY"
                 :r="VEHICLE_RADIUS"
                 :fill="v.color"
                 :stroke="v.isActive ? '#fff' : 'rgba(255,255,255,0.6)'"
@@ -475,8 +551,8 @@ function resetZoom() {
                 @click="emit('vehicle-click', props.vehicles.find(p => p.vehicleId === v.vehicleId)!)"
               />
               <text
-                :x="v.x"
-                :y="v.y - VEHICLE_RADIUS - 4"
+                :x="v.cssX"
+                :y="v.cssY - VEHICLE_RADIUS - 4"
                 text-anchor="middle"
                 font-size="10"
                 font-weight="600"
@@ -484,29 +560,14 @@ function resetZoom() {
               >{{ v.name }}</text>
             </g>
           </svg>
-
-          <!-- 工厂坐标原点 O(0,0) 实线坐标轴 -->
-          <div class="layer-axis">
-            <div class="axis-line axis-x" />
-            <div class="axis-line axis-y" />
-            <div class="axis-origin">O(0,0)</div>
-          </div>
         </div>
 
         <!-- 左上角：合并地图数量徽章 -->
-        <div v-if="mapData && mapData.mapCount > 1" class="map-count-badge">
-          已合并 {{ mapData.mapCount }} 张地图
-        </div>
-
-        <!-- 左下角图例 -->
-        <div v-if="mapData" class="map-legend">
-          <div class="legend-title">车辆状态</div>
-          <div class="legend-items">
-            <div v-for="item in legend" :key="item.label" class="legend-item">
-              <span class="legend-dot" :style="{ background: item.color }"></span>
-              <span class="legend-label">{{ item.label }}</span>
-            </div>
-          </div>
+        <div
+          v-if="mapData && mapData.layers.length > 1"
+          class="map-count-badge"
+        >
+          已合并 {{ mapData.layers.length }} 张地图
         </div>
 
         <!-- 右下角浮动控件（与地图管理控制台 / 编辑器一致：图层 + 1:1） -->
@@ -617,8 +678,6 @@ function resetZoom() {
 
 .preview-konva-layer {
   position: absolute;
-  left: 0;
-  top: 0;
   overflow: visible;
   pointer-events: none;
 }
@@ -645,11 +704,39 @@ function resetZoom() {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
 }
 
-/* —— 工厂坐标轴 O(0,0)（与地图管理控制台样式同源） —— */
+/* —— 工厂坐标轴 O(0,0)（实线）+ 各地图原点（虚线） —— */
 .layer-axis {
   position: absolute;
   left: 0;
   top: 0;
+}
+
+.layer-axis.map-origin-axis .axis-x {
+  background: rgba(37, 99, 235, 0.45);
+  /* 虚线感：用 dashed border 模拟 */
+}
+
+.layer-axis.map-origin-axis .axis-x::before,
+.layer-axis.map-origin-axis .axis-y::before,
+.layer-axis.map-origin-axis .axis-x::after,
+.layer-axis.map-origin-axis .axis-y::after {
+  display: none;
+}
+
+.layer-axis.map-origin-axis .axis-x,
+.layer-axis.map-origin-axis .axis-y {
+  background: transparent;
+  border-top: 1px dashed rgba(37, 99, 235, 0.5);
+  height: 0;
+  width: 60px;
+}
+
+.layer-axis.map-origin-axis .axis-y {
+  border-top: none;
+  border-left: 1px dashed rgba(239, 68, 68, 0.5);
+  width: 0;
+  height: 60px;
+  top: -60px;
 }
 
 .axis-origin {
@@ -756,56 +843,6 @@ function resetZoom() {
   pointer-events: none;
   font-weight: 500;
   z-index: 10;
-}
-
-/* —— 图例 —— */
-.map-legend {
-  position: absolute;
-  left: 16px;
-  bottom: 16px;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(6px);
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
-  padding: 10px 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
-  pointer-events: none;
-  user-select: none;
-  z-index: 10;
-}
-
-.legend-title {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--el-text-color-secondary);
-  margin-bottom: 6px;
-  letter-spacing: 0.5px;
-}
-
-.legend-items {
-  display: grid;
-  grid-template-columns: repeat(2, auto);
-  gap: 4px 14px;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.legend-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
-  flex-shrink: 0;
-}
-
-.legend-label {
-  font-size: 12px;
-  color: var(--el-text-color-regular);
 }
 
 /* —— 右下角浮动控件（与 deploy/factory/map 同源） —— */
