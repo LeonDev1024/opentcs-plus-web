@@ -129,7 +129,7 @@ onMounted(async () => {
       <div class="top-bar">
         <div class="top-bar-left">
           <!-- 工厂下拉选择，默认第一个 -->
-          <span class="factory-label">调度场景:</span>
+          <span class="factory-label">地图监控：</span>
           <el-select
             v-model="currentFactoryId"
             placeholder="请选择工厂"
