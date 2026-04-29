@@ -398,18 +398,18 @@ function getLayerLocations(layer: FactoryMapLayer): any[] {
 // ============================================================================
 // 车辆标记
 // ============================================================================
-const VEHICLE_RADIUS = 12;
+const VEHICLE_HALF = 14; // 车体半尺寸，整车 28x28 px
 
 function vehicleColor(state: string): string {
   const map: Record<string, string> = {
-    IDLE: '#67C23A',
-    WORKING: '#409EFF',
+    IDLE: '#D97757',
+    WORKING: '#D97757',
     CHARGING: '#E6A23C',
     ERROR: '#F56C6C',
     UNKNOWN: '#909399',
     UNAVAILABLE: '#909399'
   };
-  return map[state] || '#909399';
+  return map[state] || '#D97757';
 }
 
 /**
@@ -417,19 +417,26 @@ function vehicleColor(state: string): string {
  * 转换公式：modelUnit = meters × 1000 / mmPerUnit
  *   - mmPerUnit=1000（1模型单位=1m）：除数=1，直接对应
  *   - mmPerUnit=50（1模型单位=50mm=5cm）：需乘以20
+ *
+ * 方向：OpenTCS orientation 为 CCW 度数（从正东起），Y 轴已翻转，
+ * SVG rotate 为顺时针，故 svgAngle = -orientation
  */
 const vehicleMarkers = computed(() => {
   const mpu = mapMmPerUnit.value || 1000;
   const metersToModel = 1000 / mpu;
-  return props.vehicles.map((v) => ({
-    vehicleId: v.vehicleId,
-    name: v.name,
-    state: v.state,
-    color: vehicleColor(v.state),
-    cssX: (v.position?.x ?? 0) * metersToModel,
-    cssY: -(v.position?.y ?? 0) * metersToModel,
-    isActive: v.vehicleId === props.activeVehicleId
-  }));
+  const ONLINE_STATES = new Set(['IDLE', 'WORKING', 'CHARGING', 'ERROR', 'EXECUTING', 'PAUSED', 'WAITING']);
+  return props.vehicles
+    .filter((v) => ONLINE_STATES.has(v.state))
+    .map((v) => ({
+      vehicleId: v.vehicleId,
+      name: v.name,
+      state: v.state,
+      color: vehicleColor(v.state),
+      cssX: (v.position?.x ?? 0) * metersToModel,
+      cssY: -(v.position?.y ?? 0) * metersToModel,
+      svgAngle: -(v.position?.orientation ?? 0),
+      isActive: v.vehicleId === props.activeVehicleId
+    }));
 });
 
 // ============================================================================
@@ -618,25 +625,50 @@ function resetZoom() {
             height="1"
             overflow="visible"
           >
-            <g v-for="v in vehicleMarkers" :key="v.vehicleId">
+            <g
+              v-for="v in vehicleMarkers"
+              :key="v.vehicleId"
+              :transform="`translate(${v.cssX}, ${v.cssY})`"
+              class="vehicle-node"
+              :class="{ 'vehicle-active': v.isActive }"
+              @click="emit('vehicle-click', props.vehicles.find(p => p.vehicleId === v.vehicleId)!)"
+            >
+              <!-- 激活光晕 -->
               <circle
-                :cx="v.cssX"
-                :cy="v.cssY"
-                :r="VEHICLE_RADIUS"
-                :fill="v.color"
-                :stroke="v.isActive ? '#fff' : 'rgba(255,255,255,0.6)'"
-                :stroke-width="v.isActive ? 3 : 2"
-                :class="{ 'vehicle-active': v.isActive }"
-                class="vehicle-node"
-                @click="emit('vehicle-click', props.vehicles.find(p => p.vehicleId === v.vehicleId)!)"
+                v-if="v.isActive"
+                cx="0" cy="0"
+                :r="VEHICLE_HALF + 7"
+                :fill="`${v.color}33`"
+                stroke="none"
               />
+
+              <!-- 旋转车体 -->
+              <g :transform="`rotate(${v.svgAngle})`">
+                <!-- 车体：圆角正方形 -->
+                <rect
+                  :x="-VEHICLE_HALF" :y="-VEHICLE_HALF"
+                  :width="VEHICLE_HALF * 2" :height="VEHICLE_HALF * 2"
+                  rx="4" ry="4"
+                  :fill="v.color"
+                  :stroke="v.isActive ? '#ffffff' : 'rgba(255,255,255,0.55)'"
+                  :stroke-width="v.isActive ? 2.5 : 1.5"
+                />
+                <!-- 内部十字线（潜伏式AGV托举机构） -->
+                <line x1="-8" y1="0" x2="8" y2="0" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+                <line x1="0" y1="-8" x2="0" y2="8" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+                <!-- 前向指示点（车头方向，默认朝上 = SVG 0° = 北方） -->
+                <circle cx="0" :cy="-VEHICLE_HALF + 5" r="3" fill="rgba(255,255,255,0.92)"/>
+              </g>
+
+              <!-- 车辆名称（不随车体旋转，与点标签样式一致：正上方 30px） -->
               <text
-                :x="v.cssX"
-                :y="v.cssY - VEHICLE_RADIUS - 4"
+                x="0" y="-30"
                 text-anchor="middle"
-                font-size="10"
-                font-weight="600"
-                :fill="v.color"
+                dominant-baseline="auto"
+                font-size="11"
+                font-family="Arial, sans-serif"
+                fill="#303133"
+                style="pointer-events:none;user-select:none;"
               >{{ v.name }}</text>
             </g>
           </svg>
@@ -773,15 +805,15 @@ function resetZoom() {
 .vehicle-node {
   cursor: pointer;
   pointer-events: all;
-  transition: r 0.2s;
+  transition: transform 0.15s;
 }
 
 .vehicle-node:hover {
-  r: 16;
+  filter: brightness(1.15) drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
 }
 
 .vehicle-active {
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
 }
 
 /* —— 工厂坐标轴 O(0,0)（实线）+ 各地图原点（虚线） —— */

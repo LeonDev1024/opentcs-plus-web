@@ -1,14 +1,10 @@
 <script setup lang="ts">
 /**
- * 机器人面板（右侧）
+ * 机器人面板（左侧）
  *
  * 结构：
  *   ┌────────────────────────┐
  *   │ 车辆状态                │
- *   │ ┌──────KPI 栅格──────┐ │  ← AmrStatsBar layout="grid"
- *   │ │ 总数 / 空闲 / 忙   │ │     点击 KPI 直接筛选下方列表
- *   │ │ 充电 / 异常 / 离线 │ │
- *   │ └────────────────────┘ │
  *   │ 🔍 搜索框               │
  *   │ ┌─机器人卡片─┐          │
  *   │ │ ...        │          │
@@ -17,8 +13,9 @@
  */
 import { ref, computed } from 'vue';
 import RobotCard from './RobotCard.vue';
-import AmrStatsBar, { type AmrFilterKey } from './AmrStatsBar.vue';
 import type { RobotCardVO, VehicleState, AmrStats } from '@/api/ops/monitor';
+
+const activeTab = ref<'robot' | 'order'>('robot');
 
 const props = defineProps<{
   robots: RobotCardVO[];
@@ -78,26 +75,37 @@ const filterModel = computed<AmrFilterKey>({
 
 <template>
   <div class="robot-panel">
-    <!-- 头部：标题 + KPI 栅格 -->
+    <!-- 头部：Tab 切换 -->
     <div class="panel-head">
-      <span class="panel-title">车辆状态</span>
-      <AmrStatsBar
-        v-model="filterModel"
-        :stats="stats"
-        layout="grid"
-        class="panel-kpi"
-      />
+      <div class="panel-tabs">
+        <button
+          class="tab-item"
+          :class="{ active: activeTab === 'robot' }"
+          @click="activeTab = 'robot'"
+        >
+          机器人
+        </button>
+        <button
+          class="tab-item"
+          :class="{ active: activeTab === 'order' }"
+          @click="activeTab = 'order'"
+        >
+          订单
+        </button>
+      </div>
     </div>
 
     <!-- 搜索 -->
-    <el-input
-      v-model="search"
-      placeholder="搜索机器人..."
-      prefix-icon="Search"
-      size="small"
-      clearable
-      class="search-input"
-    />
+    <div class="search-wrapper">
+      <el-input
+        v-model="search"
+        :placeholder="activeTab === 'robot' ? '搜索机器人...' : '搜索订单...'"
+        prefix-icon="Search"
+        size="small"
+        clearable
+        class="search-input"
+      />
+    </div>
 
     <!-- 列表 -->
     <div class="robot-list">
@@ -122,31 +130,53 @@ const filterModel = computed<AmrFilterKey>({
   height: 100%;
   background: var(--el-bg-color);
   min-height: 0;
+  overflow: hidden;
 }
 
 .panel-head {
-  padding: 12px 12px 10px;
-  border-bottom: 1px solid var(--el-border-color);
+  padding: 12px 12px 0;
   flex-shrink: 0;
+}
+
+.panel-tabs {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
-.panel-title {
+.tab-item {
+  padding: 4px 16px;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-  letter-spacing: 0.3px;
+  border: none;
+  background: var(--el-fill-color-lighter);
+  color: var(--el-text-color-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
 }
 
-.panel-kpi {
-  /* AmrStatsBar layout=grid 自身已是 3×2，这里仅承担布局空间 */
+.tab-item:hover {
+  background: var(--el-fill-color);
+  color: var(--el-text-color-primary);
+}
+
+.tab-item.active {
+  background: var(--el-color-primary);
+  color: #fff;
+  font-weight: 500;
+}
+
+.search-wrapper {
+  padding: 10px 12px;
+  flex-shrink: 0;
 }
 
 .search-input {
-  margin: 10px 12px 6px;
-  flex-shrink: 0;
+  width: 100%;
+}
+
+.search-input :deep(.el-input__wrapper) {
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
 }
 
 .robot-list {

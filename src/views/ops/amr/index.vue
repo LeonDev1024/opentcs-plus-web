@@ -94,13 +94,51 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="mapDialogVisible" :title="`切换地图 - ${selectedVehicle?.name || ''}`" width="480px">
+    <el-dialog v-model="mapDialogVisible" :title="`切换地图 - ${selectedVehicle?.name || ''}`" width="520px">
       <el-form :model="mapForm" label-width="110px">
-        <el-form-item label="目标地图">
-          <el-input v-model="mapForm.targetMapId" placeholder="输入地图ID" />
+        <el-form-item label="目标地图" required>
+          <el-select
+            v-model="mapForm.targetMapId"
+            placeholder="请选择导航地图"
+            style="width: 100%"
+            filterable
+            :loading="mapsLoading"
+          >
+            <el-option-group
+              v-for="group in groupedMaps"
+              :key="group.factoryName"
+              :label="group.factoryName"
+            >
+              <el-option
+                v-for="m in group.maps"
+                :key="m.mapId"
+                :label="`${m.name}（${m.mapId}）`"
+                :value="m.mapId"
+              >
+                <span style="float: left">{{ m.name }}</span>
+                <span style="float: right; color: #909399; font-size: 12px">{{ m.mapId }}</span>
+              </el-option>
+            </el-option-group>
+          </el-select>
         </el-form-item>
-        <el-form-item label="目标版本">
-          <el-input v-model="mapForm.targetMapVersion" placeholder="输入版本号" />
+        <el-form-item label="起始点位">
+          <el-select
+            v-model="mapForm.initPosition"
+            placeholder="可选，切换后的初始点位"
+            style="width: 100%"
+            filterable
+            allow-create
+            clearable
+            :loading="pointsLoading"
+            :disabled="!mapForm.targetMapId"
+          >
+            <el-option
+              v-for="p in mapPoints"
+              :key="p"
+              :label="p"
+              :value="p"
+            />
+          </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -178,6 +216,9 @@ import {
   switchMode
 } from '@/api/ops/amr';
 import type { GoChargeRequest, MapSwitchRequest, ModeSwitchRequest, MoveRequest, OpsActionRecord, OpsAmrVehicle } from '@/api/ops/amr/types';
+import { listNavigationMap } from '@/api/deploy/factory/map';
+import type { NavigationMapVO } from '@/api/deploy/factory/map/types';
+import { loadMapEditorData } from '@/api/deploy/map-editor';
 
 const loading = ref(false);
 const vehicleList = ref<OpsAmrVehicle[]>([]);
@@ -204,7 +245,53 @@ const modeForm = reactive<ModeSwitchRequest>({
 
 const mapForm = reactive<MapSwitchRequest>({
   targetMapId: '',
-  targetMapVersion: ''
+  initPosition: ''
+});
+
+const navigationMaps = ref<NavigationMapVO[]>([]);
+const mapsLoading = ref(false);
+const mapPoints = ref<string[]>([]);
+const pointsLoading = ref(false);
+
+const groupedMaps = computed(() => {
+  const groups: Record<string, { factoryName: string; maps: NavigationMapVO[] }> = {};
+  for (const m of navigationMaps.value) {
+    const key = m.factoryName || '未关联工厂';
+    if (!groups[key]) groups[key] = { factoryName: key, maps: [] };
+    groups[key].maps.push(m);
+  }
+  return Object.values(groups);
+});
+
+const loadNavigationMaps = async () => {
+  mapsLoading.value = true;
+  try {
+    const res = await listNavigationMap({ pageSize: 200 });
+    navigationMaps.value = (res as any).rows ?? (res as any).data?.rows ?? (res as any).data ?? [];
+  } finally {
+    mapsLoading.value = false;
+  }
+};
+
+const loadMapPoints = async (mapId: string) => {
+  mapPoints.value = [];
+  mapForm.initPosition = '';
+  if (!mapId) return;
+  pointsLoading.value = true;
+  try {
+    const res = await loadMapEditorData(mapId);
+    const data = (res as any).data ?? res;
+    const pts: any[] = Array.isArray(data?.points) ? data.points : [];
+    mapPoints.value = pts.map((p: any) => p.name ?? p.pointId ?? p.id).filter(Boolean);
+  } catch {
+    // 加载失败时保持空列表，允许手动输入
+  } finally {
+    pointsLoading.value = false;
+  }
+};
+
+watch(() => mapForm.targetMapId, (val) => {
+  loadMapPoints(val);
 });
 
 const chargeForm = reactive<GoChargeRequest>({
@@ -269,7 +356,10 @@ const openMapDialog = (row?: OpsAmrVehicle) => {
     selectedVehicle.value = row;
   }
   if (!ensureSelectedVehicle()) return;
+  mapForm.targetMapId = '';
+  mapForm.initPosition = '';
   mapDialogVisible.value = true;
+  loadNavigationMaps();
 };
 
 const openChargeDialog = (row?: OpsAmrVehicle) => {
@@ -290,34 +380,42 @@ const openMoveDialog = (row?: OpsAmrVehicle) => {
 
 const handleModeSwitch = async () => {
   if (!ensureSelectedVehicle()) return;
-  await switchMode(selectedVehicle.value!.name, modeForm);
-  ElMessage.success('模式切换命令已下发');
-  modeDialogVisible.value = false;
-  await refreshRecords();
+  try {
+    await switchMode(selectedVehicle.value!.name, modeForm);
+    ElMessage.success('模式切换命令已下发');
+    modeDialogVisible.value = false;
+    await refreshRecords();
+  } catch { /* 错误已由 request 拦截器弹出 */ }
 };
 
 const handleMapSwitch = async () => {
   if (!ensureSelectedVehicle()) return;
-  await switchMap(selectedVehicle.value!.name, mapForm);
-  ElMessage.success('地图切换命令已下发');
-  mapDialogVisible.value = false;
-  await refreshRecords();
+  try {
+    await switchMap(selectedVehicle.value!.name, mapForm);
+    ElMessage.success('地图切换命令已下发');
+    mapDialogVisible.value = false;
+    await refreshRecords();
+  } catch { /* 错误已由 request 拦截器弹出 */ }
 };
 
 const handleGoCharge = async () => {
   if (!ensureSelectedVehicle()) return;
-  await goCharge(selectedVehicle.value!.name, chargeForm);
-  ElMessage.success('去充电命令已下发');
-  chargeDialogVisible.value = false;
-  await refreshRecords();
+  try {
+    await goCharge(selectedVehicle.value!.name, chargeForm);
+    ElMessage.success('去充电命令已下发');
+    chargeDialogVisible.value = false;
+    await refreshRecords();
+  } catch { /* 错误已由 request 拦截器弹出 */ }
 };
 
 const handleMove = async () => {
   if (!ensureSelectedVehicle()) return;
-  await moveVehicle(selectedVehicle.value!.name, moveForm);
-  ElMessage.success('移动命令已下发');
-  moveDialogVisible.value = false;
-  await refreshRecords();
+  try {
+    await moveVehicle(selectedVehicle.value!.name, moveForm);
+    ElMessage.success('移动命令已下发');
+    moveDialogVisible.value = false;
+    await refreshRecords();
+  } catch { /* 错误已由 request 拦截器弹出 */ }
 };
 
 const refreshRecords = async () => {
