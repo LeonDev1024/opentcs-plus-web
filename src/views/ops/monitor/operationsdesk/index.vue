@@ -4,11 +4,11 @@
  * 入口：/operationsdesk
  *
  * 顶栏布局：
- *   [工厂 Tab 组]  [AMR KPI 6 卡（点击筛选）]  ── flex 撑开 ──  [连接状态] [告警] [全屏]
+ *   [工厂下拉选择] [AMR KPI 6 卡（点击筛选）]  ── flex 撑开 ──  [连接状态] [告警] [全屏]
  *
  * 设计要点：
- * - 工厂 Tab 与 deploy/factory/map 控制台样式保持一致，跨页面体验统一。
- * - KPI 卡承担「指标展示 + 筛选触发器」双重职责；右侧机器人面板按 KPI 选中态过滤。
+ * - 工厂下拉选择，默认第一个工厂
+ * - KPI 卡承担「指标展示 + 筛选触发器」双重职责；左侧机器人面板按 KPI 选中态过滤。
  * - 订单 / 告警是独立页面，本页只承担「空间态势感知 + 跳转」。
  */
 import { ref, computed, onMounted } from 'vue';
@@ -17,6 +17,7 @@ import { Bell, FullScreen } from '@element-plus/icons-vue';
 import { useMonitorStats } from './composables/useMonitorStats';
 import { useRealtimeData } from './composables/useRealtimeData';
 import MonitorCanvas from './components/MonitorCanvas.vue';
+import AmrStatsBar from './components/AmrStatsBar.vue';
 import RobotPanel from './components/RobotPanel.vue';
 import type { AmrFilterKey } from './components/AmrStatsBar.vue';
 import type { RobotCardVO } from '@/api/ops/monitor';
@@ -60,17 +61,6 @@ const robotCards = computed<RobotCardVO[]>(() =>
   }))
 );
 
-/** 顶栏「告警」角标：当前以异常车辆数兜底，PR2 后接告警中心实际值 */
-const alarmCount = computed(() => amrStats.value.errorVehicles ?? 0);
-
-/** 数据加载时间（yyyy-MM-dd HH:mm:ss） */
-const lastUpdatedText = computed(() => {
-  if (!lastUpdated.value) return '—';
-  const d = new Date(lastUpdated.value);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-});
-
 /** 连接状态 */
 const connectionState = computed<'live' | 'stale' | 'offline'>(() => {
   if (!isActive.value) return 'offline';
@@ -90,10 +80,12 @@ const connectionLabel = computed(() => {
   }
 });
 
+/** 顶栏「告警」角标 */
+const alarmCount = computed(() => amrStats.value.errorVehicles ?? 0);
+
 // 工厂切换
-function selectFactory(id: number) {
-  if (id === currentFactoryId.value) return;
-  currentFactoryId.value = id;
+function handleFactoryChange(id: number) {
+  if (!id) return;
   robotFilter.value = 'all'; // 切工厂时重置筛选
   updateFactoryId(id);
   fetchStats(id);
@@ -131,86 +123,94 @@ onMounted(async () => {
 
 <template>
   <div ref="operationsDeskRef" class="operations-desk" v-loading="loading">
-    <!-- 顶部栏：工厂 Tab + KPI + 状态/告警/全屏 -->
-    <div class="top-bar">
-      <div class="top-bar-left">
-        <!-- 工厂 Tab：与 deploy/factory/map 控制台一致 -->
-        <div class="factory-tabs">
-          <template v-if="factoryList.length > 0">
-            <button
+    <!-- 整个页面放在单个卡片中 -->
+    <el-card class="main-card" body-class="main-card-body">
+      <!-- 顶部栏：工厂下拉 + KPI + 状态/告警/全屏 -->
+      <div class="top-bar">
+        <div class="top-bar-left">
+          <!-- 工厂下拉选择，默认第一个 -->
+          <span class="factory-label">调度场景:</span>
+          <el-select
+            v-model="currentFactoryId"
+            placeholder="请选择工厂"
+            class="factory-select"
+            @change="handleFactoryChange"
+          >
+            <el-option
               v-for="factory in factoryList"
               :key="factory.id"
-              type="button"
-              class="factory-tab"
-              :class="{ active: factory.id === currentFactoryId }"
-              @click="selectFactory(factory.id)"
+              :label="factory.name"
+              :value="factory.id"
+            />
+          </el-select>
+
+          <!-- KPI 统计 -->
+          <AmrStatsBar
+            v-model="robotFilter"
+            :stats="amrStats"
+            layout="horizontal"
+            class="top-kpi"
+          />
+        </div>
+
+        <div class="top-bar-right">
+          <div
+            class="conn-indicator"
+            :class="`conn-${connectionState}`"
+            title="点击刷新数据"
+            @click="handleRefresh"
+          >
+            <span class="conn-dot"></span>
+            <span class="conn-label">{{ connectionLabel }}</span>
+          </div>
+
+          <el-badge
+            :value="alarmCount"
+            :hidden="alarmCount <= 0"
+            :max="99"
+            type="danger"
+          >
+            <button
+              class="icon-btn"
+              :class="{ 'icon-btn-danger': alarmCount > 0 }"
+              title="告警中心"
+              @click="handleAlarmClick"
             >
-              {{ factory.name }}
+              <el-icon><Bell /></el-icon>
             </button>
-          </template>
-          <span v-else class="factory-empty">暂无工厂场景</span>
-        </div>
-      </div>
+          </el-badge>
 
-      <div class="top-bar-right">
-        <div
-          class="conn-indicator"
-          :class="`conn-${connectionState}`"
-          title="点击刷新数据"
-          @click="handleRefresh"
-        >
-          <span class="conn-dot"></span>
-          <span class="conn-label">{{ connectionLabel }}</span>
-          <span v-if="lastUpdated" class="conn-time">· {{ lastUpdatedText }}</span>
-        </div>
-
-        <el-badge
-          :value="alarmCount"
-          :hidden="alarmCount <= 0"
-          :max="99"
-          type="danger"
-        >
           <button
             class="icon-btn"
-            :class="{ 'icon-btn-danger': alarmCount > 0 }"
-            title="告警中心"
-            @click="handleAlarmClick"
+            :title="isFullscreen ? '退出全屏' : '全屏'"
+            @click="toggleFullscreen"
           >
-            <el-icon><Bell /></el-icon>
+            <el-icon><FullScreen /></el-icon>
           </button>
-        </el-badge>
-
-        <button
-          class="icon-btn"
-          :title="isFullscreen ? '退出全屏' : '全屏'"
-          @click="toggleFullscreen"
-        >
-          <el-icon><FullScreen /></el-icon>
-        </button>
-      </div>
-    </div>
-
-    <!-- 主内容区 -->
-    <div class="monitor-body">
-      <div class="canvas-area">
-        <MonitorCanvas
-          :factory-id="currentFactoryId"
-          :vehicles="vehicles"
-          :active-vehicle-id="activeVehicleId"
-          @vehicle-click="handleVehicleClick"
-        />
+        </div>
       </div>
 
-      <div class="panel-area">
-        <RobotPanel
-          v-model:filter="robotFilter"
-          :robots="robotCards"
-          :active-robot-id="activeVehicleId"
-          :stats="amrStats"
-          @robot-click="handleRobotClick"
-        />
+      <!-- 主内容区：左侧机器人面板 + 画布 -->
+      <div class="monitor-body">
+        <div class="panel-area">
+          <RobotPanel
+            v-model:filter="robotFilter"
+            :robots="robotCards"
+            :active-robot-id="activeVehicleId"
+            :stats="amrStats"
+            @robot-click="handleRobotClick"
+          />
+        </div>
+        <div class="canvas-area">
+          <MonitorCanvas
+            :factory-id="currentFactoryId"
+            :vehicles="vehicles"
+            :active-vehicle-id="activeVehicleId"
+            @vehicle-click="handleVehicleClick"
+          />
+        </div>
       </div>
-    </div>
+    </el-card>
   </div>
 </template>
 
@@ -218,11 +218,26 @@ onMounted(async () => {
 .operations-desk {
   display: flex;
   flex-direction: column;
-  /* 父级 .app-main 用 flex:1 提供确定高度，这里直接 100% 即可 */
   height: 100%;
   min-height: 0;
   overflow: hidden;
   background: var(--el-bg-color);
+}
+
+/* —— 主卡片 —— */
+.main-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-card :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
 }
 
 /* —— 顶栏 —— */
@@ -230,8 +245,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 10px 20px;
+  gap: 12px;
+  padding: 4px 12px;
   background: var(--el-bg-color);
   border-bottom: 1px solid var(--el-border-color);
   flex-shrink: 0;
@@ -240,7 +255,7 @@ onMounted(async () => {
 .top-bar-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
   min-width: 0;
   flex: 1;
 }
@@ -248,47 +263,83 @@ onMounted(async () => {
 .top-bar-right {
   display: flex;
   align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
-}
-
-/* —— 工厂 Tab：复刻地图管理控制台 —— */
-.factory-tabs {
-  display: flex;
   gap: 8px;
-  flex-wrap: wrap;
   flex-shrink: 0;
 }
 
-.factory-tab {
-  padding: 7px 14px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 8px;
-  background: var(--el-bg-color);
-  cursor: pointer;
+/* —— 工厂下拉选择 —— */
+.factory-label {
   font-size: 13px;
-  color: var(--el-text-color-primary);
-  transition: all 0.15s ease;
-  font-family: inherit;
-  line-height: 1.2;
-}
-
-.factory-tab:hover {
-  border-color: var(--el-color-primary-light-5);
-  background: var(--el-color-primary-light-9);
-}
-
-.factory-tab.active {
-  border-color: var(--el-color-primary);
-  background: color-mix(in srgb, var(--el-color-primary) 10%, transparent);
-  color: var(--el-color-primary);
+  color: var(--el-text-color-regular);
   font-weight: 500;
 }
 
-.factory-empty {
-  font-size: 13px;
-  color: var(--el-text-color-placeholder);
-  padding: 7px 0;
+.factory-select {
+  width: 140px;
+}
+
+.factory-select :deep(.el-select__wrapper) {
+  border-radius: 6px;
+  padding: 0 8px;
+}
+
+/* —— 顶部 KPI 统计条 —— */
+.top-kpi {
+  margin-left: 16px;
+}
+
+.top-kpi :deep(.amr-stats-bar.layout-horizontal) {
+  gap: 0;
+}
+
+.top-kpi :deep(.stat-item) {
+  padding: 2px 12px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: default;
+  position: relative;
+}
+
+.top-kpi :deep(.stat-item + .stat-item::before) {
+  content: '|';
+  position: absolute;
+  left: -2px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--el-border-color);
+  font-size: 12px;
+}
+
+.top-kpi :deep(.stat-item:hover),
+.top-kpi :deep(.stat-item.active) {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.top-kpi :deep(.stat-icon) {
+  display: none;
+}
+
+.top-kpi :deep(.stat-info) {
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+
+.top-kpi :deep(.stat-value) {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.top-kpi :deep(.stat-label) {
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .kpi-bar {
@@ -301,10 +352,10 @@ onMounted(async () => {
 .conn-indicator {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: 4px;
+  padding: 4px 8px;
   font-size: 12px;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
   user-select: none;
   background: var(--el-fill-color-lighter);
@@ -359,17 +410,17 @@ onMounted(async () => {
 
 /* —— 图标按钮 —— */
 .icon-btn {
-  width: 34px;
-  height: 34px;
+  width: 28px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: var(--el-fill-color-lighter);
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
   color: var(--el-text-color-regular);
-  font-size: 16px;
+  font-size: 14px;
   transition: all 0.15s;
   padding: 0;
 }
@@ -399,16 +450,17 @@ onMounted(async () => {
   overflow: hidden;
 }
 
+.panel-area {
+  width: 280px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--el-border-color);
+  overflow: hidden;
+  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.08);
+}
+
 .canvas-area {
   flex: 1;
   position: relative;
-  overflow: hidden;
-}
-
-.panel-area {
-  width: 300px;
-  flex-shrink: 0;
-  border-left: 1px solid var(--el-border-color);
   overflow: hidden;
 }
 </style>
