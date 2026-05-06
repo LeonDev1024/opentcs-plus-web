@@ -84,6 +84,18 @@ export const constantRoutes: RouteRecordRaw[] = [
     ]
   },
   {
+    path: '/simulation',
+    component: Layout,
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/ops/simulation/index.vue'),
+        name: 'SimulationMonitor',
+        meta: { title: '仿真监控', icon: 'monitor', noCache: true }
+      }
+    ]
+  },
+  {
     path: '/user',
     component: Layout,
     hidden: true,
