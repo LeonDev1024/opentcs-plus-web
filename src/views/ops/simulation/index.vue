@@ -169,7 +169,7 @@ function renderCanvas(vehicles: SimVehicle[]) {
 watch(
   () => snapshot.value.vehicles,
   (vehicles) => renderCanvas(vehicles),
-  { deep: true }
+  { deep: true, immediate: true }
 );
 
 // ─── 控制操作 ──────────────────────────────────────────────────
@@ -234,9 +234,10 @@ async function handleAddVehicles() {
 
 async function fetchSnapshot() {
   try {
-    const res = await simulationApi.snapshot();
-    if (res?.data) {
-      snapshot.value = res.data as unknown as SimSnapshot;
+    // axios 拦截器已解包：返回的是 res.data 本身（即 SimSnapshot），不是 {data: SimSnapshot}
+    const res = await simulationApi.snapshot() as unknown as SimSnapshot;
+    if (res?.engineStatus) {
+      snapshot.value = res;
     }
   } catch {
     // 忽略轮询中的网络抖动
