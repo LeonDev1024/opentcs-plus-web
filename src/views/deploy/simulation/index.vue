@@ -11,7 +11,7 @@
  */
 import { ref, computed, onMounted, onBeforeUnmount, watch, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
-import { VideoPlay, VideoPause, CircleClose, Plus, MapLocation, View, Hide } from '@element-plus/icons-vue';
+import { VideoPlay, VideoPause, CircleClose, Plus, View, Hide } from '@element-plus/icons-vue';
 import {
   simulationApi,
   type SimSnapshot,
@@ -482,8 +482,20 @@ async function handleStop() {
   loading.value = true;
   try {
     await simulationApi.stop();
-    ElMessage.success('仿真已停止');
-    await fetchSnapshot();
+    // 停止后清空车辆列表和订单统计
+    snapshot.value = {
+      ...snapshot.value,
+      engineStatus: 'STOPPED',
+      tick: 0,
+      vehicles: [],
+      orderStats: {},
+      orderTotal: 0
+    };
+    // 重置地图选择状态
+    selectedMapId.value = null;
+    simMapLayer.value = null;
+    mapMmPerUnit.value = RANDOM_MM_PER_UNIT;
+    ElMessage.success('仿真已停止，车辆已清空');
   } catch {
     ElMessage.error('停止失败');
   } finally {
@@ -600,26 +612,8 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
         <span class="tick-label">Tick {{ snapshot.tick }}</span>
 
         <el-divider direction="vertical" />
-
-        <el-icon class="map-icon"><MapLocation /></el-icon>
-        <el-select
-          v-model="selectedMapId"
-          placeholder="随机坐标模式"
-          clearable
-          size="small"
-          class="map-select"
-          :loading="mapSettingLoading"
-          @change="(v: number | null) => handleMapChange(v)"
-        >
-          <el-option
-            v-for="m in availableMaps"
-            :key="String(m.id)"
-            :label="m.name"
-            :value="Number(m.id)"
-          />
-        </el-select>
         <span class="map-mode-hint">
-          {{ simMapLayer ? `真实地图` : '随机坐标模式' }}
+          {{ simMapLayer ? `真实地图：${availableMaps.find(m => m.id === selectedMapId)?.name ?? ''}` : '随机坐标模式' }}
         </span>
       </div>
 
@@ -1024,13 +1018,6 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
   color: var(--el-text-color-secondary);
   font-family: monospace;
 }
-
-.map-icon {
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
-}
-
-.map-select { width: 160px; }
 
 .map-mode-hint {
   font-size: 12px;
