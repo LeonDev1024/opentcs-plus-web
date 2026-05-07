@@ -375,10 +375,16 @@ const vehicleColorMap: Record<string, string> = {
 };
 
 /**
- * 车辆坐标转换（与 MonitorCanvas vehicleMarkers 一致）：
+ * 车辆坐标转换：
  *   cssX = v.x(m) × metersToModel
- *   cssY = -(v.y(m) × metersToModel)   // Y 轴翻转
- *   svgAngle = -(v.theta(rad) → deg)   // CCW rad → CW deg for SVG rotate
+ *   cssY = -(v.y(m) × metersToModel)           // Y 轴翻转（世界 Y-up → CSS Y-down）
+ *
+ * 方向角换算（theta 为标准数学角，CCW from East，rad）：
+ *   车辆 SVG 默认前向 = 上方 (North)，对应 SVG rotate(0°)
+ *   需旋转 (90° - theta_deg) 才能对齐：
+ *     theta=0   (East)  → svgAngle=90°  → rotate CW 90° → 前向右 (East)  ✓
+ *     theta=π/2 (North) → svgAngle=0°   → 不旋转        → 前向上 (North) ✓
+ *     theta=π   (West)  → svgAngle=-90° → rotate CCW 90°→ 前向左 (West)  ✓
  */
 const vehicleMarkers = computed(() => {
   const m2m = metersToModel.value;
@@ -395,7 +401,7 @@ const vehicleMarkers = computed(() => {
       currentSpeed: v.currentSpeed,
       color: vehicleColorMap[v.state] ?? '#909399',
       cssX, cssY, tCssX, tCssY,
-      svgAngle: -(v.theta * 180 / Math.PI),
+      svgAngle: 90 - (v.theta * 180 / Math.PI),
       isActive: v.vehicleId === activeVehicleId.value || v.name === activeVehicleId.value,
       dist: Math.hypot(tCssX - cssX, tCssY - cssY)
     };
@@ -415,19 +421,55 @@ const mapRendererStyle = computed((): Record<string, string> => {
   };
 });
 
-// ─── 控制操作 ────────────────────────────────────────────────────────────────
+// ─── 启动配置对话框 ───────────────────────────────────────────────────────────
 
-async function handleStart() {
+const startDialogVisible = ref(false);
+const startConfig = reactive({
+  mapId: null as number | null,
+  vehicleCount: 4,
+  maxSpeed: 2.0
+});
+
+function openStartDialog() {
+  // 同步当前已选地图
+  startConfig.mapId = selectedMapId.value;
+  startDialogVisible.value = true;
+}
+
+async function confirmStart() {
   loading.value = true;
+  startDialogVisible.value = false;
   try {
+    // 1. 切换地图（如有变化）
+    if (startConfig.mapId !== selectedMapId.value) {
+      await simulationApi.setMap(startConfig.mapId);
+      selectedMapId.value = startConfig.mapId;
+      if (startConfig.mapId) {
+        await loadMapTopology(startConfig.mapId);
+      } else {
+        simMapLayer.value = null;
+        mapMmPerUnit.value = RANDOM_MM_PER_UNIT;
+      }
+    }
+    // 2. 启动引擎
     await simulationApi.start();
-    ElMessage.success('仿真已启动');
+    // 3. 批量添加车辆
+    if (startConfig.vehicleCount > 0) {
+      await simulationApi.batchAddVehicles(startConfig.vehicleCount, startConfig.maxSpeed);
+    }
+    ElMessage.success(`仿真已启动，已添加 ${startConfig.vehicleCount} 辆车辆`);
     await fetchSnapshot();
   } catch {
     ElMessage.error('启动失败');
   } finally {
     loading.value = false;
   }
+}
+
+// ─── 控制操作 ────────────────────────────────────────────────────────────────
+
+async function handleStart() {
+  openStartDialog();
 }
 
 async function handleStop() {
@@ -583,7 +625,7 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
           :loading="loading"
           size="small"
           @click="handleStart"
-        >启动仿真</el-button>
+        >配置并启动</el-button>
 
         <el-button
           :type="isPaused ? 'success' : 'warning'"
@@ -867,6 +909,63 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
       </div>
     </div>
   </div>
+
+  <!-- ─── 仿真配置对话框 ─────────────────────────────────────────────────── -->
+  <el-dialog
+    v-model="startDialogVisible"
+    title="配置仿真场景"
+    width="420px"
+    :close-on-click-modal="false"
+    align-center
+  >
+    <el-form label-width="90px" class="start-form">
+      <el-form-item label="地图场景">
+        <el-select
+          v-model="startConfig.mapId"
+          placeholder="随机坐标模式（不加载地图）"
+          clearable
+          style="width: 100%"
+        >
+          <el-option
+            v-for="m in availableMaps"
+            :key="m.id"
+            :label="m.name"
+            :value="m.id"
+          />
+        </el-select>
+        <div class="form-hint">选择真实地图可在实际拓扑上仿真车辆运行</div>
+      </el-form-item>
+
+      <el-form-item label="车辆数量">
+        <el-input-number
+          v-model="startConfig.vehicleCount"
+          :min="0"
+          :max="50"
+          :step="2"
+          style="width: 100%"
+        />
+      </el-form-item>
+
+      <el-form-item label="最大速度">
+        <el-slider
+          v-model="startConfig.maxSpeed"
+          :min="0.5"
+          :max="10"
+          :step="0.5"
+          show-input
+          style="padding-right: 16px"
+        />
+        <div class="form-hint">单位：m/s</div>
+      </el-form-item>
+    </el-form>
+
+    <template #footer>
+      <el-button @click="startDialogVisible = false">取消</el-button>
+      <el-button type="success" :icon="VideoPlay" @click="confirmStart">
+        开始仿真
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 
@@ -1278,6 +1377,18 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
     font-size: 11px;
     color: var(--el-text-color-primary);
     font-family: monospace;
+  }
+}
+
+// ─── 启动配置对话框 ────────────────────────────────────────────────────────────
+.start-form {
+  padding: 8px 0;
+
+  .form-hint {
+    font-size: 11px;
+    color: var(--el-text-color-secondary);
+    margin-top: 4px;
+    line-height: 1.4;
   }
 }
 </style>
