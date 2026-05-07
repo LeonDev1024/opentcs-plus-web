@@ -17,8 +17,9 @@ import {
   type SimSnapshot,
   type OrderSimState
 } from '@/api/ops/simulation';
-import type { MapVO } from '@/api/deploy/map-editor/types';
-import { loadMapEditorData, listMap } from '@/api/deploy/map-editor';
+import { loadMapEditorData } from '@/api/deploy/map-editor';
+import { listFactoryModel } from '@/api/deploy/factory/model';
+import type { FactoryModelVO } from '@/api/deploy/factory/model/types';
 import MapRenderer from '@/components/map/MapRenderer.vue';
 import {
   normalizeMapEditorPayload,
@@ -92,16 +93,18 @@ const vehicleStateType: Record<string, string> = {
 
 // ─── 地图选择 ─────────────────────────────────────────────────────────────────
 
-/** 使用通用地图列表 API，返回所有用户有权限的地图 */
-const availableMaps = ref<MapVO[]>([]);
+/** 使用工厂模型列表 API（/factory/model/list） */
+const availableMaps = ref<FactoryModelVO[]>([]);
 const selectedMapId = ref<number | null>(null);
 const mapSettingLoading = ref(false);
 
 async function fetchAvailableMaps() {
   try {
-    const res = await listMap() as any;
-    // listMap 返回 {rows: MapVO[], total: number} 或直接 MapVO[]
-    const list: MapVO[] = Array.isArray(res) ? res : (res?.rows ?? res?.data ?? []);
+    const res = await listFactoryModel({ pageNum: 1, pageSize: 100 }) as any;
+    // 接口返回 {rows: FactoryModelVO[], total: number} 或直接数组
+    const list: FactoryModelVO[] = Array.isArray(res)
+      ? res
+      : (res?.rows ?? res?.data?.rows ?? res?.data ?? []);
     availableMaps.value = list;
   } catch { /* 静默 */ }
 }
@@ -775,12 +778,12 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
                 <circle cx="0" :cy="-VEHICLE_HALF + 5" r="3" fill="rgba(255,255,255,0.92)"/>
               </g>
 
-              <!-- 车辆名称（不随车体旋转，正上方 30px，与监控对齐） -->
+              <!-- 车辆名称（不随车体旋转，正上方 24px，与监控对齐） -->
               <text
-                x="0" y="-30"
+                x="0" y="-24"
                 text-anchor="middle"
                 dominant-baseline="auto"
-                font-size="11"
+                font-size="8"
                 font-family="Arial, sans-serif"
                 fill="#303133"
                 style="pointer-events:none;user-select:none;"
