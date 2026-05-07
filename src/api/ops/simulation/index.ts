@@ -10,7 +10,7 @@ export interface SimVehicle {
   vehicleId: string;
   name: string;
   state: VehicleSimState;
-  x: number;
+  x: number;         // 仿真坐标 m（无地图模式）
   y: number;
   theta: number;
   targetX: number;
@@ -20,6 +20,16 @@ export interface SimVehicle {
   currentBattery: number;
 }
 
+export interface SimMapInfo {
+  mapId: number;
+  name: string;
+  rasterUrl: string | null;
+  rasterResolution: number | null;  // m/px
+  rasterWidth: number | null;       // px
+  rasterHeight: number | null;      // px
+  mapOrigin: string | null;         // JSON [ox, oy, θ] mm
+}
+
 export interface SimSnapshot {
   success: boolean;
   engineStatus: EngineStatus;
@@ -27,6 +37,17 @@ export interface SimSnapshot {
   vehicles: SimVehicle[];
   orderStats: Partial<Record<OrderSimState, number>>;
   orderTotal: number;
+  mapInfo?: SimMapInfo;
+}
+
+export interface SimNavMap {
+  id: number;
+  name: string;
+  rasterUrl: string | null;
+  rasterResolution: number | null;
+  rasterWidth: number | null;
+  rasterHeight: number | null;
+  mapOrigin: string | null;
 }
 
 // ─── API ──────────────────────────────────────────────────────
@@ -37,15 +58,21 @@ export const simulationApi = {
   pause: () => request({ url: '/api/simulation/pause', method: 'post' }),
   resume: () => request({ url: '/api/simulation/resume', method: 'post' }),
 
-  /** 一次性聚合快照（1s 轮询用） */
   snapshot: (): Promise<{ data: SimSnapshot }> =>
     request({ url: '/api/simulation/snapshot', method: 'get' }),
 
-  /** 批量添加测试车辆 */
   batchAddVehicles: (count: number, maxSpeed = 2.0) =>
     request({
       url: '/api/simulation/vehicle/batch-add',
       method: 'post',
       data: { count, maxSpeed }
-    })
+    }),
+
+  /** 获取可用地图列表 */
+  listMaps: (factoryId?: number) =>
+    request({ url: '/api/simulation/maps', method: 'get', params: { factoryId } }),
+
+  /** 设置仿真使用的地图 */
+  setMap: (mapId: number | null) =>
+    request({ url: '/api/simulation/map/set', method: 'post', data: { mapId } })
 };

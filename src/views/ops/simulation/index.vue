@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { ElMessage } from 'element-plus';
-import { VideoPlay, VideoPause, CircleClose, Plus } from '@element-plus/icons-vue';
-import { simulationApi, type SimSnapshot, type SimVehicle, type OrderSimState } from '@/api/ops/simulation';
+import { VideoPlay, VideoPause, CircleClose, Plus, MapLocation } from '@element-plus/icons-vue';
+import { simulationApi, type SimSnapshot, type SimVehicle, type OrderSimState, type SimNavMap } from '@/api/ops/simulation';
 
 // ─── 状态 ──────────────────────────────────────────────────────
 
@@ -17,6 +17,13 @@ const snapshot = ref<SimSnapshot>({
 
 const loading = ref(false);
 const addingVehicles = ref(false);
+const activeVehicleId = ref<string | null>(null);
+
+// 地图
+const availableMaps = ref<SimNavMap[]>([]);
+const selectedMapId = ref<number | null>(null);
+const mapSettingLoading = ref(false);
+
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 // ─── 计算属性 ──────────────────────────────────────────────────
@@ -32,7 +39,7 @@ const statusLabel = computed(() => {
   }
 });
 
-const statusType = computed(() => {
+const statusType = computed((): 'success' | 'warning' | 'info' => {
   switch (snapshot.value.engineStatus) {
     case 'RUNNING': return 'success';
     case 'PAUSED':  return 'warning';
@@ -40,17 +47,14 @@ const statusType = computed(() => {
   }
 });
 
-/** 订单状态显示配置 */
 const orderStateCfg: Record<string, { label: string; color: string }> = {
   CREATED:      { label: '待分配', color: '#909399' },
   ASSIGNED:     { label: '已分配', color: '#409EFF' },
   IN_EXECUTION: { label: '执行中', color: '#E6A23C' },
   COMPLETED:    { label: '已完成', color: '#67C23A' },
   TIMED_OUT:    { label: '已超时', color: '#F56C6C' },
-  CANCELLED:    { label: '已取消', color: '#C0C4CC' }
 };
 
-/** 所有订单状态按固定顺序展示 */
 const orderedStats = computed(() =>
   (['CREATED', 'ASSIGNED', 'IN_EXECUTION', 'COMPLETED', 'TIMED_OUT'] as OrderSimState[]).map((s) => ({
     state: s,
@@ -59,12 +63,36 @@ const orderedStats = computed(() =>
   }))
 );
 
-// ─── 画布渲染 ──────────────────────────────────────────────────
+const vehicleStateLabel: Record<string, string> = {
+  IDLE: '空闲', MOVING: '移动中', ERROR: '错误', STOPPED: '停止', CHARGING: '充电中'
+};
+const vehicleStateType: Record<string, string> = {
+  IDLE: 'success', MOVING: '', ERROR: 'danger', STOPPED: 'info', CHARGING: 'warning'
+};
+
+// ─── 地图画布 ──────────────────────────────────────────────────
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
+const containerRef = ref<HTMLDivElement | null>(null);
 
-/** 仿真空间范围（m），与 OrderGenerator 保持一致 */
-const SPACE = 70; // 留一点余量（地图50 + 边距）
+// 栅格地图图片（有真实地图时使用）
+let rasterImage: HTMLImageElement | null = null;
+
+/** 根据当前快照的 mapInfo 是否有效栅格 */
+const hasRasterMap = computed(() =>
+  !!(snapshot.value.mapInfo?.rasterUrl && snapshot.value.mapInfo?.rasterResolution)
+);
+
+/** 随机模式的仿真空间大小 m */
+const RANDOM_SPACE = 70;
+
+const vehicleColors: Record<string, string> = {
+  IDLE:     '#67C23A',
+  MOVING:   '#409EFF',
+  CHARGING: '#E6A23C',
+  ERROR:    '#F56C6C',
+  STOPPED:  '#909399'
+};
 
 function renderCanvas(vehicles: SimVehicle[]) {
   const canvas = canvasRef.value;
@@ -74,17 +102,60 @@ function renderCanvas(vehicles: SimVehicle[]) {
 
   const W = canvas.width;
   const H = canvas.height;
-  const scale = W / SPACE;
 
-  // 清空 + 背景
   ctx.clearRect(0, 0, W, H);
+
+  if (hasRasterMap.value && rasterImage && rasterImage.complete && rasterImage.naturalWidth > 0) {
+    renderRasterCanvas(ctx, W, H, vehicles);
+  } else {
+    renderGridCanvas(ctx, W, H, vehicles);
+  }
+}
+
+/** 真实地图模式：栅格底图 + 车辆叠加 */
+function renderRasterCanvas(ctx: CanvasRenderingContext2D, W: number, H: number, vehicles: SimVehicle[]) {
+  const mapInfo = snapshot.value.mapInfo!;
+  const rw = mapInfo.rasterWidth ?? rasterImage!.naturalWidth;
+  const rh = mapInfo.rasterHeight ?? rasterImage!.naturalHeight;
+  const res = mapInfo.rasterResolution!; // m/px
+
+  // 缩放比例：让栅格图铺满画布
+  const scale = Math.min(W / rw, H / rh);
+  const drawW = rw * scale;
+  const drawH = rh * scale;
+  const offsetX = (W - drawW) / 2;
+  const offsetY = (H - drawH) / 2;
+
+  // 绘制底图（Y 轴翻转：地图 Y 向上，raster 图片 Y 向下）
+  ctx.save();
+  ctx.translate(offsetX, offsetY + drawH);
+  ctx.scale(scale, -scale);
+  ctx.drawImage(rasterImage!, 0, 0, rw, rh);
+  ctx.restore();
+
+  if (!vehicles.length) return;
+
+  // 将仿真坐标（m）转为画布像素
+  // vehicleX(m) / res(m/px) = px in raster, then * scale + offsetX
+  vehicles.forEach(v => {
+    const px = v.x / res * scale + offsetX;
+    const py = H - (v.y / res * scale + offsetY); // Y 翻转
+    const tpx = v.targetX / res * scale + offsetX;
+    const tpy = H - (v.targetY / res * scale + offsetY);
+    drawVehicle(ctx, v, px, py, tpx, tpy, v.name === activeVehicleId.value);
+  });
+}
+
+/** 随机坐标模式：暗色网格 */
+function renderGridCanvas(ctx: CanvasRenderingContext2D, W: number, H: number, vehicles: SimVehicle[]) {
+  const scale = W / RANDOM_SPACE;
+
   ctx.fillStyle = '#0d1117';
   ctx.fillRect(0, 0, W, H);
 
-  // 网格
   ctx.strokeStyle = '#1e2733';
   ctx.lineWidth = 1;
-  const step = scale * 10; // 每 10m 一格
+  const step = scale * 10;
   for (let x = 0; x <= W; x += step) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
   }
@@ -92,10 +163,9 @@ function renderCanvas(vehicles: SimVehicle[]) {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
   }
 
-  // 轴标签
   ctx.fillStyle = '#4a5568';
   ctx.font = '10px monospace';
-  for (let i = 0; i * 10 <= SPACE; i++) {
+  for (let i = 0; i * 10 <= RANDOM_SPACE; i++) {
     ctx.fillText(String(i * 10), i * step + 2, 10);
   }
 
@@ -108,69 +178,126 @@ function renderCanvas(vehicles: SimVehicle[]) {
     return;
   }
 
-  const colors: Record<string, string> = {
-    IDLE:    '#67C23A',
-    MOVING:  '#409EFF',
-    CHARGING:'#E6A23C',
-    ERROR:   '#F56C6C',
-    STOPPED: '#909399'
-  };
-
-  vehicles.forEach((v) => {
-    const cx = v.x * scale;
-    const cy = H - v.y * scale; // Y 轴翻转（屏幕向下 vs 坐标向上）
-    const tx = v.targetX * scale;
-    const ty = H - v.targetY * scale;
-    const color = colors[v.state] ?? '#909399';
-
-    // 目标位置（虚线圆）
-    if (v.state === 'MOVING') {
-      ctx.beginPath();
-      ctx.arc(tx, ty, 6, 0, Math.PI * 2);
-      ctx.strokeStyle = color + '66';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([3, 3]);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // 连线
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(tx, ty);
-      ctx.strokeStyle = color + '44';
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-
-    // 车辆圆体
-    ctx.beginPath();
-    ctx.arc(cx, cy, 9, 0, Math.PI * 2);
-    ctx.fillStyle = color;
-    ctx.fill();
-
-    // 方向指示器
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + Math.cos(v.theta) * 14, cy - Math.sin(v.theta) * 14);
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // 车辆名称
-    ctx.fillStyle = '#e2e8f0';
-    ctx.font = 'bold 11px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(v.name, cx, cy - 14);
-    ctx.textAlign = 'left';
+  vehicles.forEach(v => {
+    const px = v.x * scale;
+    const py = H - v.y * scale;
+    const tpx = v.targetX * scale;
+    const tpy = H - v.targetY * scale;
+    drawVehicle(ctx, v, px, py, tpx, tpy, v.name === activeVehicleId.value);
   });
 }
 
-// 每次 snapshot 更新时重绘
+function drawVehicle(
+  ctx: CanvasRenderingContext2D,
+  v: SimVehicle,
+  px: number, py: number,
+  tpx: number, tpy: number,
+  isActive: boolean
+) {
+  const color = vehicleColors[v.state] ?? '#909399';
+  const radius = 9;
+
+  // 移动时绘制目标位置和连线
+  if (v.state === 'MOVING') {
+    ctx.beginPath();
+    ctx.arc(tpx, tpy, 6, 0, Math.PI * 2);
+    ctx.strokeStyle = color + '66';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(tpx, tpy);
+    ctx.strokeStyle = color + '44';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // 车辆圆体
+  if (isActive) {
+    ctx.beginPath();
+    ctx.arc(px, py, radius + 4, 0, Math.PI * 2);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  ctx.beginPath();
+  ctx.arc(px, py, radius, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+
+  // 方向指示器
+  ctx.beginPath();
+  ctx.moveTo(px, py);
+  ctx.lineTo(px + Math.cos(v.theta) * 14, py - Math.sin(v.theta) * 14);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 车辆名称
+  ctx.fillStyle = hasRasterMap.value ? '#1a1a1a' : '#e2e8f0';
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(v.name, px, py - 14);
+  ctx.textAlign = 'left';
+}
+
+// 加载栅格地图图片
+function loadRasterImage(url: string) {
+  rasterImage = new Image();
+  rasterImage.crossOrigin = 'anonymous';
+  rasterImage.onload = () => renderCanvas(snapshot.value.vehicles);
+  rasterImage.onerror = () => { rasterImage = null; };
+  rasterImage.src = url;
+}
+
+// 监听 vehicles 变化 → 重绘
 watch(
   () => snapshot.value.vehicles,
   (vehicles) => renderCanvas(vehicles),
   { deep: true, immediate: true }
 );
+
+// 监听 mapInfo 变化 → 加载新栅格图
+watch(
+  () => snapshot.value.mapInfo?.rasterUrl,
+  (url, oldUrl) => {
+    if (url && url !== oldUrl) {
+      loadRasterImage(url);
+    } else if (!url) {
+      rasterImage = null;
+      renderCanvas(snapshot.value.vehicles);
+    }
+  }
+);
+
+// ─── 地图管理 ──────────────────────────────────────────────────
+
+async function fetchAvailableMaps() {
+  try {
+    const res = await simulationApi.listMaps() as any;
+    if (res?.maps) {
+      availableMaps.value = res.maps;
+    }
+  } catch {
+    // 无地图数据时静默忽略
+  }
+}
+
+async function handleMapChange(mapId: number | null) {
+  mapSettingLoading.value = true;
+  try {
+    await simulationApi.setMap(mapId);
+    ElMessage.success(mapId ? '已切换到真实地图模式' : '已切换到随机坐标模式');
+  } catch {
+    ElMessage.error('地图设置失败');
+  } finally {
+    mapSettingLoading.value = false;
+  }
+}
 
 // ─── 控制操作 ──────────────────────────────────────────────────
 
@@ -234,7 +361,6 @@ async function handleAddVehicles() {
 
 async function fetchSnapshot() {
   try {
-    // axios 拦截器已解包：返回的是 res.data 本身（即 SimSnapshot），不是 {data: SimSnapshot}
     const res = await simulationApi.snapshot() as unknown as SimSnapshot;
     if (res?.engineStatus) {
       snapshot.value = res;
@@ -256,7 +382,8 @@ function stopPolling() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await fetchAvailableMaps();
   startPolling();
 });
 
@@ -266,21 +393,46 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="sim-monitor">
+  <div class="sim-desk">
     <!-- 顶部控制栏 -->
-    <div class="sim-header">
-      <div class="sim-title">
-        <span class="title-text">仿真监控</span>
-        <el-tag :type="statusType" size="small" class="status-tag">{{ statusLabel }}</el-tag>
+    <div class="top-bar">
+      <div class="top-bar-left">
+        <span class="page-title">仿真监控</span>
+        <el-tag :type="statusType" size="small">{{ statusLabel }}</el-tag>
         <span class="tick-label">Tick {{ snapshot.tick }}</span>
+
+        <el-divider direction="vertical" />
+
+        <!-- 地图选择 -->
+        <el-icon class="map-icon"><MapLocation /></el-icon>
+        <el-select
+          v-model="selectedMapId"
+          placeholder="随机坐标模式"
+          clearable
+          size="small"
+          class="map-select"
+          :loading="mapSettingLoading"
+          @change="handleMapChange"
+        >
+          <el-option
+            v-for="m in availableMaps"
+            :key="m.id"
+            :label="m.name"
+            :value="m.id"
+          />
+        </el-select>
+        <span class="map-mode-hint">
+          {{ snapshot.mapInfo ? `真实地图：${snapshot.mapInfo.name}` : '随机坐标模式' }}
+        </span>
       </div>
 
-      <div class="sim-actions">
+      <div class="top-bar-right">
         <el-button
           type="success"
           :icon="VideoPlay"
           :disabled="isRunning || isPaused"
           :loading="loading"
+          size="small"
           @click="handleStart"
         >启动仿真</el-button>
 
@@ -289,6 +441,7 @@ onUnmounted(() => {
           :icon="VideoPause"
           :disabled="!isRunning && !isPaused"
           :loading="loading"
+          size="small"
           @click="handlePauseResume"
         >{{ isPaused ? '继续' : '暂停' }}</el-button>
 
@@ -297,8 +450,9 @@ onUnmounted(() => {
           :icon="CircleClose"
           :disabled="snapshot.engineStatus === 'STOPPED'"
           :loading="loading"
+          size="small"
           @click="handleStop"
-        >停止仿真</el-button>
+        >停止</el-button>
 
         <el-divider direction="vertical" />
 
@@ -306,22 +460,28 @@ onUnmounted(() => {
           :icon="Plus"
           :disabled="!isRunning"
           :loading="addingVehicles"
+          size="small"
           @click="handleAddVehicles"
         >添加测试车辆</el-button>
       </div>
     </div>
 
-    <!-- 主体 -->
+    <!-- 主体：画布 + 右侧面板 -->
     <div class="sim-body">
-      <!-- 左侧：仿真画布 -->
-      <div class="canvas-section">
-        <div class="section-title">仿真空间（50×50m）</div>
-        <canvas ref="canvasRef" width="500" height="500" class="sim-canvas" />
-
+      <!-- 画布区 -->
+      <div ref="containerRef" class="canvas-area">
+        <canvas
+          ref="canvasRef"
+          width="900"
+          height="700"
+          class="sim-canvas"
+          :class="{ 'raster-mode': hasRasterMap }"
+        />
         <!-- 图例 -->
         <div class="canvas-legend">
-          <span v-for="(cfg, state) in { IDLE: '#67C23A', MOVING: '#409EFF', ERROR: '#F56C6C' }" :key="state" class="legend-item">
-            <i :style="{ background: cfg }"></i>{{ { IDLE: '空闲', MOVING: '移动中', ERROR: '错误' }[state] }}
+          <span v-for="(color, state) in vehicleColors" :key="state" class="legend-item">
+            <i :style="{ background: color }"></i>
+            {{ vehicleStateLabel[state] }}
           </span>
         </div>
       </div>
@@ -329,218 +489,345 @@ onUnmounted(() => {
       <!-- 右侧面板 -->
       <div class="side-panel">
         <!-- 订单统计 -->
-        <div class="section-title">订单统计</div>
-        <div class="order-stats">
-          <div
-            v-for="item in orderedStats"
-            :key="item.state"
-            class="stat-card"
-            :style="{ borderColor: item.color }"
-          >
-            <div class="stat-value" :style="{ color: item.color }">{{ item.count }}</div>
-            <div class="stat-label">{{ item.label }}</div>
+        <div class="panel-section">
+          <div class="section-title">订单统计</div>
+          <div class="order-stats">
+            <div
+              v-for="item in orderedStats"
+              :key="item.state"
+              class="stat-card"
+              :style="{ borderColor: item.color }"
+            >
+              <div class="stat-value" :style="{ color: item.color }">{{ item.count }}</div>
+              <div class="stat-label">{{ item.label }}</div>
+            </div>
           </div>
+          <div class="stat-total">共 {{ snapshot.orderTotal }} 个订单</div>
         </div>
 
         <!-- 车辆列表 -->
-        <div class="section-title" style="margin-top: 20px">
-          仿真车辆
-          <el-tag size="small" style="margin-left: 8px">{{ snapshot.vehicles.length }}</el-tag>
-        </div>
+        <div class="panel-section vehicle-section">
+          <div class="section-title">
+            仿真车辆
+            <el-tag size="small" style="margin-left: 6px">{{ snapshot.vehicles.length }}</el-tag>
+          </div>
 
-        <div class="vehicle-list" v-if="snapshot.vehicles.length">
-          <div v-for="v in snapshot.vehicles" :key="v.vehicleId" class="vehicle-item">
-            <div class="vehicle-header">
-              <span class="vehicle-name">{{ v.name }}</span>
-              <el-tag
-                size="small"
-                :type="{ IDLE: 'success', MOVING: '', ERROR: 'danger', STOPPED: 'info', CHARGING: 'warning' }[v.state] as any"
-              >{{ { IDLE: '空闲', MOVING: '移动中', ERROR: '错误', STOPPED: '停止', CHARGING: '充电中' }[v.state] }}</el-tag>
-            </div>
-            <div class="vehicle-metrics">
-              <span>位置 ({{ v.x.toFixed(1) }}, {{ v.y.toFixed(1) }})</span>
-              <span>距目标 {{ v.distanceToTarget }}m</span>
-              <span>速度 {{ v.currentSpeed }}m/s</span>
-              <span>电量 {{ v.currentBattery.toFixed(0) }}%</span>
+          <div class="vehicle-list" v-if="snapshot.vehicles.length">
+            <div
+              v-for="v in snapshot.vehicles"
+              :key="v.vehicleId"
+              class="vehicle-card"
+              :class="{ active: activeVehicleId === v.name }"
+              @click="activeVehicleId = activeVehicleId === v.name ? null : v.name"
+            >
+              <div class="vehicle-header">
+                <div class="vehicle-dot" :style="{ background: vehicleColors[v.state] ?? '#909399' }"></div>
+                <span class="vehicle-name">{{ v.name }}</span>
+                <el-tag size="small" :type="vehicleStateType[v.state] as any" style="margin-left: auto">
+                  {{ vehicleStateLabel[v.state] }}
+                </el-tag>
+              </div>
+              <div class="vehicle-metrics">
+                <div class="metric">
+                  <span class="metric-label">位置</span>
+                  <span class="metric-value">({{ v.x.toFixed(1) }}, {{ v.y.toFixed(1) }})</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">距目标</span>
+                  <span class="metric-value">{{ v.distanceToTarget }}m</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">速度</span>
+                  <span class="metric-value">{{ v.currentSpeed }}m/s</span>
+                </div>
+                <div class="metric">
+                  <span class="metric-label">电量</span>
+                  <el-progress
+                    :percentage="Math.round(v.currentBattery)"
+                    :color="v.currentBattery < 20 ? '#F56C6C' : v.currentBattery < 50 ? '#E6A23C' : '#67C23A'"
+                    :stroke-width="5"
+                    style="width: 80px"
+                  />
+                </div>
+              </div>
             </div>
           </div>
+          <el-empty v-else description="启动仿真后添加测试车辆" :image-size="72" />
         </div>
-        <el-empty v-else description="启动仿真后添加测试车辆" :image-size="80" />
       </div>
     </div>
   </div>
 </template>
 
 <style scoped lang="scss">
-.sim-monitor {
+.sim-desk {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #f5f7fa;
-  padding: 16px;
-  gap: 12px;
+  overflow: hidden;
+  background: var(--el-bg-color);
 }
 
-.sim-header {
+/* ─── 顶部控制栏 ─── */
+.top-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: #fff;
-  border-radius: 8px;
-  padding: 12px 20px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  gap: 12px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--el-border-color);
+  flex-shrink: 0;
+  background: var(--el-bg-color);
 }
 
-.sim-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-
-  .title-text {
-    font-size: 18px;
-    font-weight: 600;
-    color: #303133;
-  }
-
-  .tick-label {
-    font-size: 12px;
-    color: #909399;
-    font-family: monospace;
-  }
-}
-
-.sim-actions {
+.top-bar-left {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1;
+  min-width: 0;
 }
 
+.top-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.page-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+}
+
+.tick-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  font-family: monospace;
+}
+
+.map-icon {
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+}
+
+.map-select {
+  width: 160px;
+}
+
+.map-mode-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ─── 主体 ─── */
 .sim-body {
   flex: 1;
   display: flex;
-  gap: 16px;
   min-height: 0;
+  overflow: hidden;
 }
 
-.canvas-section {
+/* ─── 画布区 ─── */
+.canvas-area {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.section-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #606266;
-  display: flex;
   align-items: center;
+  justify-content: center;
+  background: #0d1117;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
 }
 
 .sim-canvas {
-  border-radius: 8px;
-  border: 1px solid #2d3748;
+  max-width: 100%;
+  max-height: 100%;
   display: block;
+
+  &.raster-mode {
+    background: #f8f9fa;
+  }
 }
 
 .canvas-legend {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
   gap: 14px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 6px;
+  padding: 4px 12px;
 
   .legend-item {
     display: flex;
     align-items: center;
     gap: 5px;
     font-size: 11px;
-    color: #606266;
+    color: #e2e8f0;
 
     i {
       width: 10px;
       height: 10px;
       border-radius: 50%;
       display: inline-block;
+      flex-shrink: 0;
     }
   }
 }
 
+/* ─── 右侧面板 ─── */
 .side-panel {
-  flex: 1;
+  width: 300px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.08);
-  overflow-y: auto;
-  min-width: 0;
+  border-left: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+  overflow: hidden;
 }
 
+.panel-section {
+  padding: 12px 14px;
+
+  & + & {
+    border-top: 1px solid var(--el-border-color-lighter);
+  }
+}
+
+.vehicle-section {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+}
+
+/* 订单统计 */
 .order-stats {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  margin-top: 10px;
+  gap: 6px;
 }
 
 .stat-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 12px 4px;
+  padding: 8px 2px;
   border: 2px solid;
-  border-radius: 8px;
-  background: #fafafa;
+  border-radius: 6px;
+  background: var(--el-fill-color-extra-light);
+  cursor: default;
 
   .stat-value {
-    font-size: 24px;
+    font-size: 20px;
     font-weight: 700;
     line-height: 1;
   }
 
   .stat-label {
-    font-size: 11px;
-    color: #909399;
-    margin-top: 4px;
+    font-size: 10px;
+    color: var(--el-text-color-secondary);
+    margin-top: 3px;
   }
 }
 
-.vehicle-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
+.stat-total {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+  text-align: right;
 }
 
-.vehicle-item {
-  border: 1px solid #ebeef5;
+/* 车辆列表 */
+.vehicle-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vehicle-card {
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 6px;
-  padding: 10px 12px;
-  background: #fafafa;
+  padding: 8px 10px;
+  background: var(--el-fill-color-extra-light);
+  cursor: pointer;
+  transition: all 0.15s;
+
+  &:hover {
+    border-color: var(--el-color-primary-light-5);
+    background: var(--el-color-primary-light-9);
+  }
+
+  &.active {
+    border-color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+  }
 }
 
 .vehicle-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 6px;
   margin-bottom: 6px;
+}
+
+.vehicle-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .vehicle-name {
   font-size: 13px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
+  flex: 1;
 }
 
 .vehicle-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+}
 
-  span {
+.metric {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  .metric-label {
+    font-size: 10px;
+    color: var(--el-text-color-secondary);
+    white-space: nowrap;
+  }
+
+  .metric-value {
     font-size: 11px;
-    color: #606266;
-    background: #f0f2f5;
-    padding: 2px 6px;
-    border-radius: 4px;
+    color: var(--el-text-color-primary);
     font-family: monospace;
   }
 }
