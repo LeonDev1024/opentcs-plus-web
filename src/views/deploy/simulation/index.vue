@@ -1,10 +1,35 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+/**
+ * 仿真测试页面
+ *
+ * 画布实现与 MonitorCanvas 完全对齐：
+ *   • MapRenderer (Konva.js) 渲染真实地图拓扑（点位/路径/库位）
+ *   • SVG 叠加层渲染仿真车辆标记（与监控一致：圆角矩形+方向点）
+ *   • SVG 附加层渲染路径规划线（仿真专属：当前位置→目标点）
+ *   • CSS transform 统一 pan/zoom（与 MonitorCanvas 相同逻辑）
+ *   • 随机坐标模式下退化为纯网格背景
+ */
+import { ref, computed, onMounted, onBeforeUnmount, watch, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
-import { VideoPlay, VideoPause, CircleClose, Plus, MapLocation } from '@element-plus/icons-vue';
-import { simulationApi, type SimSnapshot, type SimVehicle, type OrderSimState, type SimNavMap } from '@/api/ops/simulation';
+import { VideoPlay, VideoPause, CircleClose, Plus, MapLocation, View, Hide } from '@element-plus/icons-vue';
+import {
+  simulationApi,
+  type SimSnapshot,
+  type OrderSimState,
+  type SimNavMap
+} from '@/api/ops/simulation';
+import { loadMapEditorData } from '@/api/deploy/map-editor';
+import MapRenderer from '@/components/map/MapRenderer.vue';
+import {
+  normalizeMapEditorPayload,
+  computeClipForElements,
+  computeMaxExtentForElements,
+  unwrapAjaxMapPayload
+} from '@/views/ops/monitor/operationsdesk/utils/mapElementNormalize';
+import { getLayoutScaleMm } from '@/utils/mapEditor/rasterAlignment';
+import layerIconUrl from '@/assets/icons/svg/layer.svg?url';
 
-// ─── 状态 ──────────────────────────────────────────────────────
+// ─── 快照 ────────────────────────────────────────────────────────────────────
 
 const snapshot = ref<SimSnapshot>({
   success: false,
@@ -19,14 +44,9 @@ const loading = ref(false);
 const addingVehicles = ref(false);
 const activeVehicleId = ref<string | null>(null);
 
-// 地图
-const availableMaps = ref<SimNavMap[]>([]);
-const selectedMapId = ref<number | null>(null);
-const mapSettingLoading = ref(false);
-
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-// ─── 计算属性 ──────────────────────────────────────────────────
+// ─── 计算属性 ────────────────────────────────────────────────────────────────
 
 const isRunning = computed(() => snapshot.value.engineStatus === 'RUNNING');
 const isPaused = computed(() => snapshot.value.engineStatus === 'PAUSED');
@@ -70,362 +90,32 @@ const vehicleStateType: Record<string, string> = {
   IDLE: 'success', MOVING: '', ERROR: 'danger', STOPPED: 'info', CHARGING: 'warning'
 };
 
-// ─── 地图画布 ──────────────────────────────────────────────────
+// ─── 地图选择 ─────────────────────────────────────────────────────────────────
 
-const canvasRef = ref<HTMLCanvasElement | null>(null);
-const containerRef = ref<HTMLDivElement | null>(null);
-
-// 栅格地图图片（有真实地图时使用）
-let rasterImage: HTMLImageElement | null = null;
-
-/** 根据当前快照的 mapInfo 是否有效栅格 */
-const hasRasterMap = computed(() =>
-  !!(snapshot.value.mapInfo?.rasterUrl && snapshot.value.mapInfo?.rasterResolution)
-);
-
-/** 随机模式的仿真空间大小 m */
-const RANDOM_SPACE = 70;
-
-// 画布缩放与平移（轻量 pan/zoom）
-const canvasScale = ref(1);
-const canvasPan = ref({ x: 40, y: 30 }); // 初始偏移让坐标原点不贴边
-let isPanning = false;
-let lastMouse = { x: 0, y: 0 };
-
-function onCanvasWheel(e: WheelEvent) {
-  e.preventDefault();
-  const delta = e.deltaY < 0 ? 1.1 : 0.9;
-  canvasScale.value = Math.min(Math.max(canvasScale.value * delta, 0.2), 8);
-  renderCanvas(snapshot.value.vehicles);
-}
-function onCanvasMouseDown(e: MouseEvent) {
-  isPanning = true;
-  lastMouse = { x: e.clientX, y: e.clientY };
-}
-function onCanvasMouseMove(e: MouseEvent) {
-  if (!isPanning) return;
-  canvasPan.value.x += e.clientX - lastMouse.x;
-  canvasPan.value.y += e.clientY - lastMouse.y;
-  lastMouse = { x: e.clientX, y: e.clientY };
-  renderCanvas(snapshot.value.vehicles);
-}
-function onCanvasMouseUp() { isPanning = false; }
-
-const vehicleColors: Record<string, string> = {
-  IDLE:     '#67C23A',
-  MOVING:   '#409EFF',
-  CHARGING: '#E6A23C',
-  ERROR:    '#F56C6C',
-  STOPPED:  '#909399'
-};
-
-function renderCanvas(vehicles: SimVehicle[]) {
-  const canvas = canvasRef.value;
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-
-  const W = canvas.width;
-  const H = canvas.height;
-
-  ctx.clearRect(0, 0, W, H);
-
-  if (hasRasterMap.value && rasterImage && rasterImage.complete && rasterImage.naturalWidth > 0) {
-    renderRasterCanvas(ctx, W, H, vehicles);
-  } else {
-    renderGridCanvas(ctx, W, H, vehicles);
-  }
-}
-
-/** 真实地图模式：栅格底图 + 车辆叠加 */
-function renderRasterCanvas(ctx: CanvasRenderingContext2D, W: number, H: number, vehicles: SimVehicle[]) {
-  const mapInfo = snapshot.value.mapInfo!;
-  const rw = mapInfo.rasterWidth ?? rasterImage!.naturalWidth;
-  const rh = mapInfo.rasterHeight ?? rasterImage!.naturalHeight;
-  const res = mapInfo.rasterResolution!; // m/px
-
-  // 白色背景
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, W, H);
-
-  // 缩放比例：让栅格图铺满画布（加 pan/zoom）
-  const baseScale = Math.min(W / rw, H / rh) * canvasScale.value;
-  const drawW = rw * baseScale;
-  const drawH = rh * baseScale;
-  const offsetX = (W - drawW) / 2 + canvasPan.value.x;
-  const offsetY = (H - drawH) / 2 + canvasPan.value.y;
-
-  // 绘制底图（Y 轴翻转：地图 Y 向上，raster 图片 Y 向下）
-  ctx.save();
-  ctx.translate(offsetX, offsetY + drawH);
-  ctx.scale(baseScale, -baseScale);
-  ctx.drawImage(rasterImage!, 0, 0, rw, rh);
-  ctx.restore();
-
-  if (!vehicles.length) return;
-
-  // 将仿真坐标（m）转为画布像素
-  vehicles.forEach(v => {
-    const px = v.x / res * baseScale + offsetX;
-    const py = H - (v.y / res * baseScale + offsetY);
-    const tpx = v.targetX / res * baseScale + offsetX;
-    const tpy = H - (v.targetY / res * baseScale + offsetY);
-    drawVehicle(ctx, v, px, py, tpx, tpy, v.name === activeVehicleId.value);
-  });
-}
-
-/** 随机坐标模式：浅色网格 */
-function renderGridCanvas(ctx: CanvasRenderingContext2D, W: number, H: number, vehicles: SimVehicle[]) {
-  const baseScale = W / RANDOM_SPACE;
-  const s = baseScale * canvasScale.value;
-  const ox = canvasPan.value.x;
-  const oy = canvasPan.value.y;
-
-  // 浅色背景
-  ctx.fillStyle = '#f8fafc';
-  ctx.fillRect(0, 0, W, H);
-
-  // 主网格（每 10m）
-  const step = s * 10;
-  ctx.strokeStyle = '#e2e8f0';
-  ctx.lineWidth = 1;
-  const startX = ((ox % step) + step) % step;
-  const startY = ((oy % step) + step) % step;
-  for (let x = startX; x <= W; x += step) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-  }
-  for (let y = startY; y <= H; y += step) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-  }
-
-  // 细网格（每 5m，缩放较大时才显示）
-  if (s * 5 > 20) {
-    const step5 = s * 5;
-    ctx.strokeStyle = '#f1f5f9';
-    ctx.lineWidth = 0.5;
-    const sx5 = ((ox % step5) + step5) % step5;
-    const sy5 = ((oy % step5) + step5) % step5;
-    for (let x = sx5; x <= W; x += step5) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-    }
-    for (let y = sy5; y <= H; y += step5) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-    }
-  }
-
-  // 坐标轴
-  ctx.strokeStyle = '#94a3b8';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(ox, 0); ctx.lineTo(ox, H); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(0, H - oy); ctx.lineTo(W, H - oy); ctx.stroke();
-
-  // 轴标签
-  ctx.fillStyle = '#94a3b8';
-  ctx.font = '10px monospace';
-  for (let i = 0; i * 10 * s <= W + Math.abs(ox); i++) {
-    const lx = i * step + ox;
-    if (lx >= 0 && lx <= W) ctx.fillText(String(i * 10), lx + 2, H - oy - 4);
-  }
-  for (let i = 0; i * 10 * s <= H + Math.abs(oy); i++) {
-    const ly = H - oy - i * step;
-    if (ly >= 0 && ly <= H) ctx.fillText(String(i * 10), ox + 4, ly - 2);
-  }
-
-  if (!vehicles.length) {
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '14px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('暂无仿真车辆', W / 2, H / 2);
-    ctx.textAlign = 'left';
-    return;
-  }
-
-  vehicles.forEach(v => {
-    const px = v.x * s + ox;
-    const py = H - (v.y * s + oy);
-    const tpx = v.targetX * s + ox;
-    const tpy = H - (v.targetY * s + oy);
-    drawVehicle(ctx, v, px, py, tpx, tpy, v.name === activeVehicleId.value);
-  });
-}
-
-function drawArrow(ctx: CanvasRenderingContext2D, fx: number, fy: number, tx: number, ty: number, color: string) {
-  const angle = Math.atan2(ty - fy, tx - fx);
-  const size = 8;
-  ctx.beginPath();
-  ctx.moveTo(tx, ty);
-  ctx.lineTo(tx - size * Math.cos(angle - 0.4), ty - size * Math.sin(angle - 0.4));
-  ctx.lineTo(tx - size * Math.cos(angle + 0.4), ty - size * Math.sin(angle + 0.4));
-  ctx.closePath();
-  ctx.fillStyle = color;
-  ctx.fill();
-}
-
-function drawVehicle(
-  ctx: CanvasRenderingContext2D,
-  v: SimVehicle,
-  px: number, py: number,
-  tpx: number, tpy: number,
-  isActive: boolean
-) {
-  const color = vehicleColors[v.state] ?? '#909399';
-  const radius = 10;
-  const dist = Math.hypot(tpx - px, tpy - py);
-
-  // ── 路径规划线（移动中才绘制）──
-  if (v.state === 'MOVING' && dist > 2) {
-    // 路径线：渐变（出发点实线 → 终点半透明）
-    const grad = ctx.createLinearGradient(px, py, tpx, tpy);
-    grad.addColorStop(0, color + 'ff');
-    grad.addColorStop(0.6, color + 'bb');
-    grad.addColorStop(1, color + '55');
-    ctx.beginPath();
-    ctx.moveTo(px, py);
-    ctx.lineTo(tpx, tpy);
-    ctx.strokeStyle = grad;
-    ctx.lineWidth = 3;
-    ctx.setLineDash([]);
-    ctx.stroke();
-
-    // 中间方向箭头（距离够长时显示）
-    if (dist > 40) {
-      const mx = (px + tpx) / 2;
-      const my = (py + tpy) / 2;
-      drawArrow(ctx, px, py, mx, my, color + 'aa');
-    }
-
-    // 终点箭头
-    const ux = (tpx - px) / dist;
-    const uy = (tpy - py) / dist;
-    drawArrow(ctx, px, py, tpx - ux * 4, tpy - uy * 4, color);
-
-    // 目标点：菱形标记
-    const dm = 8;
-    ctx.beginPath();
-    ctx.moveTo(tpx, tpy - dm);
-    ctx.lineTo(tpx + dm, tpy);
-    ctx.lineTo(tpx, tpy + dm);
-    ctx.lineTo(tpx - dm, tpy);
-    ctx.closePath();
-    ctx.fillStyle = color + '33';
-    ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    // 目标点标签
-    ctx.fillStyle = color;
-    ctx.font = '10px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('目标', tpx, tpy - dm - 4);
-    ctx.textAlign = 'left';
-  }
-
-  // ── 激活高亮环 ──
-  if (isActive) {
-    ctx.beginPath();
-    ctx.arc(px, py, radius + 5, 0, Math.PI * 2);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.setLineDash([4, 3]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // ── 车辆圆体（外圈白边 + 内填色）──
-  ctx.beginPath();
-  ctx.arc(px, py, radius, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(px, py, radius, 0, Math.PI * 2);
-  ctx.fillStyle = color + 'dd';
-  ctx.fill();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // ── 方向指示器（三角形）──
-  const headLen = 13;
-  const angle = v.theta;
-  const hx = px + Math.cos(angle) * headLen;
-  const hy = py - Math.sin(angle) * headLen;
-  ctx.beginPath();
-  ctx.moveTo(hx, hy);
-  ctx.lineTo(px + Math.cos(angle + 2.4) * 6, py - Math.sin(angle + 2.4) * 6);
-  ctx.lineTo(px + Math.cos(angle - 2.4) * 6, py - Math.sin(angle - 2.4) * 6);
-  ctx.closePath();
-  ctx.fillStyle = '#ffffff';
-  ctx.fill();
-
-  // ── 车辆名称标签 ──
-  const labelText = v.name;
-  ctx.font = 'bold 11px -apple-system, sans-serif';
-  const textW = ctx.measureText(labelText).width;
-  const lx = px - textW / 2 - 4;
-  const ly = py - radius - 18;
-
-  ctx.fillStyle = 'rgba(255,255,255,0.9)';
-  ctx.beginPath();
-  ctx.roundRect(lx, ly, textW + 8, 16, 3);
-  ctx.fill();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  ctx.fillStyle = color;
-  ctx.textAlign = 'center';
-  ctx.fillText(labelText, px, ly + 11);
-  ctx.textAlign = 'left';
-}
-
-// 加载栅格地图图片
-function loadRasterImage(url: string) {
-  rasterImage = new Image();
-  rasterImage.crossOrigin = 'anonymous';
-  rasterImage.onload = () => renderCanvas(snapshot.value.vehicles);
-  rasterImage.onerror = () => { rasterImage = null; };
-  rasterImage.src = url;
-}
-
-// 监听 vehicles 变化 → 重绘
-watch(
-  () => snapshot.value.vehicles,
-  (vehicles) => renderCanvas(vehicles),
-  { deep: true, immediate: true }
-);
-
-// 监听 mapInfo 变化 → 加载新栅格图
-watch(
-  () => snapshot.value.mapInfo?.rasterUrl,
-  (url, oldUrl) => {
-    if (url && url !== oldUrl) {
-      loadRasterImage(url);
-    } else if (!url) {
-      rasterImage = null;
-      renderCanvas(snapshot.value.vehicles);
-    }
-  }
-);
-
-// ─── 地图管理 ──────────────────────────────────────────────────
+const availableMaps = ref<SimNavMap[]>([]);
+const selectedMapId = ref<number | null>(null);
+const mapSettingLoading = ref(false);
 
 async function fetchAvailableMaps() {
   try {
     const res = await simulationApi.listMaps() as any;
-    if (res?.maps) {
-      availableMaps.value = res.maps;
-    }
-  } catch {
-    // 无地图数据时静默忽略
-  }
+    if (res?.maps) availableMaps.value = res.maps;
+  } catch { /* 静默 */ }
 }
 
 async function handleMapChange(mapId: number | null) {
   mapSettingLoading.value = true;
   try {
     await simulationApi.setMap(mapId);
-    ElMessage.success(mapId ? '已切换到真实地图模式' : '已切换到随机坐标模式');
+    if (mapId) {
+      await loadMapTopology(mapId);
+      ElMessage.success('已切换到真实地图模式');
+    } else {
+      simMapLayer.value = null;
+      mapMmPerUnit.value = RANDOM_MM_PER_UNIT;
+      resetZoom();
+      ElMessage.success('已切换到随机坐标模式');
+    }
   } catch {
     ElMessage.error('地图设置失败');
   } finally {
@@ -433,7 +123,299 @@ async function handleMapChange(mapId: number | null) {
   }
 }
 
-// ─── 控制操作 ──────────────────────────────────────────────────
+// ─── 地图拓扑（与 MonitorCanvas 对齐）────────────────────────────────────────
+
+/** 1 模型单位 = RANDOM_MM_PER_UNIT mm，即 20 px/m（随机模式下固定） */
+const RANDOM_MM_PER_UNIT = 50;
+
+interface SimMapLayer {
+  points: any[];
+  paths: any[];
+  locations: any[];
+  clip: { x: number; y: number };
+  canvasW: number;
+  canvasH: number;
+  /** CSS Y-down 工厂坐标系下的包围盒 */
+  boundsCss: { minX: number; maxX: number; minY: number; maxY: number } | null;
+}
+
+const simMapLayer = ref<SimMapLayer | null>(null);
+const mapMmPerUnit = ref(RANDOM_MM_PER_UNIT);
+const mapLoading = ref(false);
+
+const metersToModel = computed(() => 1000 / mapMmPerUnit.value);
+
+async function loadMapTopology(mapId: number) {
+  mapLoading.value = true;
+  simMapLayer.value = null;
+  try {
+    const raw = await loadMapEditorData(mapId);
+    const unwrapped = unwrapAjaxMapPayload(raw);
+    mapMmPerUnit.value = getLayoutScaleMm(unwrapped);
+
+    const { points, paths, locations } = normalizeMapEditorPayload(unwrapped);
+
+    const LABEL_PAD = 60;
+    const rawClip = computeClipForElements(points, locations, paths);
+    const clip = { x: rawClip.x + LABEL_PAD, y: rawClip.y + LABEL_PAD };
+    const { maxX, maxY } = computeMaxExtentForElements(points, locations, paths, clip);
+    const canvasW = Math.max(1, Math.ceil(maxX) + LABEL_PAD);
+    const canvasH = Math.max(1, Math.ceil(maxY) + LABEL_PAD);
+
+    // 加 clip 偏移（与 MonitorCanvas getLayerXxx 一致）
+    const shiftedPoints = points.map((p: any) => ({
+      ...p, x: Number(p.x ?? 0) + clip.x, y: Number(p.y ?? 0) + clip.y
+    }));
+    const shiftedPaths = paths.map((path: any) => ({
+      ...path,
+      geometry: {
+        ...(path.geometry || {}),
+        controlPoints: (path.geometry?.controlPoints ?? []).map((cp: any) => ({
+          ...cp, x: Number(cp.x ?? 0) + clip.x, y: Number(cp.y ?? 0) + clip.y
+        }))
+      }
+    }));
+    const shiftedLocations = locations.map((l: any) => ({
+      ...l,
+      x: Number(l.x ?? 0) + clip.x,
+      y: Number(l.y ?? 0) + clip.y,
+      geometry: l.geometry
+        ? {
+            ...l.geometry,
+            vertices: Array.isArray(l.geometry.vertices)
+              ? l.geometry.vertices.map((v: any) => ({
+                  ...v, x: Number(v.x ?? 0) + clip.x, y: Number(v.y ?? 0) + clip.y
+                }))
+              : l.geometry.vertices
+          }
+        : l.geometry
+    }));
+
+    // 计算 CSS Y-down 包围盒（用于 fitView）
+    // 元素坐标是 Konva Y-down，所以 CSS Y 即为元素 Y
+    let minXb = Infinity, maxXb = -Infinity, minYb = Infinity, maxYb = -Infinity;
+    for (const p of shiftedPoints) {
+      minXb = Math.min(minXb, p.x - clip.x);
+      maxXb = Math.max(maxXb, p.x - clip.x);
+      minYb = Math.min(minYb, -(p.y - clip.y));
+      maxYb = Math.max(maxYb, -(p.y - clip.y));
+    }
+
+    simMapLayer.value = {
+      points: shiftedPoints,
+      paths: shiftedPaths,
+      locations: shiftedLocations,
+      clip,
+      canvasW,
+      canvasH,
+      boundsCss: Number.isFinite(minXb)
+        ? { minX: minXb, maxX: maxXb, minY: minYb, maxY: maxYb }
+        : null
+    };
+
+    requestAnimationFrame(() => fitView());
+    setTimeout(() => fitView(), 80);
+  } catch (e) {
+    console.error('[sim] load map topology failed:', e);
+    ElMessage.warning('地图拓扑加载失败，将使用随机坐标模式');
+    simMapLayer.value = null;
+    mapMmPerUnit.value = RANDOM_MM_PER_UNIT;
+  } finally {
+    mapLoading.value = false;
+  }
+}
+
+// ─── 画布 Pan / Zoom（与 MonitorCanvas 完全一致）────────────────────────────
+
+const canvasRef = ref<HTMLElement | null>(null);
+const canvasSize = reactive({ w: 800, h: 600 });
+const viewOffset = reactive({ x: 150, y: 150 });
+const canvasScale = ref(1);
+const isDragging = ref(false);
+const dragStart = reactive({ x: 0, y: 0 });
+const viewStart = reactive({ x: 0, y: 0 });
+
+const SCALE_MIN = 0.05;
+const SCALE_MAX = 20;
+const SCALE_STEP = 1.1;
+const clampScale = (s: number) => Math.max(SCALE_MIN, Math.min(SCALE_MAX, s));
+
+/** 地图层 CSS transform（与 MonitorCanvas mapLayerStyle 一致） */
+const mapLayerStyle = computed(() => ({
+  transform: `translate(${viewOffset.x}px, ${canvasSize.h - viewOffset.y}px) scale(${canvasScale.value})`
+}));
+
+function getCanvasRect() {
+  const el = canvasRef.value;
+  if (!el) return { w: canvasSize.w || 800, h: canvasSize.h || 600 };
+  const rect = el.getBoundingClientRect();
+  return { w: rect.width, h: rect.height };
+}
+
+function handleCanvasWheel(e: WheelEvent) {
+  const el = canvasRef.value;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const pointerX = e.clientX - rect.left;
+  const pointerY = rect.bottom - e.clientY;
+  const oldScale = canvasScale.value;
+  const newScale = clampScale(e.deltaY > 0 ? oldScale / SCALE_STEP : oldScale * SCALE_STEP);
+  if (newScale === oldScale) return;
+  canvasScale.value = newScale;
+  const ratio = newScale / oldScale;
+  viewOffset.x = pointerX - (pointerX - viewOffset.x) * ratio;
+  viewOffset.y = pointerY - (pointerY - viewOffset.y) * ratio;
+}
+
+function startPan(e: MouseEvent) {
+  const target = e.target as HTMLElement;
+  if (target.closest('.canvas-floating-controls')) return;
+  if (e.button !== 0) return;
+  isDragging.value = true;
+  dragStart.x = e.clientX;
+  dragStart.y = e.clientY;
+  viewStart.x = viewOffset.x;
+  viewStart.y = viewOffset.y;
+  document.body.style.cursor = 'grabbing';
+  document.addEventListener('mousemove', onPan);
+  document.addEventListener('mouseup', endPan);
+}
+
+function onPan(e: MouseEvent) {
+  if (!isDragging.value) return;
+  viewOffset.x = viewStart.x + (e.clientX - dragStart.x);
+  viewOffset.y = viewStart.y - (e.clientY - dragStart.y);
+}
+
+function endPan() {
+  if (isDragging.value) {
+    isDragging.value = false;
+    document.body.style.cursor = '';
+  }
+  document.removeEventListener('mousemove', onPan);
+  document.removeEventListener('mouseup', endPan);
+}
+
+function fitView() {
+  const { w, h } = getCanvasRect();
+  if (w <= 0 || h <= 0) return;
+
+  let b = simMapLayer.value?.boundsCss ?? null;
+  if (!b) {
+    // 随机模式：70m 空间，metersToModel=20，Y 轴朝下（Y 从 0 到 -1400）
+    const space = 70 * metersToModel.value;
+    b = { minX: 0, maxX: space, minY: -space, maxY: 0 };
+  }
+
+  const contentW = Math.max(1, b.maxX - b.minX);
+  const contentH = Math.max(1, b.maxY - b.minY);
+  const padding = 64;
+  const sx = (w - padding * 2) / contentW;
+  const sy = (h - padding * 2) / contentH;
+  const s = clampScale(Math.min(sx, sy));
+  canvasScale.value = s;
+
+  const cx = (b.minX + b.maxX) / 2;
+  const cy = (b.minY + b.maxY) / 2;
+  viewOffset.x = w / 2 - cx * s;
+  viewOffset.y = h / 2 + cy * s;
+}
+
+function resetZoom() {
+  canvasScale.value = 1;
+  const { w, h } = getCanvasRect();
+  viewOffset.x = w / 2;
+  viewOffset.y = h / 2;
+}
+
+// ─── 图层显隐 ────────────────────────────────────────────────────────────────
+
+interface LayerVisibility {
+  station: boolean;
+  path: boolean;
+  grid: boolean;
+  vehicle: boolean;
+  pathLine: boolean;
+}
+
+const layerVisibility = reactive<LayerVisibility>({
+  station: true,
+  path: true,
+  grid: true,
+  vehicle: true,
+  pathLine: true
+});
+
+const layerMenuItems: { key: keyof LayerVisibility; label: string }[] = [
+  { key: 'station', label: '站点显隐' },
+  { key: 'path',    label: '路径显隐' },
+  { key: 'grid',    label: '网格显隐' },
+  { key: 'vehicle', label: '车辆显隐' },
+  { key: 'pathLine', label: '规划线显隐' }
+];
+
+function toggleLayerKey(key: keyof LayerVisibility) {
+  layerVisibility[key] = !layerVisibility[key];
+}
+
+const layerAllVisible = computed(() =>
+  (Object.keys(layerVisibility) as (keyof LayerVisibility)[]).every(k => layerVisibility[k])
+);
+
+// ─── 车辆标记（与 MonitorCanvas SVG 设计一致）────────────────────────────────
+
+const VEHICLE_HALF = 14;
+
+const vehicleColorMap: Record<string, string> = {
+  IDLE:     '#67C23A',
+  MOVING:   '#409EFF',
+  CHARGING: '#E6A23C',
+  ERROR:    '#F56C6C',
+  STOPPED:  '#909399'
+};
+
+/**
+ * 车辆坐标转换（与 MonitorCanvas vehicleMarkers 一致）：
+ *   cssX = v.x(m) × metersToModel
+ *   cssY = -(v.y(m) × metersToModel)   // Y 轴翻转
+ *   svgAngle = -(v.theta(rad) → deg)   // CCW rad → CW deg for SVG rotate
+ */
+const vehicleMarkers = computed(() => {
+  const m2m = metersToModel.value;
+  return snapshot.value.vehicles.map(v => {
+    const cssX = v.x * m2m;
+    const cssY = -(v.y * m2m);
+    const tCssX = v.targetX * m2m;
+    const tCssY = -(v.targetY * m2m);
+    return {
+      vehicleId: v.vehicleId,
+      name: v.name,
+      state: v.state,
+      currentBattery: v.currentBattery,
+      currentSpeed: v.currentSpeed,
+      color: vehicleColorMap[v.state] ?? '#909399',
+      cssX, cssY, tCssX, tCssY,
+      svgAngle: -(v.theta * 180 / Math.PI),
+      isActive: v.vehicleId === activeVehicleId.value || v.name === activeVehicleId.value,
+      dist: Math.hypot(tCssX - cssX, tCssY - cssY)
+    };
+  });
+});
+
+// ─── 地图层在 CSS 画布中的位置（仿真只有单张地图，origin=0,0）────────────────
+
+const mapRendererStyle = computed((): Record<string, string> => {
+  const layer = simMapLayer.value;
+  if (!layer) return {};
+  return {
+    width: `${layer.canvasW}px`,
+    height: `${layer.canvasH}px`,
+    left: `${-layer.clip.x}px`,
+    top: `${-layer.clip.y}px`
+  };
+});
+
+// ─── 控制操作 ────────────────────────────────────────────────────────────────
 
 async function handleStart() {
   loading.value = true;
@@ -491,17 +473,17 @@ async function handleAddVehicles() {
   }
 }
 
-// ─── 轮询 ──────────────────────────────────────────────────────
+function handleVehicleClick(vehicleId: string) {
+  activeVehicleId.value = activeVehicleId.value === vehicleId ? null : vehicleId;
+}
+
+// ─── 轮询 ────────────────────────────────────────────────────────────────────
 
 async function fetchSnapshot() {
   try {
     const res = await simulationApi.snapshot() as unknown as SimSnapshot;
-    if (res?.engineStatus) {
-      snapshot.value = res;
-    }
-  } catch {
-    // 忽略轮询中的网络抖动
-  }
+    if (res?.engineStatus) snapshot.value = res;
+  } catch { /* 忽略网络抖动 */ }
 }
 
 function startPolling() {
@@ -510,53 +492,67 @@ function startPolling() {
 }
 
 function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 }
 
-let resizeObserver: ResizeObserver | null = null;
+// ─── 容器尺寸响应 ─────────────────────────────────────────────────────────────
 
-function syncCanvasSize() {
-  const canvas = canvasRef.value;
-  const container = containerRef.value;
-  if (!canvas || !container) return;
-  const { width, height } = container.getBoundingClientRect();
-  if (canvas.width !== Math.floor(width) || canvas.height !== Math.floor(height)) {
-    canvas.width = Math.floor(width);
-    canvas.height = Math.floor(height);
-    renderCanvas(snapshot.value.vehicles);
-  }
-}
+let canvasResizeObs: ResizeObserver | null = null;
 
 onMounted(async () => {
   await fetchAvailableMaps();
   startPolling();
-  await nextTick();
-  syncCanvasSize();
-  resizeObserver = new ResizeObserver(syncCanvasSize);
-  if (containerRef.value) resizeObserver.observe(containerRef.value);
+  if (canvasRef.value && typeof ResizeObserver !== 'undefined') {
+    canvasResizeObs = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const cr = entry.contentRect;
+        canvasSize.w = cr.width;
+        canvasSize.h = cr.height;
+      }
+    });
+    canvasResizeObs.observe(canvasRef.value);
+    const rect = canvasRef.value.getBoundingClientRect();
+    canvasSize.w = rect.width;
+    canvasSize.h = rect.height;
+  }
+  // 随机模式初始视角
+  setTimeout(() => fitView(), 100);
 });
 
-onUnmounted(() => {
+onBeforeUnmount(() => {
   stopPolling();
-  resizeObserver?.disconnect();
+  document.removeEventListener('mousemove', onPan);
+  document.removeEventListener('mouseup', endPan);
+  canvasResizeObs?.disconnect();
+  canvasResizeObs = null;
 });
+
+// ─── 工具函数 ────────────────────────────────────────────────────────────────
+
+/** 计算中途方向箭头的 SVG polygon points */
+function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
+  const mx = (x1 + x2) / 2;
+  const my = (y1 + y2) / 2;
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  const size = 7;
+  const p1 = `${mx + size * Math.cos(angle)},${my + size * Math.sin(angle)}`;
+  const p2 = `${mx + size * Math.cos(angle + 2.4)},${my + size * Math.sin(angle + 2.4)}`;
+  const p3 = `${mx + size * Math.cos(angle - 2.4)},${my + size * Math.sin(angle - 2.4)}`;
+  return `${p1} ${p2} ${p3}`;
+}
 </script>
 
 <template>
   <div class="sim-desk">
-    <!-- 顶部控制栏 -->
+    <!-- ─── 顶部控制栏 ─────────────────────────────────────────────────────── -->
     <div class="top-bar">
       <div class="top-bar-left">
-        <span class="page-title">仿真监控</span>
+        <span class="page-title">仿真测试</span>
         <el-tag :type="statusType" size="small">{{ statusLabel }}</el-tag>
         <span class="tick-label">Tick {{ snapshot.tick }}</span>
 
         <el-divider direction="vertical" />
 
-        <!-- 地图选择 -->
         <el-icon class="map-icon"><MapLocation /></el-icon>
         <el-select
           v-model="selectedMapId"
@@ -575,7 +571,7 @@ onUnmounted(() => {
           />
         </el-select>
         <span class="map-mode-hint">
-          {{ snapshot.mapInfo ? `真实地图：${snapshot.mapInfo.name}` : '随机坐标模式' }}
+          {{ simMapLayer ? `真实地图` : '随机坐标模式' }}
         </span>
       </div>
 
@@ -619,31 +615,188 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- 主体：画布 + 右侧面板 -->
+    <!-- ─── 主体 ──────────────────────────────────────────────────────────── -->
     <div class="sim-body">
-      <!-- 画布区 -->
-      <div ref="containerRef" class="canvas-area">
-        <canvas
-          ref="canvasRef"
-          width="900"
-          height="700"
-          class="sim-canvas"
-          @wheel.prevent="onCanvasWheel"
-          @mousedown="onCanvasMouseDown"
-          @mousemove="onCanvasMouseMove"
-          @mouseup="onCanvasMouseUp"
-          @mouseleave="onCanvasMouseUp"
-        />
-        <!-- 图例 -->
-        <div class="canvas-legend">
-          <span v-for="(color, state) in vehicleColors" :key="state" class="legend-item">
-            <i :style="{ background: color }"></i>
-            {{ vehicleStateLabel[state] }}
-          </span>
+      <!-- 画布区（与 MonitorCanvas 结构完全对齐） -->
+      <div
+        ref="canvasRef"
+        class="stage-canvas"
+        :class="{ 'no-grid': !layerVisibility.grid }"
+        v-loading="mapLoading"
+        @mousedown="startPan"
+        @wheel.prevent="handleCanvasWheel"
+      >
+        <!-- 地图层：CSS transform 统一 pan/zoom -->
+        <div class="canvas-map-layer" :style="mapLayerStyle">
+          <!-- 工厂坐标原点 O(0,0) 坐标轴 -->
+          <div class="layer-axis">
+            <div class="axis-line axis-x" />
+            <div class="axis-line axis-y" />
+            <div class="axis-origin">O(0,0)</div>
+          </div>
+
+          <!-- 真实地图拓扑（与 MonitorCanvas MapRenderer 配置一致） -->
+          <MapRenderer
+            v-if="simMapLayer"
+            class="preview-konva-layer"
+            :style="mapRendererStyle"
+            :points="layerVisibility.station ? simMapLayer.points : []"
+            :paths="layerVisibility.path ? simMapLayer.paths : []"
+            :locations="layerVisibility.station ? simMapLayer.locations : []"
+            :width="simMapLayer.canvasW"
+            :height="simMapLayer.canvasH"
+            :scale="1"
+            :offset-x="0"
+            :offset-y="0"
+            :auto-center="false"
+            :flip-y="false"
+            :center-labels-above="true"
+            readonly
+          />
+
+          <!-- 车辆 SVG 叠加（与 MonitorCanvas 完全相同的设计） -->
+          <svg
+            v-if="layerVisibility.vehicle"
+            class="vehicle-svg"
+            width="1"
+            height="1"
+            overflow="visible"
+          >
+            <!-- 路径规划线（仿真专属，在车辆下层） -->
+            <template v-if="layerVisibility.pathLine">
+              <g
+                v-for="v in vehicleMarkers.filter(m => m.state === 'MOVING' && m.dist > 2)"
+                :key="`path-${v.vehicleId}`"
+              >
+                <!-- 主路径线 -->
+                <line
+                  :x1="v.cssX" :y1="v.cssY"
+                  :x2="v.tCssX" :y2="v.tCssY"
+                  :stroke="v.color"
+                  stroke-opacity="0.55"
+                  stroke-width="2"
+                  stroke-dasharray="6 4"
+                />
+                <!-- 目标点菱形 -->
+                <polygon
+                  :points="`${v.tCssX},${v.tCssY - 9} ${v.tCssX + 9},${v.tCssY} ${v.tCssX},${v.tCssY + 9} ${v.tCssX - 9},${v.tCssY}`"
+                  :fill="`${v.color}33`"
+                  :stroke="v.color"
+                  stroke-width="1.5"
+                />
+                <!-- 中途方向箭头（距离足够长时） -->
+                <polygon
+                  v-if="v.dist > 30"
+                  :points="arrowPoints(v.cssX, v.cssY, v.tCssX, v.tCssY)"
+                  :fill="v.color"
+                  fill-opacity="0.7"
+                />
+              </g>
+            </template>
+
+            <!-- 车辆标记（与 MonitorCanvas 完全一致的圆角矩形设计） -->
+            <g
+              v-for="v in vehicleMarkers"
+              :key="v.vehicleId"
+              :transform="`translate(${v.cssX}, ${v.cssY})`"
+              class="vehicle-node"
+              :class="{ 'vehicle-active': v.isActive }"
+              @click="handleVehicleClick(v.vehicleId)"
+            >
+              <!-- 激活光晕 -->
+              <circle
+                v-if="v.isActive"
+                cx="0" cy="0"
+                :r="VEHICLE_HALF + 7"
+                :fill="`${v.color}33`"
+                stroke="none"
+              />
+
+              <!-- 旋转车体 -->
+              <g :transform="`rotate(${v.svgAngle})`">
+                <!-- 圆角矩形车体（与 MonitorCanvas 完全一致） -->
+                <rect
+                  :x="-VEHICLE_HALF" :y="-VEHICLE_HALF"
+                  :width="VEHICLE_HALF * 2" :height="VEHICLE_HALF * 2"
+                  rx="4" ry="4"
+                  :fill="v.color"
+                  :stroke="v.isActive ? '#ffffff' : 'rgba(255,255,255,0.55)'"
+                  :stroke-width="v.isActive ? 2.5 : 1.5"
+                />
+                <!-- 内部十字线（潜伏式AGV托举机构） -->
+                <line x1="-8" y1="0" x2="8" y2="0" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+                <line x1="0" y1="-8" x2="0" y2="8" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+                <!-- 前向指示点（车头方向，正上方 = SVG 0° = 北方） -->
+                <circle cx="0" :cy="-VEHICLE_HALF + 5" r="3" fill="rgba(255,255,255,0.92)"/>
+              </g>
+
+              <!-- 车辆名称（不随车体旋转，正上方 30px，与监控对齐） -->
+              <text
+                x="0" y="-30"
+                text-anchor="middle"
+                dominant-baseline="auto"
+                font-size="11"
+                font-family="Arial, sans-serif"
+                fill="#303133"
+                style="pointer-events:none;user-select:none;"
+              >{{ v.name }}</text>
+            </g>
+          </svg>
+        </div>
+
+        <!-- 右下角浮动控件（与 MonitorCanvas 完全一致） -->
+        <div class="canvas-floating-controls">
+          <div class="floating-slot">
+            <el-popover placement="left" trigger="click" :width="200">
+              <template #reference>
+                <el-button
+                  class="floating-btn floating-btn--layer"
+                  :class="{ 'is-active': !layerAllVisible }"
+                  size="small"
+                  title="图层显隐"
+                >
+                  <img class="floating-layer-icon" :src="layerIconUrl" alt="图层" />
+                </el-button>
+              </template>
+              <ul class="layer-visibility-menu" @click.stop>
+                <li
+                  v-for="item in layerMenuItems"
+                  :key="item.key"
+                  class="layer-visibility-menu__item"
+                  :class="{ 'is-off': !layerVisibility[item.key] }"
+                  @click="toggleLayerKey(item.key)"
+                >
+                  <el-icon class="layer-visibility-menu__icon">
+                    <View v-if="layerVisibility[item.key]" />
+                    <Hide v-else />
+                  </el-icon>
+                  <span class="layer-visibility-menu__text">{{ item.label }}</span>
+                </li>
+              </ul>
+            </el-popover>
+          </div>
+          <div class="floating-slot">
+            <el-button class="floating-btn mono-btn" size="small" title="适应窗口" @click="fitView">
+              ⊡
+            </el-button>
+          </div>
+          <div class="floating-slot">
+            <el-button class="floating-btn mono-btn" size="small" title="还原 1:1" @click="resetZoom">
+              1:1
+            </el-button>
+          </div>
+        </div>
+
+        <!-- 空状态 -->
+        <div
+          v-if="!snapshot.vehicles.length && snapshot.engineStatus === 'STOPPED'"
+          class="empty-canvas"
+        >
+          <p>启动仿真后添加测试车辆</p>
         </div>
       </div>
 
-      <!-- 右侧面板 -->
+      <!-- ─── 右侧面板 ──────────────────────────────────────────────────── -->
       <div class="side-panel">
         <!-- 订单统计 -->
         <div class="panel-section">
@@ -674,11 +827,11 @@ onUnmounted(() => {
               v-for="v in snapshot.vehicles"
               :key="v.vehicleId"
               class="vehicle-card"
-              :class="{ active: activeVehicleId === v.name }"
-              @click="activeVehicleId = activeVehicleId === v.name ? null : v.name"
+              :class="{ active: activeVehicleId === v.vehicleId || activeVehicleId === v.name }"
+              @click="handleVehicleClick(v.vehicleId)"
             >
               <div class="vehicle-header">
-                <div class="vehicle-dot" :style="{ background: vehicleColors[v.state] ?? '#909399' }"></div>
+                <div class="vehicle-dot" :style="{ background: vehicleColorMap[v.state] ?? '#909399' }"></div>
                 <span class="vehicle-name">{{ v.name }}</span>
                 <el-tag size="small" :type="vehicleStateType[v.state] as any" style="margin-left: auto">
                   {{ vehicleStateLabel[v.state] }}
@@ -716,7 +869,9 @@ onUnmounted(() => {
   </div>
 </template>
 
+
 <style scoped lang="scss">
+// ─── 整体布局 ─────────────────────────────────────────────────────────────────
 .sim-desk {
   height: 100%;
   display: flex;
@@ -725,7 +880,7 @@ onUnmounted(() => {
   background: var(--el-bg-color);
 }
 
-/* ─── 顶部控制栏 ─── */
+// ─── 顶部控制栏 ──────────────────────────────────────────────────────────────
 .top-bar {
   display: flex;
   align-items: center;
@@ -770,20 +925,15 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-.map-select {
-  width: 160px;
-}
+.map-select { width: 160px; }
 
 .map-mode-hint {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   white-space: nowrap;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
-/* ─── 主体 ─── */
+// ─── 主体 ─────────────────────────────────────────────────────────────────────
 .sim-body {
   flex: 1;
   display: flex;
@@ -791,61 +941,212 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-/* ─── 画布区 ─── */
-.canvas-area {
+// ─── 画布（与 MonitorCanvas .stage-canvas 完全一致）──────────────────────────
+.stage-canvas {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: stretch;
-  background: #f8fafc;
-  min-width: 0;
   position: relative;
   overflow: hidden;
-  border-right: 1px solid var(--el-border-color-lighter);
-}
-
-.sim-canvas {
-  width: 100%;
-  height: 100%;
-  display: block;
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(#eef0f4 1px, transparent 1px),
+    linear-gradient(90deg, #eef0f4 1px, transparent 1px);
+  background-size: 18px 18px;
   cursor: grab;
+  min-width: 0;
 
-  &:active {
-    cursor: grabbing;
-  }
+  &:active { cursor: grabbing; }
+
+  &.no-grid { background-image: none; }
 }
 
-.canvas-legend {
+// ─── 地图层（与 MonitorCanvas .canvas-map-layer 完全一致）───────────────────
+.canvas-map-layer {
   position: absolute;
-  bottom: 12px;
-  left: 12px;
-  display: flex;
-  gap: 12px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 6px;
-  padding: 5px 12px;
-  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
 
-  .legend-item {
-    display: flex;
-    align-items: center;
-    gap: 5px;
+.preview-konva-layer {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+
+// ─── 车辆 SVG（与 MonitorCanvas 完全一致）────────────────────────────────────
+.vehicle-svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.vehicle-node {
+  cursor: pointer;
+  pointer-events: all;
+  transition: transform 0.15s;
+
+  &:hover { filter: brightness(1.15) drop-shadow(0 0 4px rgba(255,255,255,0.5)); }
+}
+
+.vehicle-active {
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+}
+
+// ─── 坐标轴（与 MonitorCanvas 完全一致）─────────────────────────────────────
+.layer-axis {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.axis-origin {
+  position: absolute;
+  left: 6px;
+  top: -18px;
+  font-size: 10px;
+  color: #6b7280;
+  user-select: none;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.axis-line {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.axis-x {
+  height: 2px;
+  width: 120px;
+  background: #2563eb;
+  transform: translateY(-50%);
+
+  &::before {
+    content: '';
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-left: 8px solid #2563eb;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+  }
+
+  &::after {
+    content: 'X';
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 2px);
     font-size: 11px;
-    color: var(--el-text-color-regular);
-
-    i {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      display: inline-block;
-      flex-shrink: 0;
-    }
+    font-weight: bold;
+    color: #2563eb;
   }
 }
 
-/* ─── 右侧面板 ─── */
+.axis-y {
+  position: absolute;
+  left: 0;
+  top: -120px;
+  width: 2px;
+  height: 120px;
+  background: #ef4444;
+  transform: translateX(-50%);
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-bottom: 8px solid #ef4444;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+  }
+
+  &::after {
+    content: 'Y';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    font-size: 11px;
+    font-weight: bold;
+    color: #ef4444;
+  }
+}
+
+// ─── 右下角浮动控件（与 MonitorCanvas 完全一致）─────────────────────────────
+.canvas-floating-controls {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 11;
+}
+
+.floating-slot {
+  width: 36px;
+  display: flex;
+  justify-content: center;
+}
+
+.floating-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.95);
+  border: 1px solid #dcdfe6;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+
+  &.is-active { border-color: #3388ff; color: #3388ff; }
+}
+
+.floating-btn--layer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.floating-layer-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  object-fit: contain;
+}
+
+.mono-btn {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+// ─── 空状态 ──────────────────────────────────────────────────────────────────
+.empty-canvas {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-secondary);
+  gap: 12px;
+  pointer-events: none;
+}
+
+// ─── 右侧面板 ─────────────────────────────────────────────────────────────────
 .side-panel {
   width: 300px;
   flex-shrink: 0;
@@ -859,9 +1160,7 @@ onUnmounted(() => {
 .panel-section {
   padding: 12px 14px;
 
-  & + & {
-    border-top: 1px solid var(--el-border-color-lighter);
-  }
+  & + & { border-top: 1px solid var(--el-border-color-lighter); }
 }
 
 .vehicle-section {
@@ -882,7 +1181,6 @@ onUnmounted(() => {
   align-items: center;
 }
 
-/* 订单统计 */
 .order-stats {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
@@ -897,7 +1195,6 @@ onUnmounted(() => {
   border: 2px solid;
   border-radius: 6px;
   background: var(--el-fill-color-extra-light);
-  cursor: default;
 
   .stat-value {
     font-size: 20px;
@@ -919,7 +1216,6 @@ onUnmounted(() => {
   text-align: right;
 }
 
-/* 车辆列表 */
 .vehicle-list {
   flex: 1;
   overflow-y: auto;
@@ -936,15 +1232,8 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.15s;
 
-  &:hover {
-    border-color: var(--el-color-primary-light-5);
-    background: var(--el-color-primary-light-9);
-  }
-
-  &.active {
-    border-color: var(--el-color-primary);
-    background: var(--el-color-primary-light-9);
-  }
+  &:hover { border-color: var(--el-color-primary-light-5); background: var(--el-color-primary-light-9); }
+  &.active { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
 }
 
 .vehicle-header {
@@ -991,4 +1280,39 @@ onUnmounted(() => {
     font-family: monospace;
   }
 }
+</style>
+
+<style>
+/* 图层菜单（el-popover 内层，不能 scoped；与 MonitorCanvas 同源） */
+.layer-visibility-menu {
+  list-style: none;
+  margin: 0;
+  padding: 6px 0;
+  min-width: 200px;
+}
+
+.layer-visibility-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  transition: background 0.15s ease;
+
+  &:hover { background: #f5f7fa; }
+}
+
+.layer-visibility-menu__icon { font-size: 16px; flex-shrink: 0; }
+
+.layer-visibility-menu__item:not(.is-off) .layer-visibility-menu__icon,
+.layer-visibility-menu__item:not(.is-off) .layer-visibility-menu__text { color: #3388ff; }
+
+.layer-visibility-menu__item.is-off .layer-visibility-menu__icon,
+.layer-visibility-menu__item.is-off .layer-visibility-menu__text { color: #a0a0a0; }
+
+.layer-visibility-menu__item.is-off .layer-visibility-menu__text { text-decoration: line-through; }
+
+.layer-visibility-menu__text { line-height: 1.35; }
 </style>
