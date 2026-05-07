@@ -86,6 +86,31 @@ const hasRasterMap = computed(() =>
 /** 随机模式的仿真空间大小 m */
 const RANDOM_SPACE = 70;
 
+// 画布缩放与平移（轻量 pan/zoom）
+const canvasScale = ref(1);
+const canvasPan = ref({ x: 0, y: 0 });
+let isPanning = false;
+let lastMouse = { x: 0, y: 0 };
+
+function onCanvasWheel(e: WheelEvent) {
+  e.preventDefault();
+  const delta = e.deltaY < 0 ? 1.1 : 0.9;
+  canvasScale.value = Math.min(Math.max(canvasScale.value * delta, 0.2), 8);
+  renderCanvas(snapshot.value.vehicles);
+}
+function onCanvasMouseDown(e: MouseEvent) {
+  isPanning = true;
+  lastMouse = { x: e.clientX, y: e.clientY };
+}
+function onCanvasMouseMove(e: MouseEvent) {
+  if (!isPanning) return;
+  canvasPan.value.x += e.clientX - lastMouse.x;
+  canvasPan.value.y += e.clientY - lastMouse.y;
+  lastMouse = { x: e.clientX, y: e.clientY };
+  renderCanvas(snapshot.value.vehicles);
+}
+function onCanvasMouseUp() { isPanning = false; }
+
 const vehicleColors: Record<string, string> = {
   IDLE:     '#67C23A',
   MOVING:   '#409EFF',
@@ -119,58 +144,95 @@ function renderRasterCanvas(ctx: CanvasRenderingContext2D, W: number, H: number,
   const rh = mapInfo.rasterHeight ?? rasterImage!.naturalHeight;
   const res = mapInfo.rasterResolution!; // m/px
 
-  // 缩放比例：让栅格图铺满画布
-  const scale = Math.min(W / rw, H / rh);
-  const drawW = rw * scale;
-  const drawH = rh * scale;
-  const offsetX = (W - drawW) / 2;
-  const offsetY = (H - drawH) / 2;
+  // 白色背景
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  // 缩放比例：让栅格图铺满画布（加 pan/zoom）
+  const baseScale = Math.min(W / rw, H / rh) * canvasScale.value;
+  const drawW = rw * baseScale;
+  const drawH = rh * baseScale;
+  const offsetX = (W - drawW) / 2 + canvasPan.value.x;
+  const offsetY = (H - drawH) / 2 + canvasPan.value.y;
 
   // 绘制底图（Y 轴翻转：地图 Y 向上，raster 图片 Y 向下）
   ctx.save();
   ctx.translate(offsetX, offsetY + drawH);
-  ctx.scale(scale, -scale);
+  ctx.scale(baseScale, -baseScale);
   ctx.drawImage(rasterImage!, 0, 0, rw, rh);
   ctx.restore();
 
   if (!vehicles.length) return;
 
   // 将仿真坐标（m）转为画布像素
-  // vehicleX(m) / res(m/px) = px in raster, then * scale + offsetX
   vehicles.forEach(v => {
-    const px = v.x / res * scale + offsetX;
-    const py = H - (v.y / res * scale + offsetY); // Y 翻转
-    const tpx = v.targetX / res * scale + offsetX;
-    const tpy = H - (v.targetY / res * scale + offsetY);
+    const px = v.x / res * baseScale + offsetX;
+    const py = H - (v.y / res * baseScale + offsetY);
+    const tpx = v.targetX / res * baseScale + offsetX;
+    const tpy = H - (v.targetY / res * baseScale + offsetY);
     drawVehicle(ctx, v, px, py, tpx, tpy, v.name === activeVehicleId.value);
   });
 }
 
-/** 随机坐标模式：暗色网格 */
+/** 随机坐标模式：浅色网格 */
 function renderGridCanvas(ctx: CanvasRenderingContext2D, W: number, H: number, vehicles: SimVehicle[]) {
-  const scale = W / RANDOM_SPACE;
+  const baseScale = W / RANDOM_SPACE;
+  const s = baseScale * canvasScale.value;
+  const ox = canvasPan.value.x;
+  const oy = canvasPan.value.y;
 
-  ctx.fillStyle = '#0d1117';
+  // 浅色背景
+  ctx.fillStyle = '#f8fafc';
   ctx.fillRect(0, 0, W, H);
 
-  ctx.strokeStyle = '#1e2733';
+  // 主网格（每 10m）
+  const step = s * 10;
+  ctx.strokeStyle = '#e2e8f0';
   ctx.lineWidth = 1;
-  const step = scale * 10;
-  for (let x = 0; x <= W; x += step) {
+  const startX = ((ox % step) + step) % step;
+  const startY = ((oy % step) + step) % step;
+  for (let x = startX; x <= W; x += step) {
     ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
   }
-  for (let y = 0; y <= H; y += step) {
+  for (let y = startY; y <= H; y += step) {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
   }
 
-  ctx.fillStyle = '#4a5568';
+  // 细网格（每 5m，缩放较大时才显示）
+  if (s * 5 > 20) {
+    const step5 = s * 5;
+    ctx.strokeStyle = '#f1f5f9';
+    ctx.lineWidth = 0.5;
+    const sx5 = ((ox % step5) + step5) % step5;
+    const sy5 = ((oy % step5) + step5) % step5;
+    for (let x = sx5; x <= W; x += step5) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (let y = sy5; y <= H; y += step5) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+  }
+
+  // 坐标轴
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(ox, 0); ctx.lineTo(ox, H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, H - oy); ctx.lineTo(W, H - oy); ctx.stroke();
+
+  // 轴标签
+  ctx.fillStyle = '#94a3b8';
   ctx.font = '10px monospace';
-  for (let i = 0; i * 10 <= RANDOM_SPACE; i++) {
-    ctx.fillText(String(i * 10), i * step + 2, 10);
+  for (let i = 0; i * 10 * s <= W + Math.abs(ox); i++) {
+    const lx = i * step + ox;
+    if (lx >= 0 && lx <= W) ctx.fillText(String(i * 10), lx + 2, H - oy - 4);
+  }
+  for (let i = 0; i * 10 * s <= H + Math.abs(oy); i++) {
+    const ly = H - oy - i * step;
+    if (ly >= 0 && ly <= H) ctx.fillText(String(i * 10), ox + 4, ly - 2);
   }
 
   if (!vehicles.length) {
-    ctx.fillStyle = '#4a5568';
+    ctx.fillStyle = '#94a3b8';
     ctx.font = '14px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('暂无仿真车辆', W / 2, H / 2);
@@ -179,12 +241,24 @@ function renderGridCanvas(ctx: CanvasRenderingContext2D, W: number, H: number, v
   }
 
   vehicles.forEach(v => {
-    const px = v.x * scale;
-    const py = H - v.y * scale;
-    const tpx = v.targetX * scale;
-    const tpy = H - v.targetY * scale;
+    const px = v.x * s + ox;
+    const py = H - (v.y * s + oy);
+    const tpx = v.targetX * s + ox;
+    const tpy = H - (v.targetY * s + oy);
     drawVehicle(ctx, v, px, py, tpx, tpy, v.name === activeVehicleId.value);
   });
+}
+
+function drawArrow(ctx: CanvasRenderingContext2D, fx: number, fy: number, tx: number, ty: number, color: string) {
+  const angle = Math.atan2(ty - fy, tx - fx);
+  const size = 8;
+  ctx.beginPath();
+  ctx.moveTo(tx, ty);
+  ctx.lineTo(tx - size * Math.cos(angle - 0.4), ty - size * Math.sin(angle - 0.4));
+  ctx.lineTo(tx - size * Math.cos(angle + 0.4), ty - size * Math.sin(angle + 0.4));
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
 }
 
 function drawVehicle(
@@ -195,53 +269,112 @@ function drawVehicle(
   isActive: boolean
 ) {
   const color = vehicleColors[v.state] ?? '#909399';
-  const radius = 9;
+  const radius = 10;
+  const dist = Math.hypot(tpx - px, tpy - py);
 
-  // 移动时绘制目标位置和连线
-  if (v.state === 'MOVING') {
-    ctx.beginPath();
-    ctx.arc(tpx, tpy, 6, 0, Math.PI * 2);
-    ctx.strokeStyle = color + '66';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
+  // ── 路径规划线（移动中才绘制）──
+  if (v.state === 'MOVING' && dist > 2) {
+    // 路径线：渐变（出发点亮 → 终点淡）
+    const grad = ctx.createLinearGradient(px, py, tpx, tpy);
+    grad.addColorStop(0, color + 'cc');
+    grad.addColorStop(1, color + '33');
     ctx.beginPath();
     ctx.moveTo(px, py);
     ctx.lineTo(tpx, tpy);
-    ctx.strokeStyle = color + '44';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([]);
     ctx.stroke();
+
+    // 中间方向箭头（距离够长时显示）
+    if (dist > 40) {
+      const mx = (px + tpx) / 2;
+      const my = (py + tpy) / 2;
+      drawArrow(ctx, px, py, mx, my, color + 'aa');
+    }
+
+    // 终点箭头
+    const ux = (tpx - px) / dist;
+    const uy = (tpy - py) / dist;
+    drawArrow(ctx, px, py, tpx - ux * 4, tpy - uy * 4, color);
+
+    // 目标点：菱形标记
+    const dm = 8;
+    ctx.beginPath();
+    ctx.moveTo(tpx, tpy - dm);
+    ctx.lineTo(tpx + dm, tpy);
+    ctx.lineTo(tpx, tpy + dm);
+    ctx.lineTo(tpx - dm, tpy);
+    ctx.closePath();
+    ctx.fillStyle = color + '33';
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // 目标点标签
+    ctx.fillStyle = color;
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('目标', tpx, tpy - dm - 4);
+    ctx.textAlign = 'left';
   }
 
-  // 车辆圆体
+  // ── 激活高亮环 ──
   if (isActive) {
     ctx.beginPath();
-    ctx.arc(px, py, radius + 4, 0, Math.PI * 2);
-    ctx.strokeStyle = '#fff';
+    ctx.arc(px, py, radius + 5, 0, Math.PI * 2);
+    ctx.strokeStyle = color;
     ctx.lineWidth = 2;
+    ctx.setLineDash([4, 3]);
     ctx.stroke();
+    ctx.setLineDash([]);
   }
 
+  // ── 车辆圆体（外圈白边 + 内填色）──
   ctx.beginPath();
   ctx.arc(px, py, radius, 0, Math.PI * 2);
-  ctx.fillStyle = color;
+  ctx.fillStyle = '#ffffff';
   ctx.fill();
-
-  // 方向指示器
   ctx.beginPath();
-  ctx.moveTo(px, py);
-  ctx.lineTo(px + Math.cos(v.theta) * 14, py - Math.sin(v.theta) * 14);
-  ctx.strokeStyle = '#fff';
+  ctx.arc(px, py, radius, 0, Math.PI * 2);
+  ctx.fillStyle = color + 'dd';
+  ctx.fill();
+  ctx.strokeStyle = color;
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // 车辆名称
-  ctx.fillStyle = hasRasterMap.value ? '#1a1a1a' : '#e2e8f0';
-  ctx.font = 'bold 11px monospace';
+  // ── 方向指示器（三角形）──
+  const headLen = 13;
+  const angle = v.theta;
+  const hx = px + Math.cos(angle) * headLen;
+  const hy = py - Math.sin(angle) * headLen;
+  ctx.beginPath();
+  ctx.moveTo(hx, hy);
+  ctx.lineTo(px + Math.cos(angle + 2.4) * 6, py - Math.sin(angle + 2.4) * 6);
+  ctx.lineTo(px + Math.cos(angle - 2.4) * 6, py - Math.sin(angle - 2.4) * 6);
+  ctx.closePath();
+  ctx.fillStyle = '#ffffff';
+  ctx.fill();
+
+  // ── 车辆名称标签 ──
+  const labelText = v.name;
+  ctx.font = 'bold 11px -apple-system, sans-serif';
+  const textW = ctx.measureText(labelText).width;
+  const lx = px - textW / 2 - 4;
+  const ly = py - radius - 18;
+
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath();
+  ctx.roundRect(lx, ly, textW + 8, 16, 3);
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.fillStyle = color;
   ctx.textAlign = 'center';
-  ctx.fillText(v.name, px, py - 14);
+  ctx.fillText(labelText, px, ly + 11);
   ctx.textAlign = 'left';
 }
 
@@ -382,13 +515,32 @@ function stopPolling() {
   }
 }
 
+let resizeObserver: ResizeObserver | null = null;
+
+function syncCanvasSize() {
+  const canvas = canvasRef.value;
+  const container = containerRef.value;
+  if (!canvas || !container) return;
+  const { width, height } = container.getBoundingClientRect();
+  if (canvas.width !== Math.floor(width) || canvas.height !== Math.floor(height)) {
+    canvas.width = Math.floor(width);
+    canvas.height = Math.floor(height);
+    renderCanvas(snapshot.value.vehicles);
+  }
+}
+
 onMounted(async () => {
   await fetchAvailableMaps();
   startPolling();
+  await nextTick();
+  syncCanvasSize();
+  resizeObserver = new ResizeObserver(syncCanvasSize);
+  if (containerRef.value) resizeObserver.observe(containerRef.value);
 });
 
 onUnmounted(() => {
   stopPolling();
+  resizeObserver?.disconnect();
 });
 </script>
 
@@ -475,7 +627,11 @@ onUnmounted(() => {
           width="900"
           height="700"
           class="sim-canvas"
-          :class="{ 'raster-mode': hasRasterMap }"
+          @wheel.prevent="onCanvasWheel"
+          @mousedown="onCanvasMouseDown"
+          @mousemove="onCanvasMouseMove"
+          @mouseup="onCanvasMouseUp"
+          @mouseleave="onCanvasMouseUp"
         />
         <!-- 图例 -->
         <div class="canvas-legend">
@@ -639,41 +795,44 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: #0d1117;
+  align-items: stretch;
+  justify-content: stretch;
+  background: #f8fafc;
   min-width: 0;
   position: relative;
   overflow: hidden;
+  border-right: 1px solid var(--el-border-color-lighter);
 }
 
 .sim-canvas {
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
   display: block;
+  cursor: grab;
 
-  &.raster-mode {
-    background: #f8f9fa;
+  &:active {
+    cursor: grabbing;
   }
 }
 
 .canvas-legend {
   position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
+  bottom: 12px;
+  left: 12px;
   display: flex;
-  gap: 14px;
-  background: rgba(0, 0, 0, 0.45);
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 6px;
-  padding: 4px 12px;
+  padding: 5px 12px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
 
   .legend-item {
     display: flex;
     align-items: center;
     gap: 5px;
     font-size: 11px;
-    color: #e2e8f0;
+    color: var(--el-text-color-regular);
 
     i {
       width: 10px;
