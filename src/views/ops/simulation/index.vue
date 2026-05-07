@@ -88,7 +88,7 @@ const RANDOM_SPACE = 70;
 
 // 画布缩放与平移（轻量 pan/zoom）
 const canvasScale = ref(1);
-const canvasPan = ref({ x: 0, y: 0 });
+const canvasPan = ref({ x: 40, y: 30 }); // 初始偏移让坐标原点不贴边
 let isPanning = false;
 let lastMouse = { x: 0, y: 0 };
 
@@ -274,15 +274,16 @@ function drawVehicle(
 
   // ── 路径规划线（移动中才绘制）──
   if (v.state === 'MOVING' && dist > 2) {
-    // 路径线：渐变（出发点亮 → 终点淡）
+    // 路径线：渐变（出发点实线 → 终点半透明）
     const grad = ctx.createLinearGradient(px, py, tpx, tpy);
-    grad.addColorStop(0, color + 'cc');
-    grad.addColorStop(1, color + '33');
+    grad.addColorStop(0, color + 'ff');
+    grad.addColorStop(0.6, color + 'bb');
+    grad.addColorStop(1, color + '55');
     ctx.beginPath();
     ctx.moveTo(px, py);
     ctx.lineTo(tpx, tpy);
     ctx.strokeStyle = grad;
-    ctx.lineWidth = 2.5;
+    ctx.lineWidth = 3;
     ctx.setLineDash([]);
     ctx.stroke();
 
@@ -686,7 +687,7 @@ onUnmounted(() => {
               <div class="vehicle-metrics">
                 <div class="metric">
                   <span class="metric-label">位置</span>
-                  <span class="metric-value">({{ v.x.toFixed(1) }}, {{ v.y.toFixed(1) }})</span>
+                  <span class="metric-value">({{ v.x.toFixed(1) }},{{ v.y.toFixed(1) }})</span>
                 </div>
                 <div class="metric">
                   <span class="metric-label">距目标</span>
@@ -694,7 +695,7 @@ onUnmounted(() => {
                 </div>
                 <div class="metric">
                   <span class="metric-label">速度</span>
-                  <span class="metric-value">{{ v.currentSpeed }}m/s</span>
+                  <span class="metric-value">{{ v.currentSpeed.toFixed(2) }}m/s</span>
                 </div>
                 <div class="metric">
                   <span class="metric-label">电量</span>
