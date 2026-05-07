@@ -15,10 +15,10 @@ import { VideoPlay, VideoPause, CircleClose, Plus, MapLocation, View, Hide } fro
 import {
   simulationApi,
   type SimSnapshot,
-  type OrderSimState,
-  type SimNavMap
+  type OrderSimState
 } from '@/api/ops/simulation';
-import { loadMapEditorData } from '@/api/deploy/map-editor';
+import type { MapVO } from '@/api/deploy/map-editor/types';
+import { loadMapEditorData, listMap } from '@/api/deploy/map-editor';
 import MapRenderer from '@/components/map/MapRenderer.vue';
 import {
   normalizeMapEditorPayload,
@@ -92,14 +92,17 @@ const vehicleStateType: Record<string, string> = {
 
 // ─── 地图选择 ─────────────────────────────────────────────────────────────────
 
-const availableMaps = ref<SimNavMap[]>([]);
+/** 使用通用地图列表 API，返回所有用户有权限的地图 */
+const availableMaps = ref<MapVO[]>([]);
 const selectedMapId = ref<number | null>(null);
 const mapSettingLoading = ref(false);
 
 async function fetchAvailableMaps() {
   try {
-    const res = await simulationApi.listMaps() as any;
-    if (res?.maps) availableMaps.value = res.maps;
+    const res = await listMap() as any;
+    // listMap 返回 {rows: MapVO[], total: number} 或直接 MapVO[]
+    const list: MapVO[] = Array.isArray(res) ? res : (res?.rows ?? res?.data ?? []);
+    availableMaps.value = list;
   } catch { /* 静默 */ }
 }
 
@@ -603,13 +606,13 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
           size="small"
           class="map-select"
           :loading="mapSettingLoading"
-          @change="handleMapChange"
+          @change="(v: number | null) => handleMapChange(v)"
         >
           <el-option
             v-for="m in availableMaps"
-            :key="m.id"
+            :key="String(m.id)"
             :label="m.name"
-            :value="m.id"
+            :value="Number(m.id)"
           />
         </el-select>
         <span class="map-mode-hint">
@@ -928,9 +931,9 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
         >
           <el-option
             v-for="m in availableMaps"
-            :key="m.id"
+            :key="String(m.id)"
             :label="m.name"
-            :value="m.id"
+            :value="Number(m.id)"
           />
         </el-select>
         <div class="form-hint">选择真实地图可在实际拓扑上仿真车辆运行</div>

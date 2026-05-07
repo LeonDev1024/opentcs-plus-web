@@ -129,24 +129,30 @@
       &:hover {
         background: rgba(255, 255, 255, 0.08) !important;
         transform: translateX(2px);
-        
+
         .svg-icon {
           transform: scale(1.1);
         }
       }
-      
+
       &.is-active {
         background: var(--menuActiveBg) !important;
         color: #fff !important;
         font-weight: var(--font-weight-semibold);
         box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-        
+
         &::before {
           transform: scaleY(1);
         }
-        
+
         .svg-icon {
           transform: scale(1.15);
+        }
+
+        // active 项 hover 时保持 active 背景，不被通用 hover 覆盖
+        &:hover {
+          background: var(--menuActiveBg) !important;
+          filter: brightness(1.1);
         }
       }
     }
