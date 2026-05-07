@@ -112,9 +112,16 @@ async function fetchAvailableMaps() {
 async function handleMapChange(mapId: number | null) {
   mapSettingLoading.value = true;
   try {
-    await simulationApi.setMap(mapId);
+    const res = await simulationApi.setMap(mapId);
     if (mapId) {
-      await loadMapTopology(mapId);
+      // 使用后端返回的导航地图字符串 ID 加载地图拓扑
+      const navMapStringId = (res as any)?.data?.navMapStringId || (res as any)?.navMapStringId;
+      if (navMapStringId) {
+        await loadMapTopology(navMapStringId);
+      } else {
+        console.warn('[sim] setMap 未返回 navMapStringId，尝试使用工厂模型 ID fallback');
+        await loadMapTopology(mapId);
+      }
       ElMessage.success('已切换到真实地图模式');
     } else {
       simMapLayer.value = null;
@@ -151,7 +158,7 @@ const mapLoading = ref(false);
 
 const metersToModel = computed(() => 1000 / mapMmPerUnit.value);
 
-async function loadMapTopology(mapId: number) {
+async function loadMapTopology(mapId: string | number) {
   mapLoading.value = true;
   simMapLayer.value = null;
   try {
@@ -448,10 +455,17 @@ async function confirmStart() {
   try {
     // 1. 切换地图（如有变化）
     if (startConfig.mapId !== selectedMapId.value) {
-      await simulationApi.setMap(startConfig.mapId);
+      const res = await simulationApi.setMap(startConfig.mapId);
       selectedMapId.value = startConfig.mapId;
       if (startConfig.mapId) {
-        await loadMapTopology(startConfig.mapId);
+        // 使用后端返回的导航地图字符串 ID 加载地图拓扑
+        const navMapStringId = (res as any)?.data?.navMapStringId || (res as any)?.navMapStringId;
+        if (navMapStringId) {
+          await loadMapTopology(navMapStringId);
+        } else {
+          console.warn('[sim] setMap 未返回 navMapStringId，尝试使用工厂模型 ID fallback');
+          await loadMapTopology(startConfig.mapId);
+        }
       } else {
         simMapLayer.value = null;
         mapMmPerUnit.value = RANDOM_MM_PER_UNIT;

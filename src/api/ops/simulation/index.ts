@@ -72,7 +72,7 @@ export const simulationApi = {
   listMaps: (factoryId?: number) =>
     request({ url: '/api/simulation/maps', method: 'get', params: { factoryId } }),
 
-  /** 设置仿真使用的地图 */
-  setMap: (mapId: number | null) =>
+  /** 设置仿真使用的地图（传工厂模型 ID），返回 navMapStringId 供前端加载地图拓扑 */
+  setMap: (mapId: number | null): Promise<{ data: { success: boolean; navMapStringId?: string; message?: string } }> =>
     request({ url: '/api/simulation/map/set', method: 'post', data: { mapId } })
 };
