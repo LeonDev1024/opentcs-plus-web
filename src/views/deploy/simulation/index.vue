@@ -406,6 +406,21 @@ const vehicleMarkers = computed(() => {
     const cssY = -(v.y * m2m);
     const tCssX = v.targetX * m2m;
     const tCssY = -(v.targetY * m2m);
+
+    // 路径航点转 CSS 坐标
+    const routePoints: Array<{ x: number; y: number }> =
+      (v.route && v.route.length > 0)
+        ? v.route.map(wp => ({ x: wp.x * m2m, y: -(wp.y * m2m) }))
+        : [];
+
+    // SVG polyline points 字符串（当前位置 + 所有剩余航点）
+    const routePolyline = routePoints.length > 0
+      ? `${cssX},${cssY} ` + routePoints.map(p => `${p.x},${p.y}`).join(' ')
+      : '';
+
+    // 终点坐标（有路径用最后航点，否则用 targetX/Y）
+    const finalWp = routePoints.length > 0 ? routePoints[routePoints.length - 1] : { x: tCssX, y: tCssY };
+
     return {
       vehicleId: v.vehicleId,
       name: v.name,
@@ -413,10 +428,12 @@ const vehicleMarkers = computed(() => {
       currentBattery: v.currentBattery,
       currentSpeed: v.currentSpeed,
       color: vehicleColorMap[v.state] ?? '#909399',
-      cssX, cssY, tCssX, tCssY,
+      cssX, cssY, tCssX: finalWp.x, tCssY: finalWp.y,
+      routePolyline,
+      hasRoute: routePoints.length > 1,
       svgAngle: 90 - (v.theta * 180 / Math.PI),
       isActive: v.vehicleId === activeVehicleId.value || v.name === activeVehicleId.value,
-      dist: Math.hypot(tCssX - cssX, tCssY - cssY)
+      dist: Math.hypot(finalWp.x - cssX, finalWp.y - cssY)
     };
   });
 });
@@ -724,8 +741,21 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
                 v-for="v in vehicleMarkers.filter(m => m.state === 'MOVING' && m.dist > 2)"
                 :key="`path-${v.vehicleId}`"
               >
-                <!-- 主路径线 -->
+                <!-- 有路径：折线穿过所有航点 -->
+                <polyline
+                  v-if="v.hasRoute"
+                  :points="v.routePolyline"
+                  :stroke="v.color"
+                  stroke-opacity="0.6"
+                  stroke-width="2"
+                  stroke-dasharray="8 4"
+                  fill="none"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <!-- 无路径（随机模式）：退化为直线 -->
                 <line
+                  v-else
                   :x1="v.cssX" :y1="v.cssY"
                   :x2="v.tCssX" :y2="v.tCssY"
                   :stroke="v.color"
@@ -733,19 +763,12 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
                   stroke-width="2"
                   stroke-dasharray="6 4"
                 />
-                <!-- 目标点菱形 -->
+                <!-- 终点菱形标记 -->
                 <polygon
                   :points="`${v.tCssX},${v.tCssY - 9} ${v.tCssX + 9},${v.tCssY} ${v.tCssX},${v.tCssY + 9} ${v.tCssX - 9},${v.tCssY}`"
                   :fill="`${v.color}33`"
                   :stroke="v.color"
                   stroke-width="1.5"
-                />
-                <!-- 中途方向箭头（距离足够长时） -->
-                <polygon
-                  v-if="v.dist > 30"
-                  :points="arrowPoints(v.cssX, v.cssY, v.tCssX, v.tCssY)"
-                  :fill="v.color"
-                  fill-opacity="0.7"
                 />
               </g>
             </template>

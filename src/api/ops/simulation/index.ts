@@ -18,6 +18,8 @@ export interface SimVehicle {
   distanceToTarget: number;
   currentSpeed: number;
   currentBattery: number;
+  /** 剩余路径航点（有地图时）— {x, y} 单位 m */
+  route?: Array<{ x: number; y: number }>;
 }
 
 export interface SimMapInfo {
