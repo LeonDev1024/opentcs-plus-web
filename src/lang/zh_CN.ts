@@ -12,6 +12,17 @@ export default {
     logging: '登 录 中...',
     code: '验证码',
     rememberPassword: '记住我',
+    title: 'OPENTCS 调度管理平台',
+    subtitle: '智能机器人调度解决方案',
+    welcome: '欢迎登录',
+    welcomeHint: '输入您的账号登录系统',
+    loading: '加载中...',
+    feature: {
+      path: '智能路径规划',
+      task: '动态任务分配',
+      multibot: '多机协同调度',
+      analytics: '运行数据分析'
+    },
     switchRegisterPage: '立即注册',
     rule: {
       username: {
