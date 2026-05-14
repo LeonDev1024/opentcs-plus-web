@@ -12,6 +12,17 @@ export default {
     logging: 'Logging...',
     code: 'Verification Code',
     rememberPassword: 'Remember me',
+    title: 'OPENTCS Dispatch Platform',
+    subtitle: 'Intelligent Robot Dispatch Solution',
+    welcome: 'Welcome',
+    welcomeHint: 'Enter your account to log in',
+    loading: 'Loading...',
+    feature: {
+      path: 'Smart Path Planning',
+      task: 'Dynamic Task Allocation',
+      multibot: 'Multi-Robot Coordination',
+      analytics: 'Operation Analytics'
+    },
     switchRegisterPage: 'Sign up now',
     rule: {
       username: {

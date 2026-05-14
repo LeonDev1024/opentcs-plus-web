@@ -9,10 +9,11 @@ import {
   MapEditorApiSavePayload
 } from '@/api/deploy/map-editor/types';
 
-// 查询地图模型列表
+// 查询地图模型列表（已废弃，请使用 /api/deploy/factory/model 下的 listFactoryModel）
+// @deprecated
 export function listMap(query?: MapQuery): AxiosPromise<MapVO[]> {
   return request({
-    url: '/map/model/list',
+    url: '/factory/model/list',
     method: 'get',
     params: query
   });

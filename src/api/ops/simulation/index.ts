@@ -18,6 +18,8 @@ export interface SimVehicle {
   distanceToTarget: number;
   currentSpeed: number;
   currentBattery: number;
+  /** 剩余路径航点（有地图时）— {x, y} 单位 m */
+  route?: Array<{ x: number; y: number }>;
 }
 
 export interface SimMapInfo {
@@ -72,7 +74,7 @@ export const simulationApi = {
   listMaps: (factoryId?: number) =>
     request({ url: '/api/simulation/maps', method: 'get', params: { factoryId } }),
 
-  /** 设置仿真使用的地图 */
-  setMap: (mapId: number | null) =>
+  /** 设置仿真使用的地图（传工厂模型 ID），返回 navMapStringId 供前端加载地图拓扑 */
+  setMap: (mapId: number | null): Promise<{ data: { success: boolean; navMapStringId?: string; message?: string } }> =>
     request({ url: '/api/simulation/map/set', method: 'post', data: { mapId } })
 };

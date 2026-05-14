@@ -11,14 +11,15 @@
  */
 import { ref, computed, onMounted, onBeforeUnmount, watch, reactive } from 'vue';
 import { ElMessage } from 'element-plus';
-import { VideoPlay, VideoPause, CircleClose, Plus, MapLocation, View, Hide } from '@element-plus/icons-vue';
+import { VideoPlay, VideoPause, CircleClose, Plus, View, Hide } from '@element-plus/icons-vue';
 import {
   simulationApi,
   type SimSnapshot,
   type OrderSimState
 } from '@/api/ops/simulation';
-import type { MapVO } from '@/api/deploy/map-editor/types';
-import { loadMapEditorData, listMap } from '@/api/deploy/map-editor';
+import { loadMapEditorData } from '@/api/deploy/map-editor';
+import { listFactoryModel } from '@/api/deploy/factory/model';
+import type { FactoryModelVO } from '@/api/deploy/factory/model/types';
 import MapRenderer from '@/components/map/MapRenderer.vue';
 import {
   normalizeMapEditorPayload,
@@ -92,16 +93,18 @@ const vehicleStateType: Record<string, string> = {
 
 // ─── 地图选择 ─────────────────────────────────────────────────────────────────
 
-/** 使用通用地图列表 API，返回所有用户有权限的地图 */
-const availableMaps = ref<MapVO[]>([]);
+/** 使用工厂模型列表 API（/factory/model/list） */
+const availableMaps = ref<FactoryModelVO[]>([]);
 const selectedMapId = ref<number | null>(null);
 const mapSettingLoading = ref(false);
 
 async function fetchAvailableMaps() {
   try {
-    const res = await listMap() as any;
-    // listMap 返回 {rows: MapVO[], total: number} 或直接 MapVO[]
-    const list: MapVO[] = Array.isArray(res) ? res : (res?.rows ?? res?.data ?? []);
+    const res = await listFactoryModel({ pageNum: 1, pageSize: 100 }) as any;
+    // 接口返回 {rows: FactoryModelVO[], total: number} 或直接数组
+    const list: FactoryModelVO[] = Array.isArray(res)
+      ? res
+      : (res?.rows ?? res?.data?.rows ?? res?.data ?? []);
     availableMaps.value = list;
   } catch { /* 静默 */ }
 }
@@ -109,9 +112,16 @@ async function fetchAvailableMaps() {
 async function handleMapChange(mapId: number | null) {
   mapSettingLoading.value = true;
   try {
-    await simulationApi.setMap(mapId);
+    const res = await simulationApi.setMap(mapId);
     if (mapId) {
-      await loadMapTopology(mapId);
+      // 使用后端返回的导航地图字符串 ID 加载地图拓扑
+      const navMapStringId = (res as any)?.data?.navMapStringId || (res as any)?.navMapStringId;
+      if (navMapStringId) {
+        await loadMapTopology(navMapStringId);
+      } else {
+        console.warn('[sim] setMap 未返回 navMapStringId，尝试使用工厂模型 ID fallback');
+        await loadMapTopology(mapId);
+      }
       ElMessage.success('已切换到真实地图模式');
     } else {
       simMapLayer.value = null;
@@ -148,7 +158,7 @@ const mapLoading = ref(false);
 
 const metersToModel = computed(() => 1000 / mapMmPerUnit.value);
 
-async function loadMapTopology(mapId: number) {
+async function loadMapTopology(mapId: string | number) {
   mapLoading.value = true;
   simMapLayer.value = null;
   try {
@@ -396,6 +406,21 @@ const vehicleMarkers = computed(() => {
     const cssY = -(v.y * m2m);
     const tCssX = v.targetX * m2m;
     const tCssY = -(v.targetY * m2m);
+
+    // 路径航点转 CSS 坐标
+    const routePoints: Array<{ x: number; y: number }> =
+      (v.route && v.route.length > 0)
+        ? v.route.map(wp => ({ x: wp.x * m2m, y: -(wp.y * m2m) }))
+        : [];
+
+    // SVG polyline points 字符串（当前位置 + 所有剩余航点）
+    const routePolyline = routePoints.length > 0
+      ? `${cssX},${cssY} ` + routePoints.map(p => `${p.x},${p.y}`).join(' ')
+      : '';
+
+    // 终点坐标（有路径用最后航点，否则用 targetX/Y）
+    const finalWp = routePoints.length > 0 ? routePoints[routePoints.length - 1] : { x: tCssX, y: tCssY };
+
     return {
       vehicleId: v.vehicleId,
       name: v.name,
@@ -403,10 +428,12 @@ const vehicleMarkers = computed(() => {
       currentBattery: v.currentBattery,
       currentSpeed: v.currentSpeed,
       color: vehicleColorMap[v.state] ?? '#909399',
-      cssX, cssY, tCssX, tCssY,
+      cssX, cssY, tCssX: finalWp.x, tCssY: finalWp.y,
+      routePolyline,
+      hasRoute: routePoints.length > 1,
       svgAngle: 90 - (v.theta * 180 / Math.PI),
       isActive: v.vehicleId === activeVehicleId.value || v.name === activeVehicleId.value,
-      dist: Math.hypot(tCssX - cssX, tCssY - cssY)
+      dist: Math.hypot(finalWp.x - cssX, finalWp.y - cssY)
     };
   });
 });
@@ -445,10 +472,17 @@ async function confirmStart() {
   try {
     // 1. 切换地图（如有变化）
     if (startConfig.mapId !== selectedMapId.value) {
-      await simulationApi.setMap(startConfig.mapId);
+      const res = await simulationApi.setMap(startConfig.mapId);
       selectedMapId.value = startConfig.mapId;
       if (startConfig.mapId) {
-        await loadMapTopology(startConfig.mapId);
+        // 使用后端返回的导航地图字符串 ID 加载地图拓扑
+        const navMapStringId = (res as any)?.data?.navMapStringId || (res as any)?.navMapStringId;
+        if (navMapStringId) {
+          await loadMapTopology(navMapStringId);
+        } else {
+          console.warn('[sim] setMap 未返回 navMapStringId，尝试使用工厂模型 ID fallback');
+          await loadMapTopology(startConfig.mapId);
+        }
       } else {
         simMapLayer.value = null;
         mapMmPerUnit.value = RANDOM_MM_PER_UNIT;
@@ -479,8 +513,20 @@ async function handleStop() {
   loading.value = true;
   try {
     await simulationApi.stop();
-    ElMessage.success('仿真已停止');
-    await fetchSnapshot();
+    // 停止后清空车辆列表和订单统计
+    snapshot.value = {
+      ...snapshot.value,
+      engineStatus: 'STOPPED',
+      tick: 0,
+      vehicles: [],
+      orderStats: {},
+      orderTotal: 0
+    };
+    // 重置地图选择状态
+    selectedMapId.value = null;
+    simMapLayer.value = null;
+    mapMmPerUnit.value = RANDOM_MM_PER_UNIT;
+    ElMessage.success('仿真已停止，车辆已清空');
   } catch {
     ElMessage.error('停止失败');
   } finally {
@@ -597,26 +643,8 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
         <span class="tick-label">Tick {{ snapshot.tick }}</span>
 
         <el-divider direction="vertical" />
-
-        <el-icon class="map-icon"><MapLocation /></el-icon>
-        <el-select
-          v-model="selectedMapId"
-          placeholder="随机坐标模式"
-          clearable
-          size="small"
-          class="map-select"
-          :loading="mapSettingLoading"
-          @change="(v: number | null) => handleMapChange(v)"
-        >
-          <el-option
-            v-for="m in availableMaps"
-            :key="String(m.id)"
-            :label="m.name"
-            :value="Number(m.id)"
-          />
-        </el-select>
         <span class="map-mode-hint">
-          {{ simMapLayer ? `真实地图` : '随机坐标模式' }}
+          {{ simMapLayer ? `真实地图：${availableMaps.find(m => m.id === selectedMapId)?.name ?? ''}` : '随机坐标模式' }}
         </span>
       </div>
 
@@ -713,8 +741,21 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
                 v-for="v in vehicleMarkers.filter(m => m.state === 'MOVING' && m.dist > 2)"
                 :key="`path-${v.vehicleId}`"
               >
-                <!-- 主路径线 -->
+                <!-- 有路径：折线穿过所有航点 -->
+                <polyline
+                  v-if="v.hasRoute"
+                  :points="v.routePolyline"
+                  :stroke="v.color"
+                  stroke-opacity="0.6"
+                  stroke-width="2"
+                  stroke-dasharray="8 4"
+                  fill="none"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <!-- 无路径（随机模式）：退化为直线 -->
                 <line
+                  v-else
                   :x1="v.cssX" :y1="v.cssY"
                   :x2="v.tCssX" :y2="v.tCssY"
                   :stroke="v.color"
@@ -722,19 +763,12 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
                   stroke-width="2"
                   stroke-dasharray="6 4"
                 />
-                <!-- 目标点菱形 -->
+                <!-- 终点菱形标记 -->
                 <polygon
                   :points="`${v.tCssX},${v.tCssY - 9} ${v.tCssX + 9},${v.tCssY} ${v.tCssX},${v.tCssY + 9} ${v.tCssX - 9},${v.tCssY}`"
                   :fill="`${v.color}33`"
                   :stroke="v.color"
                   stroke-width="1.5"
-                />
-                <!-- 中途方向箭头（距离足够长时） -->
-                <polygon
-                  v-if="v.dist > 30"
-                  :points="arrowPoints(v.cssX, v.cssY, v.tCssX, v.tCssY)"
-                  :fill="v.color"
-                  fill-opacity="0.7"
                 />
               </g>
             </template>
@@ -775,12 +809,12 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
                 <circle cx="0" :cy="-VEHICLE_HALF + 5" r="3" fill="rgba(255,255,255,0.92)"/>
               </g>
 
-              <!-- 车辆名称（不随车体旋转，正上方 30px，与监控对齐） -->
+              <!-- 车辆名称（不随车体旋转，正上方 24px，与监控对齐） -->
               <text
-                x="0" y="-30"
+                x="0" y="-24"
                 text-anchor="middle"
                 dominant-baseline="auto"
-                font-size="11"
+                font-size="8"
                 font-family="Arial, sans-serif"
                 fill="#303133"
                 style="pointer-events:none;user-select:none;"
@@ -1021,13 +1055,6 @@ function arrowPoints(x1: number, y1: number, x2: number, y2: number): string {
   color: var(--el-text-color-secondary);
   font-family: monospace;
 }
-
-.map-icon {
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
-}
-
-.map-select { width: 160px; }
 
 .map-mode-hint {
   font-size: 12px;
