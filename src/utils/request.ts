@@ -56,7 +56,7 @@ service.interceptors.request.use(
       config.url = url;
     }
 
-    if (!isRepeatSubmit && (config.method === 'post' || config.method === 'put')) {
+    if (!isRepeatSubmit && (config.method === 'post' || config.method === 'put') && !(config.data instanceof FormData)) {
       const requestObj = {
         url: config.url,
         data: typeof config.data === 'object' ? JSON.stringify(config.data) : config.data,
@@ -69,7 +69,7 @@ service.interceptors.request.use(
         const s_url = sessionObj.url; // 请求地址
         const s_data = sessionObj.data; // 请求数据
         const s_time = sessionObj.time; // 请求时间
-        const interval = 0; // 间隔时间(ms)，小于此时间视为重复提交
+        const interval = 500; // 间隔时间(ms)，小于此时间视为重复提交
         if (s_data === requestObj.data && requestObj.time - s_time < interval && s_url === requestObj.url) {
           const message = '数据正在处理，请勿重复提交';
           console.warn(`[${s_url}]: ` + message);
