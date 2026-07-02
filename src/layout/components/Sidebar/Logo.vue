@@ -1,18 +1,13 @@
 <template>
-  <div
-    class="sidebar-logo-container"
-    :class="{ collapse: collapse }"
-    :style="{ backgroundColor: 'transparent' }"
-  >
+  <div class="sidebar-logo-container" :class="{ collapse: collapse }">
     <transition :enter-active-class="proxy?.animate.logoAnimate.enter" mode="out-in">
-      <router-link key="expand" class="sidebar-logo-link" to="/">
-        <div class="logo-content">
-          <img v-if="logo" :src="logo" class="sidebar-logo" />
-          <div class="sidebar-title-wrap">
-            <span class="sidebar-title-main">{{ titleMain }}</span>
-            <span class="sidebar-title-sub">{{ titleSub }}</span>
-          </div>
-        </div>
+      <router-link key="logo" class="sidebar-logo-link" to="/">
+        <span class="logo-content">
+          <span class="logo-mark" :class="{ 'logo-mark--mini': collapse }">
+            <img v-if="logo" :src="logo" class="sidebar-logo" alt="logo" />
+          </span>
+          <span v-if="!collapse" class="sidebar-title" :title="titleMain">{{ titleMain }}</span>
+        </span>
       </router-link>
     </transition>
   </div>
@@ -20,7 +15,6 @@
 
 <script setup lang="ts">
 import logo from '@/assets/logo/logo-robot.svg';
-import { useSettingsStore } from '@/store/modules/settings';
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 
 defineProps({
@@ -30,111 +24,91 @@ defineProps({
   }
 });
 
-const titleMain = import.meta.env.VITE_APP_LOGO_TITLE_MAIN ?? 'OPENTCSPLUS';
-const titleSub = import.meta.env.VITE_APP_LOGO_TITLE_SUB ?? '调度管理平台';
+const titleMain = 'OPENTCS调度平台';
 </script>
 
 <style lang="scss" scoped>
-.sidebarLogoFade-enter-active {
-  transition: opacity 1.5s;
-}
-
-.sidebarLogoFade-enter,
-.sidebarLogoFade-leave-to {
-  opacity: 0;
-}
-
-/* 顶部导航栏Logo容器样式 */
+/* Logo 位于侧边栏顶部，与顶部导航等高，形成对齐 */
 .sidebar-logo-container {
-  position: relative !important;
-  width: auto !important;
-  height: var(--navbar-height) !important;
-  background: transparent !important;
-  border: none !important;
-  overflow: visible !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  box-sizing: border-box !important;
+  height: var(--navbar-height);
+  flex-shrink: 0;
+  width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--menuBg);
+  border-bottom: none;
 
-  /* Logo链接样式 */
   .sidebar-logo-link {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    padding: 0 8px !important;
-    text-decoration: none !important;
-    transition: var(--transition-all) !important;
-    height: 100% !important;
-    width: auto !important;
-    box-sizing: border-box !important;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    height: 100%;
+    padding: 0 10px;
+    text-decoration: none;
+    box-sizing: border-box;
+    overflow: hidden;
 
-    &:hover {
-      transform: scale(1.02) !important;
-    }
-
-    /* Logo内容容器 */
     .logo-content {
-      display: flex !important;
-      align-items: center !important;
-      gap: 12px !important;
-      white-space: nowrap !important;
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 7px;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      white-space: nowrap;
+      flex-wrap: nowrap;
     }
 
-    /* Logo图片（机器人图标） */
+    .logo-mark {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      background: rgba(56, 189, 248, 0.14);
+      border: 1px solid rgba(125, 211, 252, 0.24);
+      box-sizing: border-box;
+    }
+
+    .logo-mark--mini {
+      width: 34px;
+      height: 34px;
+    }
+
     .sidebar-logo {
-      width: 40px !important;
-      height: 40px !important;
-      flex-shrink: 0 !important;
+      width: 23px;
+      height: 23px;
+      object-fit: contain;
     }
 
-    /* Logo标题 - 双行样式 */
-    .sidebar-title-wrap {
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: flex-start !important;
-      justify-content: center !important;
-      line-height: 1.3 !important;
-      gap: 2px !important;
-      min-width: 0 !important;
-      flex: 1 1 auto !important;
-      overflow: visible !important;
-    }
-    .sidebar-title-main {
-      font-size: 17px !important;
-      font-weight: 800 !important;
-      letter-spacing: 0.5px !important;
-      white-space: nowrap !important;
-      color: #ffffff !important;
-      font-family:
-        Avenir,
-        Helvetica Neue,
-        Arial,
-        Helvetica,
-        sans-serif !important;
-    }
-    .sidebar-title-sub {
-      font-size: 12px !important;
-      font-weight: 500 !important;
-      letter-spacing: 0.5px !important;
-      white-space: nowrap !important;
-      color: #ffffff !important;
-      opacity: 0.9 !important;
-      font-family:
-        Avenir,
-        Helvetica Neue,
-        Arial,
-        Helvetica,
-        sans-serif !important;
+    .sidebar-title {
+      display: block;
+      min-width: 0;
+      flex: 1;
+      overflow: hidden;
+      font-size: 16px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: 0;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      color: #ffffff;
     }
   }
 
-  /* 折叠状态 */
+  /* 折叠状态：仅显示图标并居中 */
   &.collapse {
-    .sidebar-logo {
-      margin-right: 0px !important;
+    .sidebar-logo-link {
+      justify-content: center;
+      padding: 0;
+    }
+
+    .logo-content {
+      justify-content: center;
     }
   }
 }

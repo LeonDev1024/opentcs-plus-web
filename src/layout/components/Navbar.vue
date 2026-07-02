@@ -1,13 +1,10 @@
 <template>
-  <div class="navbar" :class="{ 'navbar--dark-top': settingsStore.topNav }">
+  <div class="navbar">
     <div class="navbar-left">
-      <!-- Logo -->
-      <logo :collapse="false" />
       <!-- 折叠按钮（侧边栏隐藏时不显示） -->
       <hamburger v-if="!appStore.sidebar.hide" id="hamburger-container" :is-active="appStore.sidebar.opened" class="hamburger-container" @toggle-click="toggleSideBar" />
       <!-- 路由标题 -->
-      <breadcrumb v-if="!settingsStore.topNav" id="breadcrumb-container" class="breadcrumb-container" />
-      <category-top-nav v-if="settingsStore.topNav" id="topmenu-container" class="topmenu-container" />
+      <breadcrumb id="breadcrumb-container" class="breadcrumb-container" />
     </div>
 
     <div class="right-menu">
@@ -74,9 +71,7 @@
 
 <script setup lang="ts">
 import SearchMenu from './TopBar/search.vue';
-import CategoryTopNav from '@/components/CategoryTopNav/index.vue';
 import UserAvatarInitial from '@/components/UserAvatarInitial/index.vue';
-import Logo from './Sidebar/Logo.vue';
 import GuideDialog from '@/components/GuideDialog/index.vue';
 import { QuestionFilled } from '@element-plus/icons-vue';
 import { useAppStore } from '@/store/modules/app';
@@ -174,9 +169,8 @@ watch(
   overflow: hidden;
   position: relative;
   background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-light);
-  box-shadow: var(--shadow-sm);
-  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-default);
+  box-shadow: none;
   transition: var(--transition-all);
   display: flex;
   align-items: center;
@@ -201,7 +195,6 @@ watch(
 
     &:hover {
       background: var(--bg-secondary);
-      transform: scale(1.05);
     }
 
     &:active {
@@ -248,7 +241,7 @@ watch(
       justify-content: center;
       padding: 0 var(--spacing-3);
       height: 40px;
-      font-size: 20px;
+      font-size: 18px;
       color: var(--text-secondary);
       cursor: pointer;
       transition: var(--transition-all);
@@ -259,11 +252,10 @@ watch(
         &:hover {
           background: var(--bg-secondary);
           color: var(--primary-500);
-          transform: translateY(-1px);
         }
         
         &:active {
-          transform: translateY(0);
+          color: var(--primary-600);
         }
       }
       
@@ -271,9 +263,6 @@ watch(
         transition: var(--transition-transform);
       }
       
-      &:hover .svg-icon {
-        transform: scale(1.1);
-      }
     }
 
     .avatar-item {
@@ -285,7 +274,7 @@ watch(
         align-items: center;
         gap: var(--spacing-2);
         padding: var(--spacing-1);
-        border-radius: var(--radius-lg);
+        border-radius: var(--radius-md);
         transition: var(--transition-all);
         cursor: pointer;
 
@@ -310,11 +299,7 @@ watch(
         .el-icon {
           font-size: 14px;
           color: var(--text-tertiary);
-          transition: var(--transition-transform);
-        }
-        
-        &:hover .el-icon {
-          transform: rotate(180deg);
+          transition: color var(--duration-150) var(--ease-in-out);
         }
       }
     }
@@ -338,7 +323,6 @@ watch(
     &:hover {
       background: var(--bg-secondary);
       color: var(--primary-500);
-      transform: translateX(4px);
     }
   }
   
@@ -385,43 +369,4 @@ watch(
   }
 }
 
-/* 顶部导航：深色；侧边栏由 Sidebar 组件单独控制为浅色 */
-.navbar--dark-top {
-  background: var(--menuBg);
-  border-bottom-color: rgba(203, 213, 225, 0.16);
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.45);
-
-  :deep(.sidebar-title-main) {
-    color: #ffffff !important;
-  }
-  :deep(.sidebar-title-sub) {
-    color: #ffffff !important;
-  }
-
-  :deep(.el-breadcrumb__inner),
-  :deep(.el-breadcrumb__separator) {
-    color: rgba(226, 232, 240, 0.75) !important;
-  }
-
-  .hamburger-container:hover {
-    background: var(--menuHover);
-  }
-
-  .hamburger-container {
-    :deep(.hamburger) {
-      fill: rgba(241, 245, 249, 0.9);
-    }
-  }
-
-  .right-menu {
-    .right-menu-item {
-      color: rgba(226, 232, 240, 0.78);
-
-      &.hover-effect:hover {
-        background: var(--menuHover);
-        color: #ffffff;
-      }
-    }
-  }
-}
 </style>

@@ -2,18 +2,13 @@
   <div :class="classObj" class="app-wrapper" :style="{ '--current-color': theme }">
     <div v-if="device === 'mobile' && sidebar.opened" class="drawer-bg" @click="handleClickOutside" />
 
-    <!-- 侧边栏 -->
+    <!-- 侧边栏（全高，Logo 在顶部） -->
     <side-bar v-if="!sidebar.hide" class="sidebar-container" />
 
-    <!-- 右侧内容区 -->
+    <!-- 右侧内容区：顶部导航 + 标签 + 主内容 -->
     <div :class="{ hasTagsView: needTagsView, sidebarHide: sidebar.hide }" class="main-container">
-      <!-- 顶部导航（固定，全宽） -->
-      <div class="fixed-header">
-        <navbar ref="navbarRef" @set-layout="setLayout" />
-      </div>
-
-      <!-- 标签栏 + 主内容（与内容区同宽，自适应侧边栏） -->
-      <tags-view v-if="needTagsView" class="tags-view-adaptive" />
+      <navbar ref="navbarRef" class="layout-header" @set-layout="setLayout" />
+      <tags-view v-if="needTagsView" class="layout-tags" />
       <app-main />
       <settings ref="settingRef" />
     </div>
@@ -35,7 +30,6 @@ const device = computed(() => useAppStore().device);
 const route = useRoute();
 const isHomePage = computed(() => route.path === '/dashboard' || route.path === '/');
 const needTagsView = computed(() => settingsStore.tagsView && !isHomePage.value);
-const fixedHeader = computed(() => settingsStore.fixedHeader);
 
 const classObj = computed(() => ({
   hideSidebar: !sidebar.value.opened && !sidebar.value.hide,
@@ -83,13 +77,15 @@ const setLayout = () => {
 <style lang="scss" scoped>
 @use '@/assets/styles/mixin.scss';
 
+// 布局根容器：横向排列（侧边栏 + 内容区）
 .app-wrapper {
   @include mixin.clearfix;
   position: relative;
+  display: flex;
+  flex-direction: row;
   width: 100%;
   height: 100vh;
-  display: flex;
-  flex-direction: column;
+  overflow: hidden;
 
   &.mobile.openSidebar {
     position: fixed;
@@ -110,32 +106,26 @@ const setLayout = () => {
   opacity: 0.3;
 }
 
-// 主内容区（顶部导航下方：侧边栏 + 内容）
+// 右侧内容区：纵向排列（顶部导航 + 标签 + 主内容）
 .main-container {
   flex: 1;
   display: flex;
   flex-direction: column;
   position: relative;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
-  padding-top: var(--navbar-height);
   background: var(--bg-secondary);
 }
 
-// 标签栏：与内容同宽，紧贴内容上方
-.tags-view-adaptive {
+// 顶部导航：内容区顶部，仅占内容区宽度
+.layout-header {
   flex-shrink: 0;
-  margin-top: 2px;
+  z-index: 2;
 }
 
-// 固定头部区域（全宽，贯穿视口）
-.fixed-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
+// 标签栏：紧贴导航下方
+.layout-tags {
+  flex-shrink: 0;
 }
 </style>

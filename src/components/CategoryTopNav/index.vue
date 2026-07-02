@@ -88,25 +88,26 @@ function handleSelect(key: string) {
 
 .category-top-nav.el-menu--horizontal > .el-menu-item {
   float: left;
-  height: 50px !important;
-  line-height: 50px !important;
-  color: rgba(226, 232, 240, 0.78) !important;
-  padding: 0 5px !important;
+  height: var(--navbar-height) !important;
+  line-height: var(--navbar-height) !important;
+  color: var(--text-secondary) !important;
+  padding: 0 6px !important;
   margin: 0 10px !important;
+  border-bottom: 2px solid transparent !important;
 }
 
 .category-top-nav.el-menu--horizontal > .el-menu-item.is-active,
 .category-top-nav.el-menu--horizontal > .el-sub-menu.is-active .el-sub-menu__title {
-  border-bottom: 2px solid #{'var(--theme)'} !important;
-  color: rgba(241, 245, 249, 0.95) !important;
+  border-bottom-color: #{'var(--theme)'} !important;
+  color: var(--text-primary) !important;
   font-weight: 600;
 }
 
 .category-top-nav.el-menu--horizontal > .el-sub-menu .el-sub-menu__title {
   float: left;
-  height: 50px !important;
-  line-height: 50px !important;
-  color: #999093 !important;
+  height: var(--navbar-height) !important;
+  line-height: var(--navbar-height) !important;
+  color: var(--text-secondary) !important;
   padding: 0 5px !important;
   margin: 0 10px !important;
 }
@@ -114,7 +115,7 @@ function handleSelect(key: string) {
 .category-top-nav.el-menu--horizontal > .el-menu-item:not(.is-disabled):focus,
 .category-top-nav.el-menu--horizontal > .el-menu-item:not(.is-disabled):hover,
 .category-top-nav.el-menu--horizontal > .el-submenu .el-submenu__title:hover {
-  background-color: rgba(148, 163, 184, 0.12) !important;
-  color: rgba(248, 250, 252, 0.95) !important;
+  background-color: var(--bg-secondary) !important;
+  color: var(--primary-600) !important;
 }
 </style>

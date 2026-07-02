@@ -1,10 +1,8 @@
 @use './variables.module.scss' as *;
 
 #app {
-  // 主内容区（全局样式）
+  // 主内容区（flex 子项，自适应剩余宽度）
   .main-container {
-    height: 100%;
-    transition: margin-left var(--duration-300) var(--ease-in-out);
     position: relative;
     background: var(--bg-secondary);
   }
@@ -14,39 +12,24 @@
     .sidebar-container {
       width: var(--sidebar-width) !important;
     }
-    .main-container {
-      margin-left: var(--sidebar-width) !important;
-    }
   }
 
-  // 侧边栏收起时（完全隐藏，内容与标签栏铺满全宽）
+  // 侧边栏收起时（折叠为窄栏，仅显示图标）
   .app-wrapper.hideSidebar {
     .sidebar-container {
       width: var(--sidebar-collapsed-width) !important;
-      overflow: hidden;
-      pointer-events: none;
-    }
-    .main-container {
-      margin-left: var(--sidebar-collapsed-width) !important;
     }
   }
 
-  // 侧边栏隐藏时
-  .sidebarHide {
-    margin-left: 0 !important;
-  }
-
-  // 侧边栏：固定在导航下方
+  // 侧边栏：全高，位于内容区左侧（Logo 在顶部）
   .sidebar-container {
-    transition: width var(--duration-300) var(--ease-in-out);
+    flex-shrink: 0;
+    transition: width var(--duration-200) var(--ease-in-out);
     width: var(--sidebar-width) !important;
-    // 使用 JS 传入的 bgColor，保证在浅色主题下侧边栏与顶部导航一致
     background: var(--menuBg);
-    position: fixed;
+    position: relative;
     font-size: 0;
-    top: calc(var(--navbar-height) + 2px);
-    bottom: 0;
-    left: 0;
+    height: 100vh;
     z-index: 1001;
     overflow: hidden;
 
@@ -81,8 +64,8 @@
 
     .svg-icon {
       margin-right: var(--spacing-3);
-      font-size: 18px;
-      transition: var(--transition-transform);
+      font-size: 17px;
+      transition: color var(--duration-150) var(--ease-in-out);
     }
 
     .el-menu {
@@ -106,11 +89,11 @@
     // 菜单项通用样式
     .el-menu-item,
     .el-sub-menu__title {
-      height: 48px !important;
-      line-height: 48px !important;
-      margin: 2px var(--spacing-2);
+      height: 42px !important;
+      line-height: 42px !important;
+      margin: 1px var(--spacing-2);
       border-radius: var(--radius-lg);
-      transition: var(--transition-all);
+      transition: background-color var(--duration-150) var(--ease-in-out), color var(--duration-150) var(--ease-in-out);
       position: relative;
       overflow: hidden;
       
@@ -118,41 +101,32 @@
         content: '';
         position: absolute;
         left: 0;
-        top: 0;
+        top: 50%;
         width: 3px;
-        height: 100%;
+        height: 20px;
         background: var(--primary-500);
-        transform: scaleY(0);
-        transition: transform var(--duration-200) var(--ease-in-out);
+        border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        transform: translateY(-50%) scaleY(0);
+        transition: transform var(--duration-150) var(--ease-in-out);
       }
       
       &:hover {
-        background: rgba(255, 255, 255, 0.08) !important;
-        transform: translateX(2px);
-
-        .svg-icon {
-          transform: scale(1.1);
-        }
+        background: var(--menuHover) !important;
+        color: rgba(255, 255, 255, 0.9) !important;
       }
 
       &.is-active {
         background: var(--menuActiveBg) !important;
         color: #fff !important;
-        font-weight: var(--font-weight-semibold);
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        font-weight: var(--font-weight-medium);
+        box-shadow: none;
 
         &::before {
-          transform: scaleY(1);
+          transform: translateY(-50%) scaleY(1);
         }
 
-        .svg-icon {
-          transform: scale(1.15);
-        }
-
-        // active 项 hover 时保持 active 背景，不被通用 hover 覆盖
         &:hover {
           background: var(--menuActiveBg) !important;
-          filter: brightness(1.1);
         }
       }
     }
@@ -168,17 +142,17 @@
       .el-menu {
         .el-menu-item {
           padding-left: calc(var(--el-menu-base-level-padding) + 20px) !important;
-          height: 44px !important;
-          line-height: 44px !important;
+          height: 38px !important;
+          line-height: 38px !important;
           margin: 1px var(--spacing-2);
           
           &:hover {
-            background: rgba(255, 255, 255, 0.05) !important;
+            background: var(--subMenuHover) !important;
           }
           
           &.is-active {
-            background: linear-gradient(90deg, rgba(59, 130, 246, 0.2) 0%, rgba(37, 99, 235, 0.1) 100%) !important;
-            color: var(--primary-300) !important;
+            background: var(--menuActiveBg) !important;
+            color: #ffffff !important;
           }
         }
       }
@@ -198,18 +172,57 @@
   // 侧边栏收起时的菜单样式
   .app-wrapper.hideSidebar {
     .el-menu {
+      width: var(--sidebar-collapsed-width) !important;
+      padding: var(--spacing-2) 0;
+
       .el-menu-item,
       .el-sub-menu__title {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 48px !important;
+        height: 48px !important;
+        line-height: 48px !important;
+        margin: 4px auto !important;
         padding: 0 !important;
+        border-radius: 14px;
         text-align: center;
 
+        &::before {
+          display: none;
+        }
+
         .svg-icon {
+          width: 22px;
+          height: 22px;
+          font-size: 22px;
           margin-right: 0 !important;
+          color: rgba(255, 255, 255, 0.72);
+        }
+
+        &:hover {
+          background: rgba(255, 255, 255, 0.08) !important;
+
+          .svg-icon {
+            color: #ffffff;
+          }
+        }
+      }
+
+      .el-menu-item.is-active,
+      .el-sub-menu.is-active > .el-sub-menu__title {
+        background: var(--menuActiveBg) !important;
+        color: #ffffff !important;
+
+        .svg-icon {
+          color: #ffffff;
         }
       }
     }
 
     .el-menu--collapse {
+      width: var(--sidebar-collapsed-width) !important;
+
       .el-sub-menu {
         & > .el-sub-menu__title {
           & > span {
@@ -230,13 +243,12 @@
       }
 
       .is-active .svg-icon {
-        fill: #fff;
+        color: #fff;
       }
 
       .svg-icon {
-        display: flex;
-        margin: auto;
-        height: 100%;
+        display: block;
+        margin: auto !important;
       }
     }
   }
@@ -245,13 +257,13 @@
     min-width: var(--sidebar-width) !important;
   }
 
-  // 移动端响应式
+  // 移动端响应式：侧边栏改为固定覆盖抽屉
   .app-wrapper.mobile {
-    .main-container {
-      margin-left: 0px;
-    }
-
     .sidebar-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 100vh;
       transition: transform var(--duration-300) var(--ease-in-out);
       width: var(--sidebar-width) !important;
     }
@@ -263,7 +275,6 @@
         transform: translate3d(calc(-1 * var(--sidebar-width)), 0, 0);
       }
     }
-
   }
 
   .withoutAnimation {
@@ -313,47 +324,4 @@
   }
 }
 
-// Logo 区域优化（Logo 在 Navbar 中显示，需支持标题可见）
-.sidebar-logo-container {
-  position: relative;
-  height: var(--navbar-height);
-  overflow: visible;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-
-  .sidebar-logo-link {
-    width: auto;
-    min-width: fit-content;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 8px;
-    padding: 0 12px;
-    text-decoration: none;
-    box-sizing: border-box;
-    
-    .sidebar-logo {
-      width: 40px;
-      height: 40px;
-      flex-shrink: 0;
-    }
-    
-    .sidebar-title-wrap {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      line-height: 1.3;
-      gap: 2px;
-    }
-    
-    .sidebar-title-main,
-    .sidebar-title-sub {
-      white-space: nowrap;
-    }
-  }
-}
+// Logo 区域样式由 Logo.vue 组件自身控制（位于侧边栏顶部）

@@ -86,6 +86,7 @@ export const constantRoutes: RouteRecordRaw[] = [
   {
     path: '/simulation',
     component: Layout,
+    hidden: true,
     children: [
       {
         path: '',

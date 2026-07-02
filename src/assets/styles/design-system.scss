@@ -104,17 +104,17 @@
   --border-dark: #cbd5e1;
   --border-focus: #2563eb;
 
-  // 菜单颜色（与主色同色系，增强品牌统一感）
-  --menuBg: #1e3a5f;
-  --menuColor: #cbd5e1;
+  // 菜单颜色（参考 FleetX 的深色侧栏，降低长时间操作的视觉噪声）
+  --menuBg: #1e293b;
+  --menuColor: rgba(255, 255, 255, 0.68);
   --menuActiveText: #ffffff;
-  --menuHover: #334155;
-  --menuActiveBg: linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%);
+  --menuHover: rgba(255, 255, 255, 0.06);
+  --menuActiveBg: rgba(37, 99, 235, 0.2);
 
-  --subMenuBg: #1e3a5f;
+  --subMenuBg: #1e293b;
   --subMenuActiveText: #ffffff;
-  --subMenuHover: #334155;
-  --subMenuTitleHover: #475569;
+  --subMenuHover: rgba(255, 255, 255, 0.05);
+  --subMenuTitleHover: rgba(255, 255, 255, 0.06);
 
   // 表格颜色
   --tableHeaderBg: #f8fafc;
@@ -151,7 +151,7 @@
   // 菜单栏缩进
   --el-menu-base-level-padding: 12px;
   --el-menu-level-padding: 8px;
-  --el-menu-item-height: 50px;
+  --el-menu-item-height: 42px;
 }
 
 // ========================================
@@ -438,10 +438,10 @@ html.dark {
 :root {
   // 侧边栏
   --sidebar-width: 220px;
-  --sidebar-collapsed-width: 0;
+  --sidebar-collapsed-width: 64px;
 
   // 导航栏
-  --navbar-height: 60px;
+  --navbar-height: 56px;
 
   // 标签视图
   --tagsview-height: 40px;
