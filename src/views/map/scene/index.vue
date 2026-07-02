@@ -1,41 +1,47 @@
 <template>
   <div class="factory-container">
     <transition :enter-active-class="proxy?.animate.searchAnimate.enter" :leave-active-class="proxy?.animate.searchAnimate.leave">
-      <div v-show="showSearch" class="search">
-        <el-form ref="queryFormRef" :model="queryParams" :inline="true" label-width="100px">
-          <el-form-item label="工厂名称" prop="name">
-            <el-input v-model="queryParams.name" placeholder="请输入工厂名称" clearable @keyup.enter="handleQuery" />
-          </el-form-item>
-          <el-form-item label="状态" prop="status">
-            <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="width: 120px;">
-              <el-option label="正常" value="0" />
-              <el-option label="停用" value="1" />
-            </el-select>
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
-            <el-button icon="Refresh" @click="resetQuery">重置</el-button>
-          </el-form-item>
-        </el-form>
+      <div v-show="showSearch" class="scene-filter-panel">
+        <div class="query-toolbar">
+          <el-input
+            v-model="queryParams.name"
+            placeholder="场景名称"
+            clearable
+            size="default"
+            @keyup.enter="handleQuery"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+          <el-select v-model="queryParams.status" placeholder="全部状态" clearable size="default">
+            <el-option label="正常" value="0" />
+            <el-option label="停用" value="1" />
+          </el-select>
+          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
+          <el-button :icon="Refresh" @click="resetQuery">重置</el-button>
+        </div>
       </div>
     </transition>
 
     <el-card shadow="never">
       <template #header>
-        <el-row :gutter="10" class="mb8">
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['factory:model:add']" type="primary" plain icon="Plus" @click="handleAdd">
-              新增
-            </el-button>
-          </el-col>
-          <right-toolbar v-model:show-search="showSearch" @query-table="getList"></right-toolbar>
-        </el-row>
+        <div class="action-toolbar">
+          <el-button v-hasPermi="['factory:model:add']" type="primary" icon="Plus" @click="handleAdd">新增</el-button>
+          <el-button v-hasPermi="['factory:model:edit']" type="success" plain icon="Edit" :disabled="single" @click="handleUpdate()">
+            修改
+          </el-button>
+          <el-button v-hasPermi="['factory:model:remove']" type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete()">
+            删除
+          </el-button>
+          <right-toolbar v-model:show-search="showSearch" @query-table="getList" />
+        </div>
       </template>
 
-      <el-table v-loading="loading" :data="factoryList" border>
+      <el-table v-loading="loading" :data="factoryList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column label="工厂编号" align="center" prop="factoryId" width="200" />
-        <el-table-column label="工厂名称" align="center" prop="name" />
+        <el-table-column label="场景编号" align="center" prop="factoryId" width="120" />
+        <el-table-column label="场景名称" align="center" prop="name" />
         <el-table-column label="比例尺" align="center" width="100">
           <template #default="{ row }">
             {{ row.scale || 1 }} mm/px
@@ -48,20 +54,6 @@
         </el-table-column>
         <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
         <el-table-column label="描述" align="center" prop="description" show-overflow-tooltip />
-
-        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="200">
-          <template #default="{ row }">
-            <el-tooltip content="管理地图" placement="top">
-              <el-button v-hasPermi="['factory:model:edit']" link type="primary" icon="Map" @click="handleManageMaps(row)"></el-button>
-            </el-tooltip>
-            <el-tooltip content="编辑" placement="top">
-              <el-button v-hasPermi="['factory:model:edit']" link type="primary" icon="Edit" @click="handleUpdate(row)"></el-button>
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <el-button v-hasPermi="['factory:model:remove']" link type="primary" icon="Delete" @click="handleDelete(row)"></el-button>
-            </el-tooltip>
-          </template>
-        </el-table-column>
       </el-table>
 
       <pagination
@@ -76,11 +68,8 @@
     <!-- 添加或修改对话框 -->
     <el-dialog v-model="dialog.visible" :title="dialog.title" width="600px" append-to-body>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-        <el-form-item label="工厂名称" prop="name">
-          <el-input v-model="form.name" placeholder="请输入工厂名称" />
-        </el-form-item>
-        <el-form-item label="工厂编号" prop="factoryId">
-          <el-input v-model="form.factoryId" placeholder="自动生成" disabled />
+        <el-form-item label="场景名称" prop="name">
+          <el-input v-model="form.name" placeholder="请输入场景名称" />
         </el-form-item>
         <el-form-item label="比例尺" prop="scale">
           <el-input-number v-model="form.scale as number" :min="1" :max="100" :step="1" :precision="0" />
@@ -111,16 +100,17 @@ import { listFactoryModel, getFactoryModel, addFactoryModel, updateFactoryModel,
 import type { FactoryModelVO, FactoryModelForm, FactoryModelQuery } from '@/api/deploy/factory/model/types';
 import { ElMessageBox } from 'element-plus';
 import type { FormInstance } from 'element-plus';
+import { Refresh, Search } from '@element-plus/icons-vue';
 
-const router = useRouter();
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 
 const loading = ref(true);
 const showSearch = ref(true);
 const total = ref(0);
 const factoryList = ref<FactoryModelVO[]>([]);
-
-const queryFormRef = ref<FormInstance>();
+const ids = ref<Array<string | number>>([]);
+const single = ref(true);
+const multiple = ref(true);
 
 const queryParams = reactive<FactoryModelQuery>({
   pageNum: 1,
@@ -136,7 +126,6 @@ const dialog = reactive({
 
 const form = reactive<FactoryModelForm>({
   id: undefined,
-  factoryId: '',
   name: '',
   scale: 1,
   description: '',
@@ -144,7 +133,7 @@ const form = reactive<FactoryModelForm>({
 });
 
 const rules = {
-  name: [{ required: true, message: '工厂名称不能为空', trigger: 'blur' }]
+  name: [{ required: true, message: '场景名称不能为空', trigger: 'blur' }]
 };
 
 const formRef = ref<FormInstance>();
@@ -169,24 +158,34 @@ const handleQuery = () => {
 
 // 重置
 const resetQuery = () => {
-  queryFormRef.value?.resetFields();
+  queryParams.name = undefined;
+  queryParams.status = undefined;
   handleQuery();
+};
+
+// 多选
+const handleSelectionChange = (selection: FactoryModelVO[]) => {
+  ids.value = selection.map((item) => item.id);
+  single.value = selection.length !== 1;
+  multiple.value = !selection.length;
 };
 
 // 新增
 const handleAdd = () => {
   reset();
   dialog.visible = true;
-  dialog.title = '添加工厂模型';
+  dialog.title = '添加调度场景';
 };
 
 // 修改
-const handleUpdate = async (row: FactoryModelVO) => {
+const handleUpdate = async (row?: FactoryModelVO) => {
+  const _id = row?.id ?? ids.value[0];
+  if (!_id) return;
   reset();
-  const res = await getFactoryModel(row.id);
+  const res = await getFactoryModel(_id);
   Object.assign(form, res.data);
   dialog.visible = true;
-  dialog.title = '修改工厂模型';
+  dialog.title = '修改调度场景';
 };
 
 // 提交
@@ -195,11 +194,18 @@ const submitForm = async () => {
   if (!valid) return;
 
   try {
+    const payload: FactoryModelForm = {
+      id: form.id,
+      name: form.name,
+      scale: form.scale,
+      description: form.description,
+      status: form.status
+    };
     if (form.id) {
-      await updateFactoryModel(form);
+      await updateFactoryModel(payload);
       ElMessage.success('修改成功');
     } else {
-      await addFactoryModel(form);
+      await addFactoryModel(payload);
       ElMessage.success('新增成功');
     }
     dialog.visible = false;
@@ -218,7 +224,6 @@ const cancel = () => {
 // 重置表单
 const reset = () => {
   form.id = undefined;
-  form.factoryId = '';
   form.name = '';
   form.scale = 1;
   form.description = '';
@@ -227,10 +232,18 @@ const reset = () => {
 };
 
 // 删除
-const handleDelete = async (row: FactoryModelVO) => {
+const handleDelete = async (row?: FactoryModelVO) => {
+  const targetIds = row?.id ? [row.id] : ids.value;
+  if (!targetIds.length) return;
   try {
-    await ElMessageBox.confirm('确认删除工厂模型 "' + row.name + '" 吗？', '警告', { type: 'warning' });
-    await delFactoryModel(row.id);
+    const names = factoryList.value
+      .filter((item) => targetIds.includes(item.id))
+      .map((item) => item.name)
+      .join('、');
+    await ElMessageBox.confirm(`确认删除场景「${names}」吗？`, '警告', { type: 'warning' });
+    for (const id of targetIds) {
+      await delFactoryModel(id);
+    }
     ElMessage.success('删除成功');
     getList();
   } catch (error) {
@@ -249,26 +262,16 @@ const handleStatusChange = async (row: FactoryModelVO) => {
   }
 };
 
-// 管理地图
-const handleManageMaps = (row: FactoryModelVO) => {
-  router.push({
-    path: '/deploy/factory/map',
-    query: { factoryId: row.id.toString(), factoryName: row.name }
-  });
-};
-
 onMounted(() => {
   getList();
 });
 </script>
 
 <style scoped lang="scss">
+@import '@/assets/styles/device-toolbar.scss';
+
 .factory-container {
   height: 100%;
   padding: 16px;
-}
-
-.search {
-  margin-bottom: 16px;
 }
 </style>

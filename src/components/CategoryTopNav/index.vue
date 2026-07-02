@@ -50,8 +50,8 @@ watch(
 );
 
 const FALLBACK: Partial<Record<TopNavCategoryId, string>> = {
-  deploy: '/deploy/device/brand',
-  ops: '/ops/amr',
+  deploy: '/vehicle/brand',
+  ops: '/task/operation',
   analytics: '/analytics/stats/task',
   system: '/system/management/user'
 };

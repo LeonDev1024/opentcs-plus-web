@@ -57,12 +57,18 @@
     }
 
     a {
-      display: inline-block;
+      display: block;
       width: 100%;
       overflow: hidden;
     }
 
     .svg-icon {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
       margin-right: var(--spacing-3);
       font-size: 17px;
       transition: color var(--duration-150) var(--ease-in-out);
@@ -83,12 +89,16 @@
     }
 
     .el-menu-item .el-menu-tooltip__trigger {
-      display: inline-block !important;
+      display: inline-flex !important;
+      align-items: center;
+      width: 100%;
     }
 
     // 菜单项通用样式
     .el-menu-item,
     .el-sub-menu__title {
+      display: flex !important;
+      align-items: center !important;
       height: 42px !important;
       line-height: 42px !important;
       margin: 1px var(--spacing-2);
@@ -171,19 +181,30 @@
 
   // 侧边栏收起时的菜单样式
   .app-wrapper.hideSidebar {
-    .el-menu {
-      width: var(--sidebar-collapsed-width) !important;
-      padding: var(--spacing-2) 0;
+    .sidebar-container {
+      .el-menu {
+        width: 100% !important;
+        padding: var(--spacing-2) 0;
+      }
 
-      .el-menu-item,
-      .el-sub-menu__title {
+      .el-menu--collapse {
+        width: 100% !important;
+      }
+
+      .el-menu--collapse > div {
+        width: 100%;
+      }
+
+      // SidebarItem 外包 div，需覆盖所有层级（不能依赖 EP 的 > .el-menu-item 选择器）
+      .el-menu--collapse .el-menu-item,
+      .el-menu--collapse .el-sub-menu__title {
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        width: 48px !important;
+        width: 100% !important;
         height: 48px !important;
         line-height: 48px !important;
-        margin: 4px auto !important;
+        margin: 4px 0 !important;
         padding: 0 !important;
         border-radius: 14px;
         text-align: center;
@@ -192,11 +213,28 @@
           display: none;
         }
 
+        .menu-title,
+        .el-sub-menu__icon-arrow {
+          display: none !important;
+        }
+
+        .el-menu-tooltip__trigger {
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: 100% !important;
+          height: 100% !important;
+          padding: 0 !important;
+        }
+
         .svg-icon {
-          width: 22px;
-          height: 22px;
+          display: inline-flex !important;
+          align-items: center;
+          justify-content: center;
+          width: 22px !important;
+          height: 22px !important;
           font-size: 22px;
-          margin-right: 0 !important;
+          margin: 0 !important;
           color: rgba(255, 255, 255, 0.72);
         }
 
@@ -209,8 +247,8 @@
         }
       }
 
-      .el-menu-item.is-active,
-      .el-sub-menu.is-active > .el-sub-menu__title {
+      .el-menu--collapse .el-menu-item.is-active,
+      .el-menu--collapse .el-sub-menu.is-active > .el-sub-menu__title {
         background: var(--menuActiveBg) !important;
         color: #ffffff !important;
 
@@ -218,37 +256,12 @@
           color: #ffffff;
         }
       }
-    }
 
-    .el-menu--collapse {
-      width: var(--sidebar-collapsed-width) !important;
-
-      .el-sub-menu {
-        & > .el-sub-menu__title {
-          & > span {
-            height: 0;
-            width: 0;
-            overflow: hidden;
-            visibility: hidden;
-            display: inline-block;
-          }
-          & > i {
-            height: 0;
-            width: 0;
-            overflow: hidden;
-            visibility: hidden;
-            display: inline-block;
-          }
-        }
-      }
-
-      .is-active .svg-icon {
-        color: #fff;
-      }
-
-      .svg-icon {
-        display: block;
-        margin: auto !important;
+      .el-menu--collapse a {
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        width: 100% !important;
       }
     }
   }

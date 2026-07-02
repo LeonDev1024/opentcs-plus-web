@@ -1,69 +1,63 @@
 <template>
   <div class="p-2">
     <transition :enter-active-class="proxy?.animate.searchAnimate.enter" :leave-active-class="proxy?.animate.searchAnimate.leave">
-      <div v-show="showSearch" class="search">
-        <el-form ref="queryFormRef" :model="queryParams" :inline="true" label-width="100px">
-          <el-form-item label="订单编号" prop="orderNo">
-            <el-input v-model="queryParams.orderNo" placeholder="请输入订单编号" clearable @keyup.enter="handleQuery" />
-          </el-form-item>
-          <el-form-item label="车辆VIN码" prop="vehicleVin">
-            <el-input v-model="queryParams.vehicleVin" placeholder="请输入车辆VIN码" clearable @keyup.enter="handleQuery" />
-          </el-form-item>
-          <el-form-item label="订单状态" prop="status">
-            <el-select v-model="queryParams.status" placeholder="订单状态" clearable>
-              <el-option label="待分配" value="0" />
-              <el-option label="已分配" value="1" />
-              <el-option label="运输中" value="2" />
-              <el-option label="已完成" value="3" />
-              <el-option label="已取消" value="4" />
-            </el-select>
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
-            <el-button icon="Refresh" @click="resetQuery">重置</el-button>
-          </el-form-item>
-        </el-form>
+      <div v-show="showSearch" class="order-filter-panel">
+        <div class="query-toolbar">
+          <el-input
+            v-model="queryParams.orderNo"
+            placeholder="订单编号"
+            clearable
+            size="default"
+            @keyup.enter="handleQuery"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+          <el-input
+            v-model="queryParams.vehicleVin"
+            placeholder="机器人编码"
+            clearable
+            size="default"
+            @keyup.enter="handleQuery"
+          />
+          <el-select v-model="queryParams.status" placeholder="全部状态" clearable size="default">
+            <el-option label="待分配" value="0" />
+            <el-option label="已分配" value="1" />
+            <el-option label="运输中" value="2" />
+            <el-option label="已完成" value="3" />
+            <el-option label="已取消" value="4" />
+          </el-select>
+          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
+          <el-button :icon="Refresh" @click="resetQuery">重置</el-button>
+        </div>
       </div>
     </transition>
 
     <el-card shadow="never">
       <template #header>
-        <el-row :gutter="10" class="mb8">
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:transportOrder:add']" type="primary" plain icon="Plus" @click="handleAdd">新增</el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:transportOrder:edit']" type="success" plain icon="Edit" :disabled="single" @click="handleUpdate()">
-              修改
-            </el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:transportOrder:remove']" type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete()">
-              删除
-            </el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:transportOrder:assign']" type="warning" plain icon="Connection" :disabled="single" @click="handleAssign()">
-              分配车辆
-            </el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:transportOrder:start']" type="info" plain icon="VideoPlay" :disabled="single" @click="handleStart()">
-              开始运输
-            </el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:transportOrder:complete']" type="success" plain icon="Check" :disabled="single" @click="handleComplete()">
-              完成订单
-            </el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:transportOrder:cancel']" type="danger" plain icon="Close" :disabled="single" @click="handleCancel()">
-              取消订单
-            </el-button>
-          </el-col>
-          <right-toolbar v-model:show-search="showSearch" @query-table="getList"></right-toolbar>
-        </el-row>
+        <div class="action-toolbar">
+          <el-button v-hasPermi="['opentcs:transportOrder:add']" type="primary" icon="Plus" @click="handleAdd">新增</el-button>
+          <el-button v-hasPermi="['opentcs:transportOrder:edit']" type="success" plain icon="Edit" :disabled="single" @click="handleUpdate()">
+            修改
+          </el-button>
+          <el-button v-hasPermi="['opentcs:transportOrder:remove']" type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete()">
+            删除
+          </el-button>
+          <el-button v-hasPermi="['opentcs:transportOrder:assign']" type="warning" plain icon="Connection" :disabled="single" @click="handleAssign()">
+            分配车辆
+          </el-button>
+          <el-button v-hasPermi="['opentcs:transportOrder:start']" type="info" plain icon="VideoPlay" :disabled="single" @click="handleStart()">
+            开始运输
+          </el-button>
+          <el-button v-hasPermi="['opentcs:transportOrder:complete']" type="success" plain icon="Check" :disabled="single" @click="handleComplete()">
+            完成订单
+          </el-button>
+          <el-button v-hasPermi="['opentcs:transportOrder:cancel']" type="danger" plain icon="Close" :disabled="single" @click="handleCancel()">
+            取消订单
+          </el-button>
+          <right-toolbar v-model:show-search="showSearch" @query-table="getList" />
+        </div>
       </template>
 
       <el-table v-loading="loading" :data="orderList" border @selection-change="handleSelectionChange">
@@ -191,6 +185,7 @@
 
 <script setup name="Order" lang="ts">
 import { ElMessage } from 'element-plus';
+import { Refresh, Search } from '@element-plus/icons-vue';
 import { listOrder, getOrder, delOrder, addOrder, updateOrder, assignOrder, cancelOrder } from '@/api/ops/order';
 import { OrderVO, OrderQuery, OrderForm } from '@/api/ops/order/types';
 
@@ -205,7 +200,6 @@ const single = ref(true);
 const multiple = ref(true);
 const total = ref(0);
 
-const queryFormRef = ref<ElFormInstance>();
 const orderFormRef = ref<ElFormInstance>();
 const assignFormRef = ref<ElFormInstance>();
 
@@ -285,7 +279,9 @@ const handleQuery = () => {
 
 /** 重置按钮操作 */
 const resetQuery = () => {
-  queryFormRef.value?.resetFields();
+  queryParams.value.orderNo = undefined;
+  queryParams.value.vehicleVin = undefined;
+  queryParams.value.status = undefined;
   handleQuery();
 };
 
@@ -397,3 +393,6 @@ onMounted(() => {
 });
 </script>
 
+<style scoped lang="scss">
+@import '@/assets/styles/device-toolbar.scss';
+</style>

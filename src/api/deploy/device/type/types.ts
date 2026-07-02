@@ -15,9 +15,19 @@ export interface TypeVO {
   brandName?: string;
 
   /**
-   * 车辆类型名称
+   * 类型编码
+   */
+  code?: string;
+
+  /**
+   * 类型名称
    */
   name: string;
+
+  /**
+   * 车辆形态
+   */
+  category?: string;
 
   /**
    * 长度（米）
@@ -87,9 +97,19 @@ export interface TypeForm extends BaseEntity {
   brandId?: string | number;
 
   /**
-   * 车辆类型名称
+   * 类型编码
+   */
+  code?: string;
+
+  /**
+   * 类型名称
    */
   name?: string;
+
+  /**
+   * 车辆形态
+   */
+  category?: string;
 
   /**
    * 长度（米）

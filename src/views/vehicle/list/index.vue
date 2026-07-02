@@ -1,61 +1,55 @@
 <template>
   <div class="p-2">
     <transition :enter-active-class="proxy?.animate.searchAnimate.enter" :leave-active-class="proxy?.animate.searchAnimate.leave">
-      <div v-show="showSearch" class="my-[10px] vehicle-search-card">
-        <el-card shadow="hover">
-          <el-form ref="queryFormRef" :model="queryParams" :inline="true" label-width="100px">
-            <el-form-item label="车辆名称" prop="name">
-              <el-input v-model="queryParams.name" placeholder="请输入车辆名称" clearable @keyup.enter="handleQuery" />
-            </el-form-item>
-            <el-form-item label="车辆类型" prop="vehicleTypeId">
-              <el-select v-model="queryParams.vehicleTypeId" placeholder="请选择车辆类型" clearable style="width: 200px">
-                <el-option v-for="type in vehicleTypes" :key="type.id" :label="type.name" :value="type.id" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="车辆状态" prop="state">
-              <el-select v-model="queryParams.state" placeholder="车辆状态" clearable>
-                <el-option label="空闲" value="IDLE" />
-                <el-option label="工作中" value="WORKING" />
-                <el-option label="维护中" value="UNAVAILABLE" />
-                <el-option label="充电中" value="CHARGING" />
-                <el-option label="错误" value="ERROR" />
-              </el-select>
-            </el-form-item>
-            <el-form-item>
-              <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
-              <el-button icon="Refresh" @click="resetQuery">重置</el-button>
-            </el-form-item>
-          </el-form>
-        </el-card>
+      <div v-show="showSearch" class="vehicle-filter-panel">
+        <div class="query-toolbar">
+          <el-input
+            v-model="queryParams.name"
+            placeholder="机器人编码"
+            clearable
+            size="default"
+            @keyup.enter="handleQuery"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+          <el-select v-model="queryParams.vehicleTypeId" placeholder="全部车辆类型" clearable size="default">
+            <el-option v-for="type in vehicleTypes" :key="type.id" :label="type.name" :value="type.id" />
+          </el-select>
+          <el-select v-model="queryParams.state" placeholder="全部运行状态" clearable size="default">
+            <el-option label="空闲" value="IDLE" />
+            <el-option label="工作中" value="WORKING" />
+            <el-option label="维护中" value="UNAVAILABLE" />
+            <el-option label="充电中" value="CHARGING" />
+            <el-option label="错误" value="ERROR" />
+          </el-select>
+          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
+          <el-button :icon="Refresh" @click="resetQuery">重置</el-button>
+        </div>
       </div>
     </transition>
 
     <el-card shadow="never">
       <template #header>
-        <el-row :gutter="10" class="mb8">
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:vehicle:add']" type="primary" plain icon="Plus" @click="handleAdd">新增</el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:vehicle:edit']" type="success" plain icon="Edit" :disabled="single" @click="handleUpdate()">
-              修改
-            </el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:vehicle:remove']" type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete()">
-              删除
-            </el-button>
-          </el-col>
-          <right-toolbar v-model:show-search="showSearch" @query-table="getList"></right-toolbar>
-        </el-row>
+        <div class="action-toolbar">
+          <el-button v-hasPermi="['opentcs:vehicle:add']" type="primary" icon="Plus" @click="handleAdd">新增</el-button>
+          <el-button v-hasPermi="['opentcs:vehicle:edit']" type="success" plain icon="Edit" :disabled="single" @click="handleUpdate()">
+            修改
+          </el-button>
+          <el-button v-hasPermi="['opentcs:vehicle:remove']" type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete()">
+            删除
+          </el-button>
+          <right-toolbar v-model:show-search="showSearch" @query-table="getList" />
+        </div>
       </template>
 
       <el-table v-loading="loading" :data="vehicleList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column label="车辆名称" align="center" prop="name" />
-        <el-table-column label="车辆VIN码" align="center" prop="vinCode" />
-        <el-table-column label="车辆类型" align="center" prop="vehicleTypeName" />
-        <el-table-column label="车辆状态" align="center" prop="state">
+        <el-table-column label="机器人名称" align="center" prop="name" />
+        <el-table-column label="机器人编码" align="center" prop="vinCode" />
+        <el-table-column label="型号" align="center" prop="vehicleTypeName" />
+        <el-table-column label="状态" align="center" prop="state">
           <template #default="scope">
             <el-tag v-if="scope.row.state === 'IDLE'" type="success">空闲</el-tag>
             <el-tag v-else-if="scope.row.state === 'WORKING' || scope.row.state === 'EXECUTING' || scope.row.state === 'MOVING'" type="warning">工作中</el-tag>
@@ -68,16 +62,6 @@
         <el-table-column label="当前位置" align="center" prop="currentLocationName" />
         <el-table-column label="描述" align="center" prop="description" show-overflow-tooltip />
         <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
-        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="150">
-          <template #default="scope">
-            <el-tooltip content="修改" placement="top">
-              <el-button v-hasPermi="['opentcs:vehicle:edit']" link type="primary" icon="Edit" @click="handleUpdate(scope.row)"></el-button>
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <el-button v-hasPermi="['opentcs:vehicle:remove']" link type="primary" icon="Delete" @click="handleDelete(scope.row)"></el-button>
-            </el-tooltip>
-          </template>
-        </el-table-column>
       </el-table>
 
       <pagination v-show="total > 0" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" :total="total" @pagination="getList" />
@@ -118,6 +102,7 @@
 </template>
 
 <script setup name="Vehicle" lang="ts">
+import { Refresh, Search } from '@element-plus/icons-vue';
 import { listVehicle, getVehicle, delVehicle, addVehicle, updateVehicle } from '@/api/deploy/device';
 import { listType } from '@/api/deploy/device/type';
 import { VehicleVO, VehicleQuery, VehicleForm } from '@/api/deploy/device/types';
@@ -134,7 +119,6 @@ const single = ref(true);
 const multiple = ref(true);
 const total = ref(0);
 
-const queryFormRef = ref<ElFormInstance>();
 const vehicleFormRef = ref<ElFormInstance>();
 
 const dialog = reactive<DialogOption>({
@@ -213,7 +197,10 @@ const handleQuery = () => {
 
 /** 重置按钮操作 */
 const resetQuery = () => {
-  queryFormRef.value?.resetFields();
+  queryParams.value.name = undefined;
+  queryParams.value.vinCode = undefined;
+  queryParams.value.vehicleTypeId = null;
+  queryParams.value.state = undefined;
   handleQuery();
 };
 
@@ -273,3 +260,6 @@ onMounted(async () => {
 });
 </script>
 
+<style scoped lang="scss">
+@import '@/assets/styles/device-toolbar.scss';
+</style>

@@ -1,42 +1,59 @@
 <template>
   <div class="p-2">
     <transition :enter-active-class="proxy?.animate.searchAnimate.enter" :leave-active-class="proxy?.animate.searchAnimate.leave">
-      <div v-show="showSearch" class="search">
-        <el-form ref="queryFormRef" :model="queryParams" :inline="true" label-width="100px">
-          <el-form-item label="车辆类型名称" prop="name">
-            <el-input v-model="queryParams.name" placeholder="请输入车辆类型名称" clearable @keyup.enter="handleQuery" />
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
-            <el-button icon="Refresh" @click="resetQuery">重置</el-button>
-          </el-form-item>
-        </el-form>
+      <div v-show="showSearch" class="type-filter-panel">
+        <div class="query-toolbar">
+          <el-input
+            v-model="queryParams.name"
+            placeholder="型号名称"
+            clearable
+            size="default"
+            @keyup.enter="handleQuery"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+          <el-select v-model="queryParams.brandId" placeholder="全部品牌" clearable filterable size="default">
+            <el-option v-for="brand in brandList" :key="brand.id" :label="brand.name" :value="brand.id" />
+          </el-select>
+          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
+          <el-button :icon="Refresh" @click="resetQuery">重置</el-button>
+        </div>
       </div>
     </transition>
 
     <el-card shadow="never">
       <template #header>
-        <el-row :gutter="10" class="mb8">
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:vehicleType:add']" type="primary" plain icon="Plus" @click="handleAdd">新增</el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:vehicleType:edit']" type="success" plain icon="Edit" :disabled="single" @click="handleUpdate()">
-              修改
-            </el-button>
-          </el-col>
-          <el-col :span="1.5">
-            <el-button v-hasPermi="['opentcs:vehicleType:remove']" type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete()">
-              删除
-            </el-button>
-          </el-col>
-          <right-toolbar v-model:show-search="showSearch" @query-table="getList"></right-toolbar>
-        </el-row>
+        <div class="action-toolbar">
+          <el-button v-hasPermi="['opentcs:vehicleType:add']" type="primary" icon="Plus" @click="handleAdd">新增</el-button>
+          <el-button v-hasPermi="['opentcs:vehicleType:edit']" type="success" plain icon="Edit" :disabled="single" @click="handleUpdate()">
+            修改
+          </el-button>
+          <el-button v-hasPermi="['opentcs:vehicleType:remove']" type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete()">
+            删除
+          </el-button>
+          <el-button v-hasPermi="['opentcs:vehicleType:edit']" type="warning" plain :icon="Setting" :disabled="single" @click="handlePropertiesConfig()">
+            扩展参数配置
+          </el-button>
+          <right-toolbar v-model:show-search="showSearch" @query-table="getList" />
+        </div>
       </template>
 
-      <el-table v-loading="loading" :data="typeList" border @selection-change="handleSelectionChange">
+      <el-table v-loading="loading" :data="typeList" border class="type-table" @selection-change="handleSelectionChange" @row-dblclick="handleDetail">
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column label="车辆类型名称" align="center" prop="name" min-width="150" />
+        <el-table-column label="类型编码" align="center" prop="code" min-width="140" show-overflow-tooltip>
+          <template #default="scope">
+            <span v-if="scope.row.code">{{ scope.row.code }}</span>
+            <span v-else style="color: #909399;">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="类型名称" align="center" prop="name" min-width="150" />
+        <el-table-column label="车辆形态" align="center" prop="category" width="100">
+          <template #default="scope">
+            {{ getCategoryLabel(scope.row.category) }}
+          </template>
+        </el-table-column>
         <el-table-column label="所属品牌" align="center" prop="brandName" min-width="120">
           <template #default="scope">
             <el-tag v-if="scope.row.brandName" size="small">{{ scope.row.brandName }}</el-tag>
@@ -86,19 +103,6 @@
           </template>
         </el-table-column>
         <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
-        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="180">
-          <template #default="scope">
-            <el-tooltip content="详情" placement="top">
-              <el-button v-hasPermi="['opentcs:vehicleType:query']" link type="primary" icon="View" @click="handleDetail(scope.row)"></el-button>
-            </el-tooltip>
-            <el-tooltip content="修改" placement="top">
-              <el-button v-hasPermi="['opentcs:vehicleType:edit']" link type="primary" icon="Edit" @click="handleUpdate(scope.row)"></el-button>
-            </el-tooltip>
-            <el-tooltip content="删除" placement="top">
-              <el-button v-hasPermi="['opentcs:vehicleType:remove']" link type="primary" icon="Delete" @click="handleDelete(scope.row)"></el-button>
-            </el-tooltip>
-          </template>
-        </el-table-column>
       </el-table>
 
       <pagination v-show="total > 0" v-model:page="queryParams.pageNum" v-model:limit="queryParams.pageSize" :total="total" @pagination="getList" />
@@ -108,14 +112,28 @@
       <el-form ref="typeFormRef" :model="form" :rules="rules" label-width="140px">
         <el-row :gutter="20">
           <el-col :span="12">
-            <el-form-item label="车辆类型名称" prop="name">
-              <el-input v-model="form.name" placeholder="请输入车辆类型名称" />
+            <el-form-item label="类型编码" prop="code">
+              <el-input v-model="form.code" :disabled="!!form.id" placeholder="如 HIK_LATENT_01" />
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <el-form-item label="类型名称" prop="name">
+              <el-input v-model="form.name" placeholder="请输入类型名称" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="所属品牌" prop="brandId">
               <el-select v-model="form.brandId" placeholder="请选择品牌" style="width: 100%;">
                 <el-option v-for="brand in brandList" :key="brand.id" :label="brand.name" :value="brand.id" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="车辆形态" prop="category">
+              <el-select v-model="form.category" placeholder="请选择车辆形态" style="width: 100%;">
+                <el-option v-for="item in categoryOptions" :key="item.value" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -185,12 +203,6 @@
           </el-select>
           <div class="form-tip">选择该车辆类型支持的外设操作</div>
         </el-form-item>
-
-        <el-divider content-position="left">扩展属性</el-divider>
-        <el-form-item label="其他参数" prop="properties">
-          <el-input v-model="form.propertiesText" type="textarea" :rows="4" placeholder='请输入JSON格式的其他参数，如：{"key": "value"}' />
-          <div class="form-tip">扩展属性，JSON格式字符串</div>
-        </el-form-item>
       </el-form>
       <template #footer>
         <div class="dialog-footer">
@@ -199,11 +211,34 @@
         </div>
       </template>
     </el-dialog>
+    <!-- 扩展参数配置对话框 -->
+    <el-dialog v-model="propertiesDialog.visible" :title="propertiesDialog.title" width="640px" append-to-body>
+      <div v-if="propertiesTarget.name" class="properties-target">
+        当前类型：<span class="properties-target__name">{{ propertiesTarget.code ? `${propertiesTarget.code} / ` : '' }}{{ propertiesTarget.name }}</span>
+      </div>
+      <el-form ref="propertiesFormRef" :model="propertiesForm" :rules="propertiesRules" label-width="0">
+        <el-form-item prop="propertiesText">
+          <el-input
+            v-model="propertiesForm.propertiesText"
+            type="textarea"
+            :rows="14"
+            placeholder='请输入 JSON 格式的扩展参数，如：{"maxLoad": 500, "navigation": "SLAM"}'
+          />
+          <div class="form-tip">扩展参数以 JSON 对象保存，保存后立即生效</div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button :loading="propertiesLoading" type="primary" @click="submitPropertiesConfig">保 存</el-button>
+        <el-button @click="propertiesDialog.visible = false">取 消</el-button>
+      </template>
+    </el-dialog>
     <!-- 查看详情对话框 -->
     <el-dialog v-model="detailDialog.visible" title="车辆类型详情" width="600px" append-to-body>
       <el-descriptions :column="2" border>
+        <el-descriptions-item label="类型编码">{{ detailData.code || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="类型名称">{{ detailData.name || '-' }}</el-descriptions-item>
         <el-descriptions-item label="所属品牌">{{ detailData.brandName || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="车辆类型名称">{{ detailData.name || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="车辆形态">{{ getCategoryLabel(detailData.category) }}</el-descriptions-item>
         <el-descriptions-item label="能量等级">{{ detailData.energyLevel || '-' }}</el-descriptions-item>
         <el-descriptions-item label="长度(m)">{{ detailData.length || '-' }}</el-descriptions-item>
         <el-descriptions-item label="宽度(m)">{{ detailData.width || '-' }}</el-descriptions-item>
@@ -237,6 +272,7 @@ import { listType, getType, delType, addType, updateType } from '@/api/deploy/de
 import { listBrandAll } from '@/api/deploy/device/brand';
 import { TypeVO, TypeQuery, TypeForm } from '@/api/deploy/device/type/types';
 import { BrandVO } from '@/api/deploy/device/brand/types';
+import { Refresh, Search, Setting } from '@element-plus/icons-vue';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 
@@ -250,13 +286,53 @@ const single = ref(true);
 const multiple = ref(true);
 const total = ref(0);
 
-const queryFormRef = ref<ElFormInstance>();
 const typeFormRef = ref<ElFormInstance>();
+const propertiesFormRef = ref<ElFormInstance>();
+const propertiesLoading = ref(false);
+const propertiesTypeData = ref<TypeVO | null>(null);
 
 const dialog = reactive<DialogOption>({
   visible: false,
   title: ''
 });
+
+const propertiesDialog = reactive<DialogOption>({
+  visible: false,
+  title: '扩展参数配置'
+});
+
+const propertiesTarget = reactive({
+  code: '',
+  name: ''
+});
+
+const propertiesForm = reactive({
+  propertiesText: ''
+});
+
+const propertiesRules = {
+  propertiesText: [
+    {
+      validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
+        if (!value || !value.trim()) {
+          callback();
+          return;
+        }
+        try {
+          const parsed = JSON.parse(value);
+          if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+            callback(new Error('扩展参数必须是 JSON 对象'));
+            return;
+          }
+          callback();
+        } catch {
+          callback(new Error('扩展参数 JSON 格式错误'));
+        }
+      },
+      trigger: 'blur'
+    }
+  ]
+};
 
 const detailDialog = reactive<DialogOption>({
   visible: false,
@@ -264,6 +340,16 @@ const detailDialog = reactive<DialogOption>({
 });
 
 const detailData = ref<any>({});
+
+const categoryOptions = [
+  { label: '潜伏式', value: 'LATENT' },
+  { label: '叉车', value: 'FORKLIFT' }
+];
+
+const getCategoryLabel = (value?: string) => {
+  if (!value) return '-';
+  return categoryOptions.find((item) => item.value === value)?.label ?? value;
+};
 
 // 将订单类型数组转换为显示数组
 const getOrdersList = (orders?: string[]): string[] => {
@@ -277,10 +363,49 @@ const getOperationsList = (operations?: string[]): string[] => {
   return operations.filter((op: string) => op);
 };
 
+const formatPropertiesText = (properties: unknown) => {
+  if (!properties) return '';
+  if (typeof properties === 'object') {
+    return JSON.stringify(properties, null, 2);
+  }
+  return '';
+};
+
+const parsePropertiesText = (text: string) => {
+  if (!text || !text.trim()) {
+    return undefined;
+  }
+  const parsed = JSON.parse(text);
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    throw new Error('invalid');
+  }
+  return parsed as Record<string, any>;
+};
+
+const buildTypeSubmitData = (source: TypeVO, overrides: Partial<TypeForm> = {}): TypeForm => ({
+  id: source.id,
+  brandId: source.brandId,
+  code: source.code,
+  name: source.name,
+  category: source.category,
+  length: source.length,
+  width: source.width,
+  height: source.height,
+  maxVelocity: source.maxVelocity,
+  maxReverseVelocity: source.maxReverseVelocity,
+  energyLevel: source.energyLevel,
+  allowedOrders: source.allowedOrders,
+  allowedPeripheralOperations: source.allowedPeripheralOperations,
+  properties: source.properties,
+  ...overrides
+});
+
 const initFormData = {
   id: undefined,
   brandId: undefined,
+  code: undefined,
   name: undefined,
+  category: undefined,
   length: null as number | null,
   width: null as number | null,
   height: null as number | null,
@@ -289,10 +414,8 @@ const initFormData = {
   energyLevel: null as number | null,
   allowedOrders: undefined,
   allowedPeripheralOperations: undefined,
-  properties: undefined,
   allowedOrdersList: [] as string[],
-  allowedPeripheralOperationsList: [] as string[],
-  propertiesText: ''
+  allowedPeripheralOperationsList: [] as string[]
 };
 
 const data = reactive<PageData<any, TypeQuery>>({
@@ -300,11 +423,17 @@ const data = reactive<PageData<any, TypeQuery>>({
   queryParams: {
     pageNum: 1,
     pageSize: 10,
-    name: undefined
+    name: undefined,
+    brandId: undefined
   },
   rules: {
+    code: [
+      { required: true, message: '类型编码不能为空', trigger: 'blur' },
+      { pattern: /^[A-Za-z0-9_]+$/, message: '仅允许字母、数字和下划线', trigger: 'blur' }
+    ],
     brandId: [{ required: true, message: '请选择所属品牌', trigger: 'change' }],
-    name: [{ required: true, message: '车辆类型名称不能为空', trigger: 'blur' }],
+    name: [{ required: true, message: '类型名称不能为空', trigger: 'blur' }],
+    category: [{ required: true, message: '请选择车辆形态', trigger: 'change' }],
     length: [
       { required: true, message: '长度不能为空', trigger: 'blur' },
       { type: 'number', message: '长度必须为数字', trigger: 'blur' }
@@ -345,7 +474,9 @@ const cancel = () => {
 const reset = () => {
   form.value.id = initFormData.id;
   form.value.brandId = initFormData.brandId;
+  form.value.code = initFormData.code;
   form.value.name = initFormData.name;
+  form.value.category = initFormData.category;
   form.value.length = initFormData.length;
   form.value.width = initFormData.width;
   form.value.height = initFormData.height;
@@ -354,10 +485,8 @@ const reset = () => {
   form.value.energyLevel = initFormData.energyLevel;
   form.value.allowedOrders = initFormData.allowedOrders;
   form.value.allowedPeripheralOperations = initFormData.allowedPeripheralOperations;
-  form.value.properties = initFormData.properties;
   form.value.allowedOrdersList = [];
   form.value.allowedPeripheralOperationsList = [];
-  form.value.propertiesText = '';
   typeFormRef.value?.resetFields();
 };
 
@@ -369,7 +498,8 @@ const handleQuery = () => {
 
 /** 重置按钮操作 */
 const resetQuery = () => {
-  queryFormRef.value?.resetFields();
+  queryParams.value.name = undefined;
+  queryParams.value.brandId = undefined;
   handleQuery();
 };
 
@@ -397,7 +527,9 @@ const handleUpdate = async (row?: TypeVO) => {
   // 解析数据到表单
   form.value.id = data.id;
   form.value.brandId = data.brandId;
+  form.value.code = data.code;
   form.value.name = data.name;
+  form.value.category = data.category;
   form.value.length = data.length;
   form.value.width = data.width;
   form.value.height = data.height;
@@ -414,16 +546,47 @@ const handleUpdate = async (row?: TypeVO) => {
   form.value.allowedPeripheralOperationsList = data.allowedPeripheralOperations && Array.isArray(data.allowedPeripheralOperations)
     ? [...data.allowedPeripheralOperations]
     : [];
-  
-  // 解析properties（JSON对象）
-  if (data.properties && typeof data.properties === 'object') {
-    form.value.propertiesText = JSON.stringify(data.properties, null, 2);
-  } else {
-    form.value.propertiesText = '';
-  }
-  
+
   dialog.visible = true;
   dialog.title = '修改车辆类型';
+};
+
+/** 扩展参数配置 */
+const handlePropertiesConfig = async (row?: TypeVO) => {
+  const _id = row?.id || ids.value[0];
+  if (!_id) {
+    return;
+  }
+  const res = await getType(_id);
+  const data = res.data;
+  propertiesTypeData.value = data;
+  propertiesTarget.code = data.code || '';
+  propertiesTarget.name = data.name || '';
+  propertiesForm.propertiesText = formatPropertiesText(data.properties);
+  propertiesDialog.visible = true;
+  await nextTick();
+  propertiesFormRef.value?.clearValidate();
+};
+
+/** 保存扩展参数配置 */
+const submitPropertiesConfig = () => {
+  propertiesFormRef.value?.validate(async (valid: boolean) => {
+    if (!valid || !propertiesTypeData.value) {
+      return;
+    }
+    propertiesLoading.value = true;
+    try {
+      const properties = parsePropertiesText(propertiesForm.propertiesText);
+      await updateType(buildTypeSubmitData(propertiesTypeData.value, { properties }));
+      proxy?.$modal.msgSuccess('扩展参数保存成功');
+      propertiesDialog.visible = false;
+      await getList();
+    } catch {
+      proxy?.$modal.msgError('扩展参数 JSON 格式错误，请检查后重试');
+    } finally {
+      propertiesLoading.value = false;
+    }
+  });
 };
 
 /** 查看详情按钮操作 */
@@ -444,7 +607,9 @@ const submitForm = () => {
       const submitData: TypeForm = {
         id: form.value.id,
         brandId: form.value.brandId,
+        code: form.value.code,
         name: form.value.name,
+        category: form.value.category,
         length: form.value.length ?? undefined,
         width: form.value.width ?? undefined,
         height: form.value.height ?? undefined,
@@ -460,21 +625,7 @@ const submitForm = () => {
           ? form.value.allowedPeripheralOperationsList
           : undefined
       };
-      
-      // 处理properties（JSON对象）
-      if (form.value.propertiesText && form.value.propertiesText.trim()) {
-        try {
-          const parsedProps = JSON.parse(form.value.propertiesText);
-          if (typeof parsedProps === 'object' && parsedProps !== null) {
-            submitData.properties = parsedProps;
-          }
-        } catch (e) {
-          proxy?.$modal.msgError('扩展属性JSON格式错误，请检查后重试');
-          buttonLoading.value = false;
-          return;
-        }
-      }
-      
+
       try {
         if (form.value.id) {
           await updateType(submitData);
@@ -513,11 +664,31 @@ const getBrandList = async () => {
 </script>
 
 <style scoped lang="scss">
+@import '@/assets/styles/device-toolbar.scss';
+
 .form-tip {
   font-size: 12px;
   color: #909399;
   margin-top: 4px;
   line-height: 1.4;
+}
+
+.properties-target {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--el-fill-color-light);
+  border-radius: 6px;
+  color: var(--el-text-color-regular);
+  font-size: 14px;
+}
+
+.properties-target__name {
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+}
+
+.type-table :deep(.el-table__row) {
+  cursor: pointer;
 }
 </style>
 

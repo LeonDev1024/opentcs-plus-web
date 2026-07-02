@@ -75,8 +75,8 @@ const titleMain = 'OPENTCS调度平台';
     }
 
     .logo-mark--mini {
-      width: 34px;
-      height: 34px;
+      width: 32px;
+      height: 32px;
     }
 
     .sidebar-logo {
