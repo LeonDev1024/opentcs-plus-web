@@ -7,11 +7,11 @@ export enum ToolMode {
   SELECT = "select", // 选择模式
   POINT = "point", // 绘制点
   PATH = "path", // 绘制路径
-  LOCATION = "location", // 绘制位置（多边形）
+  LOCATION = "location", // 历史兼容：不再持久化为后端 Location
   PAN = "pan", // 平移模式
   ZOOM = "zoom", // 缩放模式
-  DASHED_LINK = "dashedLink", // 点与业务位置的虚线链接
-  RULE_REGION = "ruleRegion", // 规则区域绘制
+  DASHED_LINK = "dashedLink", // 历史兼容：不再持久化为后端 Location 链接
+  RULE_REGION = "ruleRegion", // 历史兼容：不再持久化为后端 Block/Location
 }
 
 // ==================== 图层类型 ====================
@@ -19,8 +19,8 @@ export enum LayerType {
   BACKGROUND = "background", // 背景层
   PATH = "path", // 路径层
   POINT = "point", // 点位层
-  LOCATION = "location", // 位置层
-  REGION = "region", // 区域层
+  LOCATION = "location", // 历史兼容：加载后不再生成后端 Location
+  REGION = "region", // 历史兼容：加载后不再生成后端 Block
 }
 
 // ==================== 图层组模型 ====================

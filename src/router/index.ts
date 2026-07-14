@@ -117,7 +117,7 @@ export const constantRoutes: RouteRecordRaw[] = [
     children: [
       {
         path: '',
-        component: () => import('@/views/map/scene/console/index.vue'),
+        component: () => import('@/views/map/scene/console/MapEditorTabs.vue'),
         name: 'MapEditor',
         meta: { title: '地图编辑器', icon: 'map', noCache: true }
       }

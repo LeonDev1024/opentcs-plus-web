@@ -1,11 +1,10 @@
 import { ref } from 'vue'
 import type { LocationVO } from '@/api/deploy/factory/location-type/types'
-import type { useMapEditorStore } from '@/store/modules/mapEditor'
 
 /**
  * 位置类型加载与图标缓存
  */
-export function useLocationTypes(mapEditorStore: ReturnType<typeof useMapEditorStore>) {
+export function useLocationTypes() {
   const locationTypeList = ref<LocationVO[]>([])
 
   // assets/location/*.svg 的 URL 映射（symbol 名称 -> url），在模块加载时静态构建
@@ -45,12 +44,7 @@ export function useLocationTypes(mapEditorStore: ReturnType<typeof useMapEditorS
   }
 
   const loadLocationTypes = async () => {
-    try {
-      locationTypeList.value = await mapEditorStore.fetchLocationTypeList()
-      preloadLocationIconImages()
-    } catch (e) {
-      console.error('加载位置类型列表失败', e)
-    }
+    locationTypeList.value = []
   }
 
   // 从位置类型的 properties 中取 name 为 symbol 的 value

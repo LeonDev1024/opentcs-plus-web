@@ -20,9 +20,7 @@ import type {
 import { ToolMode as ToolModeEnum, LayerType } from '@/types/mapEditor';
 import { CommandManager } from '@/utils/mapEditor/command';
 import { loadMapEditorData, saveMapEditorData, saveMap as saveMapApi } from '@/api/deploy/map-editor';
-import { getLocationTypeListForSelect } from '@/api/deploy/factory/location-type';
 import type { MapEditorResponse, VisualLayoutData } from '@/api/deploy/map-editor/types';
-import type { LocationVO } from '@/api/deploy/factory/location-type/types';
 import { parseMapOriginFields } from '@/utils/mapEditor/navigationMapOrigin';
 
 export const useMapEditorStore = defineStore('mapEditor', () => {
@@ -132,10 +130,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const versionHistory = ref<VersionSnapshot[]>([]);
   const maxVersionHistory = 20; // 最多保存20个版本
 
-  // 位置类型列表（缓存，避免重复请求）
-  const locationTypeList = ref<LocationVO[]>([]);
-  const locationTypeLoaded = ref(false);
-
   /** 创建默认图层组与图层（新地图无图层时使用） */
   const createDefaultLayerStructure = (): { layerGroups: LayerGroup[]; layers: MapLayer[] } => {
     const groupId = `layer_group_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -165,17 +159,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         visible: true,
         locked: false,
         zIndex: 2,
-        opacity: 1,
-        elementIds: []
-      },
-      {
-        id: `layer_${ts}_${Math.random().toString(36).substr(2, 9)}`,
-        name: 'Location layer',
-        type: LayerType.LOCATION,
-        layerGroupId: groupId,
-        visible: true,
-        locked: false,
-        zIndex: 3,
         opacity: 1,
         elementIds: []
       }
@@ -664,23 +647,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   
   // ==================== Actions ====================
 
-  /**
-   * 获取位置类型列表（带缓存）
-   */
-  const fetchLocationTypeList = async (): Promise<LocationVO[]> => {
-    if (locationTypeLoaded.value && locationTypeList.value.length > 0) {
-      return locationTypeList.value;
-    }
-    try {
-      const list = await getLocationTypeListForSelect();
-      locationTypeList.value = list;
-      locationTypeLoaded.value = true;
-      return list;
-    } catch (e) {
-      console.error('获取位置类型列表失败', e);
-      return [];
-    }
-  };
 
   /**
    * 加载地图数据
@@ -757,11 +723,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
 
           const defaultPointLayerId = normalizedLayers.find((l) => l.type === LayerType.POINT)?.id ?? normalizedLayers[0]?.id ?? '';
           const defaultPathLayerId = normalizedLayers.find((l) => l.type === LayerType.PATH)?.id ?? normalizedLayers[0]?.id ?? '';
-          const defaultLocationLayerId = normalizedLayers.find((l) => l.type === LayerType.LOCATION)?.id ?? normalizedLayers[0]?.id ?? '';
-
           const rawPoints = Array.isArray(apiData.points) ? apiData.points : (apiData.points ? Array.from(apiData.points) : []);
           const rawPaths = Array.isArray(apiData.paths) ? apiData.paths : (apiData.paths ? Array.from(apiData.paths) : []);
-          const rawLocations = Array.isArray(apiData.locations) ? apiData.locations : (apiData.locations ? Array.from(apiData.locations) : []);
 
           const miOrigin = parseMapOriginFields({
             mapOrigin: mi?.mapOrigin,
@@ -770,25 +733,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             originY: flatHeader.originY ?? mi?.originY,
             rotation: flatHeader.rotation ?? mi?.rotation,
           });
-
-          // 解析 blocks：members 字段后端为 JSON 字符串，前端需转为 string[]
-          const rawBlocks: MapBlock[] = Array.isArray(apiData.blocks)
-            ? apiData.blocks.map((b: any) => ({
-                id: b?.blockId ?? b?.id ?? `block_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-                blockId: b?.blockId,
-                name: b?.name ?? '',
-                type: b?.type ?? 'SINGLE_VEHICLE_ONLY',
-                members: (() => {
-                  try {
-                    if (Array.isArray(b?.members)) return b.members.map(String);
-                    if (typeof b?.members === 'string') return JSON.parse(b.members);
-                    return [];
-                  } catch { return []; }
-                })(),
-                color: b?.color ?? '#F44336',
-                properties: b?.properties ? (typeof b.properties === 'string' ? JSON.parse(b.properties) : b.properties) : undefined
-              }))
-            : [];
 
           data = {
             mapInfo: {
@@ -823,9 +767,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             elements: {
               points: rawPoints.map((p: Record<string, any>) => normalizePoint(p, defaultPointLayerId)),
               paths: rawPaths.map((p: Record<string, any>) => normalizePath(p, defaultPathLayerId, rawPoints)),
-              locations: rawLocations.map((l: Record<string, any>) => normalizeLocation(l, defaultLocationLayerId))
+              locations: []
             },
-            blocks: rawBlocks,
+            blocks: [],
             metadata: {
               createdAt: flatHeader.createTime || new Date().toISOString(),
               updatedAt: flatHeader.updateTime || new Date().toISOString()
@@ -845,10 +789,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           }
           const dpId = legLayers.find((l) => l.type === LayerType.POINT)?.id ?? legLayers[0]?.id ?? '';
           const dpathId = legLayers.find((l) => l.type === LayerType.PATH)?.id ?? legLayers[0]?.id ?? '';
-          const dlocId = legLayers.find((l) => l.type === LayerType.LOCATION)?.id ?? legLayers[0]?.id ?? '';
           const rp = Array.isArray(apiData.elements?.points) ? apiData.elements.points : (Array.isArray(apiData.points) ? apiData.points : []);
           const rpath = Array.isArray(apiData.elements?.paths) ? apiData.elements.paths : (Array.isArray(apiData.paths) ? apiData.paths : []);
-          const rloc = Array.isArray(apiData.elements?.locations) ? apiData.elements.locations : (Array.isArray(apiData.locations) ? apiData.locations : []);
           const miOnly = apiData.mapInfo;
           const legacyOrigin = parseMapOriginFields({
             mapOrigin: miOnly?.mapOrigin,
@@ -857,24 +799,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             originY: apiData.originY ?? miOnly?.originY,
             rotation: apiData.rotation ?? miOnly?.rotation,
           });
-          const legacyRawBlocks: MapBlock[] = Array.isArray(apiData.blocks)
-            ? apiData.blocks.map((b: any) => ({
-                id: b?.blockId ?? b?.id ?? `block_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-                blockId: b?.blockId,
-                name: b?.name ?? '',
-                type: b?.type ?? 'SINGLE_VEHICLE_ONLY',
-                members: (() => {
-                  try {
-                    if (Array.isArray(b?.members)) return b.members.map(String);
-                    if (typeof b?.members === 'string') return JSON.parse(b.members);
-                    return [];
-                  } catch { return []; }
-                })(),
-                color: b?.color ?? '#F44336',
-                properties: b?.properties ? (typeof b.properties === 'string' ? JSON.parse(b.properties) : b.properties) : undefined
-              }))
-            : [];
-
           data = {
             mapInfo: {
               // id 保留数据库主键兼容；编辑器主标识统一使用 mapId
@@ -906,9 +830,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             elements: {
               points: rp.map((p: Record<string, any>) => normalizePoint(p, dpId)),
               paths: rpath.map((p: Record<string, any>) => normalizePath(p, dpathId, rp)),
-              locations: rloc.map((l: Record<string, any>) => normalizeLocation(l, dlocId))
+              locations: []
             },
-            blocks: legacyRawBlocks,
+            blocks: [],
             metadata: {
               createdAt: apiData.mapInfo.createTime || new Date().toISOString(),
               updatedAt: apiData.mapInfo.updateTime || new Date().toISOString()
@@ -956,15 +880,14 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       }
       
       // 更新元素数据（已由 normalizer 处理后端字段与默认值）
-      console.log('[MapEditor] 加载元素数据 - points:', data.elements?.points?.length, 'paths:', data.elements?.paths?.length, 'locations:', data.elements?.locations?.length);
+      console.log('[MapEditor] 加载元素数据 - points:', data.elements?.points?.length, 'paths:', data.elements?.paths?.length);
       points.value = data.elements.points || [];
       paths.value = data.elements.paths || [];
-      locations.value = data.elements.locations || [];
+      locations.value = [];
       console.log('[MapEditor] store points 数量:', points.value.length, 'store paths:', paths.value.length);
-      blocks.value = data.blocks || [];
+      blocks.value = [];
 
       syncPointNameCounter();
-      syncLocationNameCounter();
       
       // 更新画布状态
       if (data.mapInfo) {
@@ -1047,8 +970,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       mapData.value.layers = layers.value;
       mapData.value.elements.points = points.value;
       mapData.value.elements.paths = paths.value;
-      mapData.value.elements.locations = locations.value;
-      mapData.value.blocks = blocks.value;
+      mapData.value.elements.locations = [];
+      mapData.value.blocks = [];
       mapData.value.mapInfo.scale = canvasState.scale;
       mapData.value.mapInfo.offsetX = canvasState.offsetX;
       mapData.value.mapInfo.offsetY = canvasState.offsetY;
@@ -1183,36 +1106,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         });
       };
 
-      const serializeLocations = (locationsToSave: any[]) => {
-        return (locationsToSave || []).map((l) => {
-          const locationId = l?.id != null ? String(l.id) : undefined;
-          return {
-            id: null,
-            locationId,
-            layerId: (l?.layerId != null ? (layerIdMap.get(String(l.layerId)) ?? toLongOrNull(l.layerId)) : null),
-            locationTypeId: toLongOrNull(l?.locationTypeId),
-            name: l?.name ?? locationId,
-            xPosition: toNumberOrNull(l?.x) ?? toNumberOrNull(l?.xPosition),
-            yPosition: toNumberOrNull(l?.y) ?? toNumberOrNull(l?.yPosition),
-            zPosition: toNumberOrNull(l?.z) ?? toNumberOrNull(l?.zPosition),
-            locked: l?.locked ?? null,
-            isOccupied: null,
-            layout: JSON.stringify({
-              x: toNumberOrNull(l?.x) ?? toNumberOrNull(l?.xPosition),
-              y: toNumberOrNull(l?.y) ?? toNumberOrNull(l?.yPosition),
-              z: toNumberOrNull(l?.z) ?? toNumberOrNull(l?.zPosition),
-              geometry: l?.geometry ?? null,
-              editorProps: l?.editorProps ?? {}
-            }),
-            properties: JSON.stringify({
-              status: l?.status,
-              geometry: l?.geometry,
-              editorProps: l?.editorProps
-            })
-          };
-        });
-      };
-
       const saveData = {
         mapInfo: {
           mapId: currentMapId.value,
@@ -1253,16 +1146,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           })
         })),
         points: serializePoints(rawData.elements?.points || []),
-        paths: serializePaths(rawData.elements?.paths || []),
-        locations: serializeLocations(rawData.elements?.locations || []),
-        blocks: (blocks.value || []).map((b) => ({
-          blockId: b.blockId,
-          name: b.name,
-          type: b.type,
-          members: JSON.stringify(b.members || []),
-          color: b.color,
-          properties: b.properties ? JSON.stringify(b.properties) : undefined
-        }))
+        paths: serializePaths(rawData.elements?.paths || [])
       };
 
       // 保存到后端（语义数据）
@@ -2158,7 +2042,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     isDirty,
     rasterBackground,
     versionHistory,
-    locationTypeList,  // 导出位置类型列表
 
     // Getters
     selectedElements,
@@ -2168,7 +2051,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     canRedo,
 
     // Actions
-    fetchLocationTypeList,  // 导出获取位置类型列表方法
     loadMap,
     saveMap: saveMapEditor,
     updateLayoutProperties,
@@ -2225,4 +2107,3 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     getBlocksForElement
   };
 });
-

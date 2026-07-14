@@ -25,11 +25,6 @@ export interface BrandVO {
   logo?: string;
 
   /**
-   * 官网地址
-   */
-  website?: string;
-
-  /**
    * 品牌描述
    */
   description?: string;
@@ -80,11 +75,6 @@ export interface BrandForm {
    * 品牌缩略图（Base64 Data URL）
    */
   logo?: string;
-
-  /**
-   * 官网地址
-   */
-  website?: string;
 
   /**
    * 品牌描述

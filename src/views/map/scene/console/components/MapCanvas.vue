@@ -291,12 +291,6 @@
       </v-layer>
     </v-stage>
 
-    <!-- Location 编辑对话框 -->
-    <LocationEditDialog
-      v-model:visible="locationEditDialogVisible"
-      :location-id="editingLocationId"
-      @save="handleLocationEditSave"
-    />
   </div>
 </template>
 
@@ -333,10 +327,7 @@ import {
   POINT_TYPE_RADIUS,
 } from "@/utils/mapEditor/mapVisualTokens";
 import { POINT_TYPE, getPointVisualMeta } from "@/utils/mapEditor/pointStyle";
-import type { LocationVO } from "@/api/deploy/factory/location-type/types";
-import LocationEditDialog from "./LocationEditDialog.vue";
 import {
-  useLocationTypes,
   useCanvasAxis,
   useCanvasViewport,
   getKonvaNode,
@@ -956,9 +947,8 @@ const getDefaultLayerId = (type: "point" | "path" | "location"): string => {
 };
 
 // ========== 组合式函数（渲染逻辑） ==========
-const {
-  locationTypeList, loadLocationTypes, getSymbolForLocationTypeId, locationIconImageCache,
-} = useLocationTypes(mapEditorStore)
+const getSymbolForLocationTypeId = () => "";
+const locationIconImageCache = ref<Record<string, HTMLImageElement>>({});
 
 const {
   axisXLineConfig, axisYLineConfig, axisXArrowConfig, axisYArrowConfig,
@@ -2713,11 +2703,7 @@ const handleLocationLineDragEnd = (location: MapLocation, e: any) => {
   syncDashedLinksFromLocation(String(location.id), newCentroid);
 };
 
-// Location 编辑对话框相关
-const locationEditDialogVisible = ref(false);
-const editingLocationId = ref<string>("");
-
-// 处理位置右键菜单
+// 历史位置元素仅作兼容渲染，不再打开编辑入口
 const handleLocationContextMenu = (location: MapLocation, e: any) => {
   if (props.readonly) return;
   e.cancelBubble = true;
@@ -2730,15 +2716,6 @@ const handleLocationContextMenu = (location: MapLocation, e: any) => {
   // 选中该位置
   const multiSelect = e.evt.ctrlKey || e.evt.metaKey;
   mapEditorStore.selectElement(location.id, "location", multiSelect);
-
-  // 打开编辑对话框
-  editingLocationId.value = location.id;
-  locationEditDialogVisible.value = true;
-};
-
-// 处理位置编辑保存
-const handleLocationEditSave = (location: MapLocation) => {
-  // 保存成功后可以添加一些后续处理，比如刷新画布
 };
 
 // 处理点右键菜单（预留功能）
@@ -3068,7 +3045,6 @@ const handleKeyUp = (e: KeyboardEvent) => {
 let resizeObserver: ResizeObserver | null = null;
 
 onMounted(() => {
-  loadLocationTypes();
   nextTick(() => {
     const stage = getKonvaNode(stageRef.value);
     if (stage && typeof stage.on === "function") {

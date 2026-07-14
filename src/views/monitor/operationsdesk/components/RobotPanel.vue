@@ -134,6 +134,10 @@ const filterModel = computed<AmrFilterKey>({
 }
 
 .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 12px 12px 0;
   flex-shrink: 0;
 }

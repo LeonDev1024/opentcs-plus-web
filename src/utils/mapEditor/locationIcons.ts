@@ -1,11 +1,8 @@
-import { shallowRef, ref } from "vue";
+import { shallowRef } from "vue";
 import type { MapLocation } from "@/types/mapEditor";
-import { getLocationTypeListForSelect } from "@/api/deploy/factory/location-type";
-import type { LocationVO } from "@/api/deploy/factory/location-type/types";
 
 // ==================== Location Icons ====================
 
-const locationTypeList = ref<LocationVO[]>([]);
 const locationIconUrlMap: Record<string, string> = {};
 const iconCache = shallowRef<Record<string, HTMLImageElement>>({});
 
@@ -40,22 +37,6 @@ function ensureIconLoaded(symbol: string) {
 function getSymbolForLocationTypeId(
   locationTypeId: string | number | undefined,
 ): string {
-  if (locationTypeId === undefined || locationTypeId === null) return "";
-  const id = String(locationTypeId);
-  const type = locationTypeList.value.find((t) => String(t.id) === id);
-  if (!type?.properties) return "";
-  try {
-    const arr =
-      typeof type.properties === "string"
-        ? JSON.parse(type.properties)
-        : type.properties;
-    if (Array.isArray(arr)) {
-      const item = arr.find((p: any) => p?.name === "symbol");
-      return String(item?.value ?? "");
-    }
-  } catch {
-    return "";
-  }
   return "";
 }
 
@@ -77,14 +58,8 @@ function getLocationIconConfig(location: MapLocation) {
   };
 }
 
-// 初始化位置类型列表
 async function initLocationTypeList() {
-  if (locationTypeList.value.length > 0) return;
-  try {
-    locationTypeList.value = await getLocationTypeListForSelect();
-  } catch {
-    locationTypeList.value = [];
-  }
+  return;
 }
 
 // 初始化所有资源
@@ -95,7 +70,6 @@ async function initAll() {
 
 // 导出
 export {
-  locationTypeList,
   locationIconUrlMap,
   iconCache,
   getSymbolForLocationTypeId,

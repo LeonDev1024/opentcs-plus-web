@@ -41,7 +41,7 @@
           </el-tooltip>
         </el-button-group>
         <el-divider direction="vertical" class="toolbar-cluster-divider" />
-        <!-- 地图元素：绘制点、绘制位置、直线/直角/曲线路径、虚线链接 -->
+        <!-- 地图元素：绘制点、路径 -->
         <el-button-group class="creation-tool-group">
           <el-tooltip
             content="绘制导航点"
@@ -59,25 +59,6 @@
                   <SvgIcon icon-class="diandian" class="point-type-svg-icon" />
                 </span>
                 <span class="map-toolbar-btn__label">绘制点</span>
-              </span>
-            </el-button>
-          </el-tooltip>
-          <el-tooltip
-            content="绘制工作站点"
-            :show-after="50"
-            placement="bottom"
-          >
-            <el-button
-              class="map-toolbar-btn"
-              :type="currentTool === 'location' ? 'primary' : 'default'"
-              size="small"
-              @click="setTool(ToolMode.LOCATION)"
-            >
-              <span class="map-toolbar-btn__inner">
-                <span class="map-toolbar-btn__icon">
-                  <el-icon :size="20"><Location /></el-icon>
-                </span>
-                <span class="map-toolbar-btn__label">绘制位置</span>
               </span>
             </el-button>
           </el-tooltip>
@@ -123,28 +104,6 @@
                   <SvgIcon icon-class="bezier" class="curve-type-svg-icon" />
                 </span>
                 <span class="map-toolbar-btn__label">曲线</span>
-              </span>
-            </el-button>
-          </el-tooltip>
-          <el-tooltip
-            content="绘制虚线链接"
-            :show-after="50"
-            placement="bottom"
-          >
-            <el-button
-              class="map-toolbar-btn toolbar-tool-dashed-link"
-              :type="currentTool === 'dashedLink' ? 'primary' : 'default'"
-              size="small"
-              @click="setTool(ToolMode.DASHED_LINK)"
-            >
-              <span class="map-toolbar-btn__inner">
-                <span class="map-toolbar-btn__icon">
-                  <SvgIcon
-                    icon-class="dashed-link"
-                    class="dashed-link-toolbar-icon"
-                  />
-                </span>
-                <span class="map-toolbar-btn__label">虚线链接</span>
               </span>
             </el-button>
           </el-tooltip>
@@ -325,8 +284,32 @@
         </div>
       </div>
 
+      <div
+        class="right-panel-toggle-rail"
+        :class="{ 'is-collapsed': isRightPanelCollapsed }"
+      >
+        <el-tooltip
+          :content="isRightPanelCollapsed ? '展开右侧面板' : '收起右侧面板'"
+          placement="left"
+          :show-after="300"
+        >
+          <button
+            class="right-panel-toggle-btn"
+            type="button"
+            @click="toggleRightPanelCollapsed"
+            :aria-label="isRightPanelCollapsed ? '展开右侧面板' : '收起右侧面板'"
+          >
+            <el-icon>
+              <DArrowLeft v-if="isRightPanelCollapsed" />
+              <DArrowRight v-else />
+            </el-icon>
+          </button>
+        </el-tooltip>
+      </div>
+
       <!-- 右侧拖拽条 -->
       <div
+        v-if="!isRightPanelCollapsed"
         class="panel-resizer panel-resizer-right"
         @mousedown="handleRightResizeStart"
         :class="{ resizing: isRightResizing }"
@@ -334,6 +317,7 @@
 
       <!-- 右侧面板（常驻，含属性/图元/图层三个 tab） -->
       <div
+        v-if="!isRightPanelCollapsed"
         class="right-panel"
         :style="{ width: rightPanelWidth + 'px' }"
       >
@@ -635,12 +619,6 @@
             width="60"
             align="center"
           />
-          <el-table-column
-            prop="locationCount"
-            label="位置"
-            width="60"
-            align="center"
-          />
           <el-table-column label="操作" width="100" align="center">
             <template #default="{ row }">
               <el-button
@@ -855,68 +833,6 @@
                 </el-table-column>
               </el-table>
             </el-tab-pane>
-
-            <el-tab-pane label="位置变更" name="locations">
-              <div class="change-summary">
-                <el-tag type="success" size="small"
-                  >新增 {{ compareResult.locations.added.length }}</el-tag
-                >
-                <el-tag type="danger" size="small"
-                  >删除 {{ compareResult.locations.removed.length }}</el-tag
-                >
-                <el-tag type="warning" size="small"
-                  >修改 {{ compareResult.locations.modified.length }}</el-tag
-                >
-              </div>
-              <el-table
-                :data="compareResult.locations.all"
-                height="250"
-                size="small"
-                stripe
-              >
-                <el-table-column
-                  prop="changeType"
-                  label="变更"
-                  width="70"
-                  align="center"
-                >
-                  <template #default="{ row }">
-                    <el-tag
-                      v-if="row.changeType === 'added'"
-                      type="success"
-                      size="small"
-                      >新增</el-tag
-                    >
-                    <el-tag
-                      v-else-if="row.changeType === 'removed'"
-                      type="danger"
-                      size="small"
-                      >删除</el-tag
-                    >
-                    <el-tag v-else type="warning" size="small">修改</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column
-                  prop="name"
-                  label="名称"
-                  min-width="150"
-                  show-overflow-tooltip
-                />
-                <el-table-column label="变更详情" min-width="200">
-                  <template #default="{ row }">
-                    <span
-                      v-if="row.changeType === 'modified'"
-                      class="change-detail"
-                    >
-                      <template v-for="(val, key) in row.changes" :key="key">
-                        {{ key }}: {{ val.from }} → {{ val.to }};
-                      </template>
-                    </span>
-                    <span v-else class="change-detail">-</span>
-                  </template>
-                </el-table-column>
-              </el-table>
-            </el-tab-pane>
           </el-tabs>
         </div>
         <div v-else class="compare-empty">
@@ -1011,11 +927,11 @@ import {
   ZoomOut,
   FullScreen,
   Picture,
-  Location,
   Clock,
   View,
   Hide,
   Grid,
+  DArrowLeft,
   DArrowRight,
   Upload,
   Sort,
@@ -1148,7 +1064,6 @@ const versionHistoryList = ref<
     description: string;
     pointCount: number;
     pathCount: number;
-    locationCount: number;
   }[]
 >([]);
 const maxVersionCount = 20;
@@ -1161,7 +1076,6 @@ const compareActiveTab = ref("points");
 const compareResult = ref<{
   points: { added: any[]; removed: any[]; modified: any[]; all: any[] };
   paths: { added: any[]; removed: any[]; modified: any[]; all: any[] };
-  locations: { added: any[]; removed: any[]; modified: any[]; all: any[] };
 } | null>(null);
 
 // CSV 导入相关计算属性
@@ -1249,6 +1163,7 @@ function toggleRightPanelCollapsed() {
 }
 
 const handleRightResizeStart = (e: MouseEvent) => {
+  if (isRightPanelCollapsed.value) return;
   isRightResizing.value = true;
   rightResizeStartX.value = e.clientX;
   rightResizeStartWidth.value = rightPanelWidth.value;
@@ -1341,7 +1256,6 @@ const runMapValidation = () => {
   }> = [];
   const points = mapEditorStore.points;
   const paths = mapEditorStore.paths;
-  const locations = mapEditorStore.locations;
 
   // 1. 断连检测 - 找出未连接到任何路径的点
   const connectedPointIds = new Set<string>();
@@ -1433,37 +1347,6 @@ const runMapValidation = () => {
     }
   });
 
-  // 4. 位置区域重叠检测
-  for (let i = 0; i < locations.length; i++) {
-    for (let j = i + 1; j < locations.length; j++) {
-      const loc1 = locations[i];
-      const loc2 = locations[j];
-
-      // 简单的重心距离检测
-      const centroid1 = getLocationCentroid(loc1);
-      const centroid2 = getLocationCentroid(loc2);
-      const distance = Math.hypot(
-        centroid1.x - centroid2.x,
-        centroid1.y - centroid2.y,
-      );
-
-      // 假设位置区域大小为40px，如果距离小于40则认为重叠
-      if (distance < 40) {
-        issues.push({
-          id: `overlap-${loc1.id}-${loc2.id}`,
-          type: "overlap",
-          severity: "error",
-          message: `位置区域 "${loc1.name}" 与 "${loc2.name}" 重叠`,
-          elementIds: [loc1.id, loc2.id],
-          position: {
-            x: (centroid1.x + centroid2.x) / 2,
-            y: (centroid1.y + centroid2.y) / 2,
-          },
-        });
-      }
-    }
-  }
-
   mapIssues.value = issues;
 
   if (issues.length === 0) {
@@ -1471,21 +1354,6 @@ const runMapValidation = () => {
   } else {
     ElMessage.warning(`检测到 ${issues.length} 个问题`);
   }
-};
-
-// 辅助函数：获取位置中心点
-const getLocationCentroid = (location: any) => {
-  const vertices = location.geometry?.vertices || [];
-  if (vertices.length === 0) {
-    return { x: location.x || 0, y: location.y || 0 };
-  }
-  let x = 0,
-    y = 0;
-  vertices.forEach((v: any) => {
-    x += v.x;
-    y += v.y;
-  });
-  return { x: x / vertices.length, y: y / vertices.length };
 };
 
 // 左侧面板宽度
@@ -1560,23 +1428,14 @@ const hasSelection = computed(() => {
 // 至少选中 2 个同类元素才能对齐
 const canAlign = computed(() => {
   const { selectedIds, selectedType } = mapEditorStore.selection;
-  return selectedIds.size >= 2 && (selectedType === 'point' || selectedType === 'location');
+  return selectedIds.size >= 2 && selectedType === 'point';
 });
 
-// 获取元素的画布坐标中心（point 直接用 x/y，location 用顶点质心）
+// 获取点位的画布坐标中心
 function getElementCenter(id: string, type: string): { x: number; y: number } | null {
   if (type === 'point') {
     const p = mapEditorStore.points.find((pt) => pt.id === id);
     return p ? { x: p.x, y: p.y } : null;
-  }
-  if (type === 'location') {
-    const loc = mapEditorStore.locations.find((l) => l.id === id);
-    if (!loc) return null;
-    const verts = loc.geometry?.vertices ?? [];
-    if (!verts.length) return { x: loc.x ?? 0, y: loc.y ?? 0 };
-    const cx = verts.reduce((s, v) => s + v.x, 0) / verts.length;
-    const cy = verts.reduce((s, v) => s + v.y, 0) / verts.length;
-    return { x: cx, y: cy };
   }
   return null;
 }
@@ -1604,15 +1463,6 @@ function handleAlign(cmd: string) {
       const p = mapEditorStore.points.find((pt) => pt.id === id);
       if (!p) return;
       mapEditorStore.updatePoint(id, { x: p.x + dx, y: p.y + dy });
-    } else if (selectedType === 'location') {
-      const loc = mapEditorStore.locations.find((l) => l.id === id);
-      if (!loc) return;
-      mapEditorStore.updateLocation(id, {
-        geometry: {
-          ...loc.geometry,
-          vertices: loc.geometry.vertices.map((v) => ({ ...v, x: v.x + dx, y: v.y + dy })),
-        },
-      });
     }
   });
   ElMessage.success('对齐完成');
@@ -1625,15 +1475,12 @@ const currentPathConnectionType = computed<PathConnectionType>(() => {
   return t === "direct" || t === "curve" ? t : "direct";
 });
 
-const TOOL_TOAST_LABEL: Record<ToolMode, string> = {
+const TOOL_TOAST_LABEL: Partial<Record<ToolMode, string>> = {
   [ToolMode.SELECT]: "选择模式",
   [ToolMode.POINT]: "绘制点模式",
   [ToolMode.PATH]: "路径绘制模式",
-  [ToolMode.LOCATION]: "位置绘制模式",
   [ToolMode.PAN]: "漫游模式",
   [ToolMode.ZOOM]: "缩放模式",
-  [ToolMode.DASHED_LINK]: "虚线链接模式",
-  [ToolMode.RULE_REGION]: "规则区域模式",
 };
 
 // 工具切换（改为 toast 提醒）
@@ -1871,12 +1718,10 @@ const collectModelValidationErrors = (): string[] => {
   const errors: string[] = [];
   const points = mapEditorStore.points || [];
   const paths = mapEditorStore.paths || [];
-  const locations = mapEditorStore.locations || [];
   const layers = mapEditorStore.layers || [];
 
   if (points.length === 0) errors.push("当前地图没有点位");
   if (paths.length === 0) errors.push("当前地图没有路径");
-  if (locations.length === 0) errors.push("当前地图没有位置");
 
   const pointIdSet = new Set(
     points.flatMap((p: any) => {
@@ -1887,30 +1732,18 @@ const collectModelValidationErrors = (): string[] => {
       return ids;
     }).filter((id: string) => !!id),
   );
-  const locationIdSet = new Set(
-    locations.flatMap((l: any) => {
-      const ids: string[] = [];
-      if (l?.id != null) ids.push(String(l.id));
-      if (l?.locationId != null) ids.push(String(l.locationId));
-      if (l?.name != null) ids.push(String(l.name));
-      return ids;
-    }).filter((id: string) => !!id),
-  );
-  const isLocationToken = (token: string) => /^Location-\d+$/i.test(token);
   for (const path of paths) {
     let source = String(path?.startPointId ?? path?.sourcePointId ?? "");
     let dest = String(path?.endPointId ?? path?.destPointId ?? "");
-    // 兼容历史数据：部分路径仅在 name 中包含 "Point-xxxx --- Point-yyyy" 或 "Location-xxxx --- Point-yyyy"
+    // 兼容历史数据：部分路径仅在 name 中包含 "Point-xxxx --- Point-yyyy"
     if (!source || !dest) {
       const rawName = String(path?.name ?? "");
-      const matches = [...rawName.matchAll(/(?:Point|Location)-\d+/gi)].map((m) => m[0]);
+      const matches = [...rawName.matchAll(/Point-\d+/gi)].map((m) => m[0]);
       if (!source && matches[0]) source = matches[0];
       if (!dest && matches[1]) dest = matches[1];
     }
-    const sourceExists =
-      !!source && (isLocationToken(source) ? locationIdSet.has(source) : pointIdSet.has(source) || locationIdSet.has(source));
-    const destExists =
-      !!dest && (isLocationToken(dest) ? locationIdSet.has(dest) : pointIdSet.has(dest) || locationIdSet.has(dest));
+    const sourceExists = !!source && pointIdSet.has(source);
+    const destExists = !!dest && pointIdSet.has(dest);
     if (!sourceExists) {
       errors.push(`路径起点不存在（${path?.name || path?.id || "未命名路径"}）`);
     }
@@ -1930,12 +1763,6 @@ const collectModelValidationErrors = (): string[] => {
       errors.push(`路径引用了无效图层（${path?.name || path?.id || "未命名路径"}）`);
     }
   }
-  for (const location of locations) {
-    if (location?.layerId != null && !layerIdSet.has(String(location.layerId))) {
-      errors.push(`位置引用了无效图层（${location?.name || location?.id || "未命名位置"}）`);
-    }
-  }
-
   return errors;
 };
 
@@ -2297,7 +2124,10 @@ const handleImportMap = () => {
         mapEditorStore.layers = importData.layers || [];
         mapEditorStore.points = importData.elements?.points || [];
         mapEditorStore.paths = importData.elements?.paths || [];
-        mapEditorStore.locations = importData.elements?.locations || [];
+        mapEditorStore.locations = [];
+        mapEditorStore.blocks = [];
+        mapEditorStore.mapData.elements.locations = [];
+        mapEditorStore.mapData.blocks = [];
 
         // 更新画布状态
         if (importData.mapInfo) {
@@ -2906,17 +2736,9 @@ const runVersionCompare = () => {
   // 对比路径
   const pathsResult = compareElements(versionA.paths, versionB.paths, "path");
 
-  // 对比位置
-  const locationsResult = compareElements(
-    versionA.locations,
-    versionB.locations,
-    "location",
-  );
-
   compareResult.value = {
     points: pointsResult,
     paths: pathsResult,
-    locations: locationsResult,
   };
 };
 
@@ -2931,7 +2753,7 @@ interface CompareItem {
 const compareElements = (
   oldList: any[],
   newList: any[],
-  type: "point" | "path" | "location",
+  type: "point" | "path",
 ): {
   added: CompareItem[];
   removed: CompareItem[];
@@ -3263,8 +3085,6 @@ const handleKeyDown = (e: KeyboardEvent) => {
           selectedIds.forEach((id) => mapEditorStore.deletePoint(id));
         } else if (selectedType === "path") {
           selectedIds.forEach((id) => mapEditorStore.deletePath(id));
-        } else if (selectedType === "location") {
-          selectedIds.forEach((id) => mapEditorStore.deleteLocation(id));
         }
         mapEditorStore.clearSelection();
       }
@@ -3747,20 +3567,9 @@ onUnmounted(() => {
           height: 22px;
         }
 
-        .block-toolbar-icon {
-          font-size: 22px;
-          width: 22px;
-          height: 22px;
-        }
-
-        .dashed-link-toolbar-icon {
-          font-size: 22px;
-          width: 22px;
-          height: 22px;
-        }
       }
 
-      // 不使用 flex order：保持模板顺序为 选择/漫游→点→位置→直线/直角/曲线路径→虚线链接→撤销等
+      // 不使用 flex order：保持模板顺序为 选择/漫游→点→路径→撤销等
     }
 
     .toolbar-right {
@@ -3937,6 +3746,52 @@ onUnmounted(() => {
         top: 0;
         bottom: 0;
         cursor: col-resize;
+      }
+    }
+
+    .right-panel-toggle-rail {
+      width: 22px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f8fafc;
+      border-left: 1px solid #e4e7ed;
+      border-right: 1px solid #e4e7ed;
+      z-index: 12;
+
+      &.is-collapsed {
+        border-right: none;
+        background: #fff;
+      }
+    }
+
+    .right-panel-toggle-btn {
+      width: 18px;
+      height: 48px;
+      border: 1px solid #dcdfe6;
+      border-radius: 6px 0 0 6px;
+      background: #fff;
+      color: #606266;
+      padding: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+      transition:
+        color 0.15s,
+        border-color 0.15s,
+        background 0.15s;
+
+      &:hover {
+        color: #409eff;
+        border-color: #409eff;
+        background: #ecf5ff;
+      }
+
+      .el-icon {
+        font-size: 13px;
       }
     }
 

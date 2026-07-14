@@ -143,7 +143,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
 import type { MapLocation } from '@/types/mapEditor';
@@ -151,20 +151,8 @@ import type { LocationVO } from '@/api/deploy/factory/location-type/types';
 
 const mapEditorStore = useMapEditorStore();
 
-// 位置类型下拉选项（来自接口）
+// 位置类型已从产品模型移除，历史弹窗仅保留空选项避免误请求接口
 const locationTypeOptions = ref<LocationVO[]>([]);
-
-const loadLocationTypes = async () => {
-  try {
-    locationTypeOptions.value = await mapEditorStore.fetchLocationTypeList();
-  } catch (e) {
-    console.error('加载位置类型列表失败', e);
-  }
-};
-
-onMounted(() => {
-  loadLocationTypes();
-});
 
 // Props
 const props = defineProps<{

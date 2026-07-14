@@ -104,9 +104,6 @@
         <el-form-item label="品牌缩略图">
           <LogoBase64Upload v-model="form.logo" :name="form.name" :seed="form.code" />
         </el-form-item>
-        <el-form-item label="官网" prop="website">
-          <el-input v-model="form.website" placeholder="https://" />
-        </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input v-model="form.description" type="textarea" :rows="4" maxlength="500" show-word-limit placeholder="请输入品牌描述" />
         </el-form-item>
@@ -158,7 +155,6 @@ const initFormData: BrandForm = {
   englishName: undefined,
   code: undefined,
   logo: undefined,
-  website: undefined,
   description: undefined,
   enabled: true,
   sort: 0

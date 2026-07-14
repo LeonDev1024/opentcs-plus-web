@@ -13,7 +13,7 @@
  */
 import { ref, computed, onMounted } from 'vue';
 import { useFullscreen } from '@vueuse/core';
-import { Bell, FullScreen } from '@element-plus/icons-vue';
+import { Bell, DArrowLeft, DArrowRight, FullScreen } from '@element-plus/icons-vue';
 import { useMonitorStats } from './composables/useMonitorStats';
 import { useRealtimeData } from './composables/useRealtimeData';
 import MonitorCanvas from './components/MonitorCanvas.vue';
@@ -40,6 +40,9 @@ const activeVehicleId = ref<string | undefined>(undefined);
 
 // KPI 联动的筛选 key（顶栏 KPI ↔ 右侧机器人列表）
 const robotFilter = ref<AmrFilterKey>('all');
+
+// 监控场景优先让画布获得空间，左侧车辆面板支持快速收起
+const sidePanelCollapsed = ref(false);
 
 // 全屏：作用于整个 operations-desk 容器
 const operationsDeskRef = ref<HTMLElement | null>(null);
@@ -192,8 +195,19 @@ onMounted(async () => {
 
       <!-- 主内容区：左侧机器人面板 + 画布 -->
       <div class="monitor-body">
-        <div class="panel-area">
+        <div class="panel-area" :class="{ 'is-collapsed': sidePanelCollapsed }">
+          <button
+            class="panel-toggle"
+            :title="sidePanelCollapsed ? '展开车辆面板' : '收起车辆面板'"
+            @click="sidePanelCollapsed = !sidePanelCollapsed"
+          >
+            <el-icon>
+              <DArrowRight v-if="sidePanelCollapsed" />
+              <DArrowLeft v-else />
+            </el-icon>
+          </button>
           <RobotPanel
+            v-show="!sidePanelCollapsed"
             v-model:filter="robotFilter"
             :robots="robotCards"
             :active-robot-id="activeVehicleId"
@@ -451,16 +465,70 @@ onMounted(async () => {
 }
 
 .panel-area {
+  position: relative;
   width: 280px;
   flex-shrink: 0;
   border-right: 1px solid var(--el-border-color);
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 4px 0 12px rgba(0, 0, 0, 0.08);
+  transition: width 0.2s ease;
+}
+
+.panel-area.is-collapsed {
+  width: 22px;
+  min-width: 22px;
+  max-width: 22px;
+  border-right: none;
+  background: var(--el-bg-color);
+  box-shadow: none;
+}
+
+.panel-toggle {
+  position: absolute;
+  top: 50%;
+  right: -9px;
+  transform: translateY(-50%);
+  z-index: 20;
+  width: 18px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #dcdfe6;
+  border-radius: 0 6px 6px 0;
+  background: #fff;
+  color: #606266;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.panel-area.is-collapsed .panel-toggle {
+  right: 2px;
+  width: 18px;
+  height: 48px;
+  border-radius: 6px;
+  display: inline-flex;
+}
+
+.panel-toggle:hover {
+  color: #409eff;
+  border-color: #409eff;
+  background: #ecf5ff;
+}
+
+.panel-toggle .el-icon {
+  font-size: 13px;
 }
 
 .canvas-area {
   flex: 1;
   position: relative;
   overflow: hidden;
+  z-index: 1;
 }
 </style>

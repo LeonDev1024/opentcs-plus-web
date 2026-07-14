@@ -382,165 +382,17 @@
         </table>
       </div>
       
-      <!-- Location 属性编辑：Key / Value 表格形式（对齐 openTCS Location 属性） -->
-      <div
-        v-else-if="resolvedSelectedType === 'location'"
-        class="location-properties"
-      >
-        <div class="element-title">Location</div>
-        <table class="kv-table">
-          <thead>
-            <tr>
-              <th class="kv-header-key">Attribute</th>
-              <th class="kv-header-value">Value</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td class="kv-key">Name</td>
-              <td class="kv-value">
-                <el-input v-model="locationForm.name" size="small" @change="updateLocation" />
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Locked</td>
-              <td class="kv-value">
-                <el-switch v-model="locationForm.locked" size="small" @change="toggleLocationLock" />
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">x-Position</td>
-              <td class="kv-value">
-                <span class="kv-readonly">{{ formatLocationX(locationForm) }}</span>
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">y-Position</td>
-              <td class="kv-value">
-                <span class="kv-readonly">{{ formatLocationY(locationForm) }}</span>
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Type</td>
-              <td class="kv-value">
-                <el-select
-                  v-model="locationForm.locationTypeId"
-                  size="small"
-                  placeholder="选择位置类型"
-                  clearable
-                  filterable
-                  style="width: 100%"
-                  @change="updateLocation"
-                >
-                  <el-option
-                    v-for="item in locationTypeOptions"
-                    :key="String(item.id)"
-                    :label="item.name"
-                    :value="item.id"
-                  />
-                </el-select>
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Symbol</td>
-              <td class="kv-value">
-                <span class="kv-readonly">{{ getSymbolForLocationType(locationForm.locationTypeId) }}</span>
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Label x offset</td>
-              <td class="kv-value">
-                <el-input-number
-                  v-model="locationForm.editorProps.labelOffset.x"
-                  size="small"
-                  :step="1"
-                  @change="updateLocation"
-                />
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Label y offset</td>
-              <td class="kv-value">
-                <el-input-number
-                  v-model="locationForm.editorProps.labelOffset.y"
-                  size="small"
-                  :step="1"
-                  @change="updateLocation"
-                />
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Label orientation angle</td>
-              <td class="kv-value">
-                <span class="kv-readonly">0</span>
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Layer</td>
-              <td class="kv-value">
-                <span class="kv-readonly">{{ getLayerName(locationForm.layerId) }}</span>
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Reservation token</td>
-              <td class="kv-value">
-                <span class="kv-readonly">-</span>
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Peripheral state</td>
-              <td class="kv-value">
-                <span class="kv-readonly">-</span>
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Processing state</td>
-              <td class="kv-value">
-                <span class="kv-readonly">-</span>
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Peripheral job</td>
-              <td class="kv-value">
-                <span class="kv-readonly">-</span>
-              </td>
-            </tr>
-            <tr>
-              <td class="kv-key">Miscellaneous</td>
-              <td class="kv-value">
-                <span class="kv-readonly">-</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useMapEditorStore } from '@/store/modules/mapEditor';
-import type { MapPoint, MapPath, MapLocation } from '@/types/mapEditor';
-import type { LocationVO } from '@/api/deploy/factory/location-type/types';
+import type { MapPoint, MapPath } from '@/types/mapEditor';
 import { DEFAULT_POINT_OUTER_RADIUS } from '@/utils/mapEditor/mapVisualTokens';
 
 const mapEditorStore = useMapEditorStore();
-
-// 位置类型下拉选项（来自接口）
-const locationTypeOptions = ref<LocationVO[]>([]);
-
-const loadLocationTypes = async () => {
-  try {
-    locationTypeOptions.value = await mapEditorStore.fetchLocationTypeList();
-  } catch (e) {
-    console.error('加载位置类型列表失败', e);
-  }
-};
-
-onMounted(() => {
-  loadLocationTypes();
-});
 
 const getLayerName = (layerId: string) => {
   if (!layerId) return '';
@@ -560,24 +412,14 @@ const getComponentName = (id: string | number | undefined) => {
   const normalizedId = String(id);
   const point = mapEditorStore.points.find(p => String(p.id) === normalizedId);
   if (point) return point.name || normalizedId;
-  const location = mapEditorStore.locations.find(l => String(l.id) === normalizedId);
-  return location?.name || normalizedId;
-};
-
-// 根据选中的 locationTypeId 取该位置类型 properties 中 name 为 symbol 的 value
-const getSymbolForLocationType = (locationTypeId: string | number | undefined): string => {
-  if (locationTypeId === undefined || locationTypeId === null) return '-';
-  const type = locationTypeOptions.value.find(t => String(t.id) === String(locationTypeId));
-  if (!type?.properties || !Array.isArray(type.properties)) return '-';
-  const p = type.properties.find((x: any) => x && (x.name === 'symbol' || x.name === 'Symbol'));
-  return (p && p.value) ? String(p.value) : '-';
+  return normalizedId;
 };
 
 // 原始选中类型（可能为 null；例如 Set/同步时序问题导致 selectedType 没跟上）
 const rawSelectedType = computed(() => mapEditorStore.selection.selectedType);
 
 // 兜底：在 selectedType 为 null/异常时，根据 selectedIds 反查元素类型
-const resolvedSelectedType = computed<"point" | "path" | "location" | "layout" | null>(
+const resolvedSelectedType = computed<"point" | "path" | "layout" | null>(
   () => {
     const raw = rawSelectedType.value;
     const selectedIds = mapEditorStore.selection.selectedIds;
@@ -586,7 +428,7 @@ const resolvedSelectedType = computed<"point" | "path" | "location" | "layout" |
     if (raw === "layout") return "layout";
 
     // 走正常类型
-    if (raw === "point" || raw === "path" || raw === "location") {
+    if (raw === "point" || raw === "path") {
       return raw;
     }
 
@@ -597,14 +439,12 @@ const resolvedSelectedType = computed<"point" | "path" | "location" | "layout" |
 
     if (mapEditorStore.points.some((p) => String(p.id) === idStr)) return "point";
     if (mapEditorStore.paths.some((p) => String(p.id) === idStr)) return "path";
-    if (mapEditorStore.locations.some((l) => String(l.id) === idStr)) return "location";
-
     return null;
   },
 );
 
 // 选中的元素（单选时）
-const resolvedSelectedElement = computed<MapPoint | MapPath | MapLocation | null>(() => {
+const resolvedSelectedElement = computed<MapPoint | MapPath | null>(() => {
   const selectedIds = mapEditorStore.selection.selectedIds;
   if (resolvedSelectedType.value === "layout") {
     return null;
@@ -619,8 +459,6 @@ const resolvedSelectedElement = computed<MapPoint | MapPath | MapLocation | null
     return mapEditorStore.points.find((p) => String(p.id) === idStr) || null;
   } else if (resolvedSelectedType.value === "path") {
     return mapEditorStore.paths.find((p) => String(p.id) === idStr) || null;
-  } else if (resolvedSelectedType.value === "location") {
-    return mapEditorStore.locations.find((l) => String(l.id) === idStr) || null;
   }
   return null;
 });
@@ -731,52 +569,6 @@ const pathForm = ref<MapPath>({
   }
 });
 
-// 位置表单数据
-const locationForm = ref<MapLocation>({
-  id: '',
-  layerId: '',
-  name: '',
-  status: '0',
-  locked: false,
-  geometry: {
-    vertices: [],
-    closed: true
-  },
-  editorProps: {
-    fillColor: '#ffffff',
-    fillOpacity: 1,
-    strokeColor: '#000000',
-    strokeWidth: 2,
-    labelVisible: true,
-    labelOffset: { x: -30, y: -30 }
-  }
-});
-
-const normalizeLocationForm = () => {
-  // 后端/导入数据可能缺少 editorProps 或 labelOffset
-  const ep: any = (locationForm.value as any).editorProps;
-  if (!ep) {
-    locationForm.value.editorProps = {
-      fillColor: '#ffffff',
-      fillOpacity: 1,
-      strokeColor: '#000000',
-      strokeWidth: 2,
-      labelVisible: true,
-      labelOffset: { x: -30, y: -30 },
-    };
-    return;
-  }
-  if (!ep.labelOffset) {
-    ep.labelOffset = { x: -30, y: -30 };
-  }
-  if (typeof ep.labelOffset.x !== 'number') {
-    ep.labelOffset.x = -30;
-  }
-  if (typeof ep.labelOffset.y !== 'number') {
-    ep.labelOffset.y = -30;
-  }
-};
-
 const normalizePointForm = () => {
   // 后端/导入数据可能缺少 editorProps 或 labelOffset
   const ep: any = (pointForm.value as any).editorProps;
@@ -814,9 +606,6 @@ watch(resolvedSelectedElement, (newElement) => {
     normalizePointForm();
   } else if (resolvedSelectedType.value === 'path') {
     pathForm.value = { ...(newElement as MapPath) };
-  } else if (resolvedSelectedType.value === 'location') {
-    locationForm.value = { ...(newElement as MapLocation) };
-    normalizeLocationForm();
   }
 });
 
@@ -838,12 +627,6 @@ watch(() => resolvedSelectedType.value, (newType) => {
   } else if (newType === 'path') {
     const path = mapEditorStore.paths.find(p => String(p.id) === String(id));
     if (path) pathForm.value = { ...path };
-  } else if (newType === 'location') {
-    const location = mapEditorStore.locations.find(l => String(l.id) === String(id));
-    if (location) {
-      locationForm.value = { ...location };
-      normalizeLocationForm();
-    }
   }
 });
 
@@ -869,45 +652,6 @@ const formatPathLength = (path: MapPath) => {
   return `${len.toFixed(1)} mm`;
 };
 
-// 计算 Location 中心点
-const getLocationCenter = (loc: MapLocation) => {
-  const vertices = loc.geometry?.vertices || [];
-  if (vertices.length === 0) {
-    return {
-      x: loc.x ?? 0,
-      y: loc.y ?? 0
-    };
-  }
-  let sumX = 0;
-  let sumY = 0;
-  vertices.forEach(v => {
-    sumX += v.x;
-    sumY += v.y;
-  });
-  return {
-    x: sumX / vertices.length,
-    y: sumY / vertices.length
-  };
-};
-
-const formatLocationX = (loc: MapLocation) => {
-  const center = getLocationCenter(loc);
-  return `${center.x.toFixed(1)} mm`;
-};
-
-const formatLocationY = (loc: MapLocation) => {
-  const center = getLocationCenter(loc);
-  return `${center.y.toFixed(1)} mm`;
-};
-
-const formatLocationType = (loc: MapLocation) => {
-  if (loc.description) return loc.description;
-  if (loc.locationTypeId !== undefined && loc.locationTypeId !== null) {
-    return String(loc.locationTypeId);
-  }
-  return '';
-};
-
 // 判断当前选中路径是否为 Link（根据图层组名称或名称前缀）
 const isCurrentPathLink = computed(() => {
   if (resolvedSelectedType.value !== 'path') return false;
@@ -925,13 +669,6 @@ const updatePath = () => {
   }
 };
 
-// 更新位置属性
-const updateLocation = () => {
-  if (resolvedSelectedType.value === 'location' && resolvedSelectedElement.value) {
-    mapEditorStore.updateLocation((resolvedSelectedElement.value as MapLocation).id, locationForm.value);
-  }
-};
-
 // 切换点锁定状态
 const togglePointLock = () => {
   if (resolvedSelectedType.value === 'point' && resolvedSelectedElement.value) {
@@ -946,12 +683,6 @@ const togglePathLock = () => {
   }
 };
 
-// 切换位置锁定状态
-const toggleLocationLock = () => {
-  if (resolvedSelectedType.value === 'location' && resolvedSelectedElement.value) {
-    mapEditorStore.toggleLocationLock((resolvedSelectedElement.value as MapLocation).id);
-  }
-};
 </script>
 
 <style scoped lang="scss">

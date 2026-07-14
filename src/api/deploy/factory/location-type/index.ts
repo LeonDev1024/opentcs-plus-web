@@ -1,6 +1,7 @@
-import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
 import { LocationVO, LocationForm, LocationQuery } from '@/api/deploy/factory/location-type/types';
+
+const removedLocationTypeApiError = () => Promise.reject(new Error('位置类型接口已移除'));
 
 /**
  * 查询位置类型列表（分页，用于管理页）
@@ -8,11 +9,7 @@ import { LocationVO, LocationForm, LocationQuery } from '@/api/deploy/factory/lo
  * @returns {*}
  */
 export const listLocation = (query?: LocationQuery): AxiosPromise<{ rows: LocationVO[]; total: number }> => {
-  return request({
-    url: '/map/locationType/list',
-    method: 'get',
-    params: query
-  }) as AxiosPromise<{ rows: LocationVO[]; total: number }>;
+  return Promise.resolve({ rows: [], total: 0 }) as any;
 };
 
 /**
@@ -20,11 +17,7 @@ export const listLocation = (query?: LocationQuery): AxiosPromise<{ rows: Locati
  * @returns 位置类型列表
  */
 export const getLocationTypeListForSelect = (): Promise<LocationVO[]> => {
-  return request({
-    url: '/map/locationType/list',
-    method: 'get',
-    params: { pageNum: 1, pageSize: 500 }
-  }).then((res: any) => (res?.rows ? res.rows : []));
+  return Promise.resolve([]);
 };
 
 /**
@@ -32,10 +25,7 @@ export const getLocationTypeListForSelect = (): Promise<LocationVO[]> => {
  * @param id
  */
 export const getLocation = (id: string | number): AxiosPromise<LocationVO> => {
-  return request({
-    url: '/map/locationType/' + id,
-    method: 'get'
-  });
+  return removedLocationTypeApiError() as AxiosPromise<LocationVO>;
 };
 
 /**
@@ -43,11 +33,7 @@ export const getLocation = (id: string | number): AxiosPromise<LocationVO> => {
  * @param data
  */
 export const addLocation = (data: LocationForm) => {
-  return request({
-    url: '/map/locationType/create',
-    method: 'post',
-    data: data
-  });
+  return removedLocationTypeApiError();
 };
 
 /**
@@ -55,11 +41,7 @@ export const addLocation = (data: LocationForm) => {
  * @param data
  */
 export const updateLocation = (data: LocationForm) => {
-  return request({
-    url: '/map/locationType/update',
-    method: 'put',
-    data: data
-  });
+  return removedLocationTypeApiError();
 };
 
 /**
@@ -67,9 +49,5 @@ export const updateLocation = (data: LocationForm) => {
  * @param id
  */
 export const delLocation = (id: string | number | Array<string | number>) => {
-  return request({
-    url: '/map/locationType/' + id,
-    method: 'delete'
-  });
+  return removedLocationTypeApiError();
 };
-

@@ -1,4 +1,3 @@
-import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
 
 /**
@@ -12,11 +11,7 @@ export const listLocation = (query?: {
   navigationMapId?: number;
   name?: string;
 }): AxiosPromise<{ rows: any[]; total: number }> => {
-  return request({
-    url: '/location/list',
-    method: 'get',
-    params: query
-  });
+  return Promise.resolve({ rows: [], total: 0 }) as any;
 };
 
 /**
@@ -24,10 +19,7 @@ export const listLocation = (query?: {
  * @param factoryId 工厂ID
  */
 export const listLocationByFactory = (factoryId: number): AxiosPromise<any[]> => {
-  return request({
-    url: `/location/listByFactory/${factoryId}`,
-    method: 'get'
-  });
+  return Promise.resolve([]) as any;
 };
 
 /**
@@ -35,10 +27,7 @@ export const listLocationByFactory = (factoryId: number): AxiosPromise<any[]> =>
  * @param mapId 导航地图ID
  */
 export const listLocationByMap = (mapId: number): AxiosPromise<any[]> => {
-  return request({
-    url: `/location/listByMap/${mapId}`,
-    method: 'get'
-  });
+  return Promise.resolve([]) as any;
 };
 
 /**
@@ -46,8 +35,5 @@ export const listLocationByMap = (mapId: number): AxiosPromise<any[]> => {
  * @param id 位置ID
  */
 export const getLocation = (id: number): AxiosPromise<any> => {
-  return request({
-    url: `/location/${id}`,
-    method: 'get'
-  });
+  return Promise.reject(new Error('位置接口已移除')) as AxiosPromise<any>;
 };
