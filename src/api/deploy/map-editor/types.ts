@@ -127,19 +127,6 @@ export interface MapEditorMapInfoApi {
 }
 
 /**
- * Block 保存载体（对应后端 BlockDTO）
- */
-export interface BlockApiPayload {
-  blockId?: string;
-  name: string;
-  type: 'SINGLE_VEHICLE_ONLY' | 'SAME_DIRECTION_ONLY';
-  /** JSON 字符串格式的成员列表，如 '["P001","P002"]' */
-  members: string;
-  color?: string;
-  properties?: string;
-}
-
-/**
  * 地图编辑器保存请求体（对应后端 MapEditorSaveDTO）
  */
 export interface MapEditorApiSavePayload {
@@ -156,13 +143,11 @@ export interface MapEditorApiSavePayload {
   layers?: any[];
   points?: any[];
   paths?: any[];
-  locations?: any[];
-  blocks?: BlockApiPayload[];
 }
 
 /**
  * 后端返回的地图编辑器数据
- * 对应后端 MapEditorDTO：mapInfo + points/paths/locations
+ * 对应后端 MapEditorDTO：mapInfo + points/paths
  */
 export interface MapEditorResponse {
   /** 响应码 */
@@ -195,10 +180,6 @@ export interface MapEditorResponse {
   points?: any[];
   /** 路径数据 */
   paths?: any[];
-  /** 位置数据 */
-  locations?: any[];
-  /** Block 规则数据 */
-  blocks?: any[];
   /** 视觉布局数据 */
   visualLayout?: VisualLayoutData;
   /** 图层组数据（备用） */
@@ -209,7 +190,6 @@ export interface MapEditorResponse {
   elements?: {
     points?: any[];
     paths?: any[];
-    locations?: any[];
   };
 }
 
@@ -250,7 +230,5 @@ export interface MapEditorSaveData {
   layers?: any[];
   points?: any[];
   paths?: any[];
-  locations?: any[];
   visualLayout?: VisualLayoutData;
 }
-

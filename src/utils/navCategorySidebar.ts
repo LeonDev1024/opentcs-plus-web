@@ -47,13 +47,17 @@ export function buildSidebarRoutesForCategory(
       return [];
 
     case 'deploy': {
-      const deploy = findTopRoute(backendRoots, '/deploy');
+      const deploy = findTopRoute(backendRoots, '/deploy')
+        ?? findTopRoute(backendRoots, '/vehicle')
+        ?? findTopRoute(backendRoots, '/map');
       if (!deploy?.children) return [];
       return absolutifyFirstLevel(deploy.children, deploy.path as string);
     }
 
     case 'ops': {
-      const ops = findTopRoute(backendRoots, '/ops');
+      const ops = findTopRoute(backendRoots, '/ops')
+        ?? findTopRoute(backendRoots, '/task')
+        ?? findTopRoute(backendRoots, '/monitoring');
       if (!ops?.children) return [];
       return absolutifyFirstLevel(ops.children, ops.path as string);
     }

@@ -94,8 +94,6 @@ import {
   resolvePointBullseyeStyleReadonly,
   updateConnectedPointIds,
 } from "@/utils/mapEditor/pointStyle";
-import { getLocationTypeListForSelect } from "@/api/deploy/factory/location-type";
-import type { LocationVO } from "@/api/deploy/factory/location-type/types";
 
 // ==================== Props ====================
 interface Props {
@@ -637,29 +635,12 @@ function getLocationConfig(location: MapLocation) {
   };
 }
 
-const locationTypeList = ref<LocationVO[]>([]);
 const locationIconUrlMap: Record<string, string> = {};
 const iconCache = shallowRef<Record<string, HTMLImageElement>>({});
 
 const getSymbolForLocationTypeId = (
   locationTypeId: string | number | undefined,
 ): string => {
-  if (locationTypeId === undefined || locationTypeId === null) return "";
-  const id = String(locationTypeId);
-  const type = locationTypeList.value.find((t) => String(t.id) === id);
-  if (!type?.properties) return "";
-  try {
-    const arr =
-      typeof type.properties === "string"
-        ? JSON.parse(type.properties)
-        : type.properties;
-    if (Array.isArray(arr)) {
-      const item = arr.find((p: any) => p?.name === "symbol");
-      return String(item?.value ?? "");
-    }
-  } catch {
-    return "";
-  }
   return "";
 };
 
@@ -674,12 +655,7 @@ function ensureIconLoaded(symbol: string) {
   img.src = url;
 }
 
-onMounted(async () => {
-  try {
-    locationTypeList.value = await getLocationTypeListForSelect();
-  } catch {
-    locationTypeList.value = [];
-  }
+onMounted(() => {
   const modules = import.meta.glob("@/assets/location/*.svg", {
     eager: true,
     as: "url",

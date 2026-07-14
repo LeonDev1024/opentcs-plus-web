@@ -77,7 +77,7 @@ export const constantRoutes: RouteRecordRaw[] = [
     children: [
       {
         path: '',
-        component: () => import('@/views/ops/monitor/operationsdesk/index.vue'),
+        component: () => import('@/views/monitor/operationsdesk/index.vue'),
         name: 'OperationsDesk',
         meta: { title: '运维管理', icon: 'monitor', noCache: true }
       }
@@ -86,6 +86,7 @@ export const constantRoutes: RouteRecordRaw[] = [
   {
     path: '/simulation',
     component: Layout,
+    hidden: true,
     children: [
       {
         path: '',
@@ -116,7 +117,7 @@ export const constantRoutes: RouteRecordRaw[] = [
     children: [
       {
         path: '',
-        component: () => import('@/views/deploy/map-editor/MapEditorTabs.vue'),
+        component: () => import('@/views/map/scene/console/MapEditorTabs.vue'),
         name: 'MapEditor',
         meta: { title: '地图编辑器', icon: 'map', noCache: true }
       }

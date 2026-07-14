@@ -6,7 +6,6 @@ import { ref } from 'vue';
 
 export const useSettingsStore = defineStore('setting', () => {
   const storageSetting = useStorage<LayoutSetting>('layout-setting', {
-    // topNav 固定启用，不从 localStorage 读取
     tagsView: defaultSettings.tagsView,
     tagsIcon: defaultSettings.tagsIcon,
     fixedHeader: defaultSettings.fixedHeader,
@@ -19,8 +18,7 @@ export const useSettingsStore = defineStore('setting', () => {
   const theme = ref<string>(storageSetting.value.theme);
   const sideTheme = ref<string>(storageSetting.value.sideTheme);
   const showSettings = ref<boolean>(defaultSettings.showSettings);
-  // topNav 固定为 true，不允许用户配置
-  const topNav = ref<boolean>(true);
+  const topNav = ref<boolean>(false);
   const tagsView = ref<boolean>(storageSetting.value.tagsView);
   const tagsIcon = ref<boolean>(storageSetting.value.tagsIcon);
   const fixedHeader = ref<boolean>(storageSetting.value.fixedHeader);

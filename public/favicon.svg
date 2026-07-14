@@ -1,9 +1,10 @@
-<svg width="32" height="32" viewBox="5 5 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- AGV 机器人 - 天蓝色方案 -->
-  <rect x="8" y="14" width="32" height="18" rx="4" fill="#38BDF8"/>
-  <rect x="12" y="8" width="24" height="8" rx="2" fill="#7DD3FC"/>
-  <circle cx="18" cy="22" r="2.5" fill="#1E293B"/>
-  <circle cx="30" cy="22" r="2.5" fill="#1E293B"/>
-  <circle cx="14" cy="32" r="5" fill="#0EA5E9"/>
-  <circle cx="34" cy="32" r="5" fill="#0EA5E9"/>
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="32" height="32" rx="9" fill="#0F172A"/>
+  <rect x="1.2" y="1.2" width="29.6" height="29.6" rx="8" fill="#38BDF8" fill-opacity="0.16"/>
+  <rect x="4.8" y="11" width="22.4" height="12" rx="2.8" fill="#38BDF8"/>
+  <rect x="7.4" y="5.8" width="17.2" height="7" rx="2" fill="#7DD3FC"/>
+  <circle cx="11.8" cy="16.6" r="1.75" fill="#1E293B"/>
+  <circle cx="20.2" cy="16.6" r="1.75" fill="#1E293B"/>
+  <circle cx="8.6" cy="23.5" r="3.65" fill="#0EA5E9"/>
+  <circle cx="23.4" cy="23.5" r="3.65" fill="#0EA5E9"/>
 </svg>

@@ -10,29 +10,24 @@ export interface BrandVO {
   name: string;
 
   /**
-   * 品牌缩写代码
+   * 英文名称
+   */
+  englishName?: string;
+
+  /**
+   * 品牌编码
    */
   code: string;
 
   /**
-   * Logo URL
+   * 品牌缩略图（Base64 Data URL）
    */
   logo?: string;
-
-  /**
-   * 官网地址
-   */
-  website?: string;
 
   /**
    * 品牌描述
    */
   description?: string;
-
-  /**
-   * 联系方式
-   */
-  contact?: string;
 
   /**
    * 是否启用
@@ -42,7 +37,7 @@ export interface BrandVO {
   /**
    * 排序
    */
-  sort: number;
+  sort?: number;
 
   /**
    * 创建时间
@@ -67,29 +62,24 @@ export interface BrandForm {
   name?: string;
 
   /**
-   * 品牌缩写代码
+   * 英文名称
+   */
+  englishName?: string;
+
+  /**
+   * 品牌编码
    */
   code?: string;
 
   /**
-   * Logo URL
+   * 品牌缩略图（Base64 Data URL）
    */
   logo?: string;
-
-  /**
-   * 官网地址
-   */
-  website?: string;
 
   /**
    * 品牌描述
    */
   description?: string;
-
-  /**
-   * 联系方式
-   */
-  contact?: string;
 
   /**
    * 是否启用
@@ -104,14 +94,9 @@ export interface BrandForm {
 
 export interface BrandQuery extends PageQuery {
   /**
-   * 品牌名称
+   * 品牌编码或名称（模糊搜索）
    */
-  name?: string;
-
-  /**
-   * 品牌Code
-   */
-  code?: string;
+  keyword?: string;
 
   /**
    * 是否启用

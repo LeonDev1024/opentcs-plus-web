@@ -50,10 +50,10 @@ router.beforeEach(async (to, from, next) => {
           next({ path: to.path, replace: true, params: to.params, query: to.query, hash: to.hash, name: to.name as string }); // hack方法 确保addRoutes已完成
         }
       } else {
-        // 地图编辑器：收起侧边栏；其他页面：展开侧边栏
+        // 保持地图编辑器的主导航状态不被路由守卫强制改变
         const appStore = useAppStore();
         if (to.path.startsWith('/map-editor')) {
-          appStore.closeSideBar({ withoutAnimation: true });
+          // noop
         } else if (!appStore.sidebar.hide) {
           appStore.openSideBar();
         }

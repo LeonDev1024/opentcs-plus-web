@@ -1,476 +1,417 @@
 <template>
   <div class="dashboard">
-    <!-- KPI 卡片行 -->
-    <div class="kpi-row">
-      <div
-        v-for="(card, idx) in kpiCards"
-        :key="card.key"
-        class="kpi-card"
-        :style="{ '--card-color': card.color, '--card-color-dark': card.colorDark, animationDelay: `${idx * 80}ms` }"
-      >
-        <div class="kpi-content">
-          <div class="kpi-label">{{ card.label }}</div>
-          <div class="kpi-value">
-            <span class="kpi-number">{{ card.displayValue }}</span>
-            <span v-if="card.unit" class="kpi-unit">{{ card.unit }}</span>
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">总览</h1>
+        <p class="page-desc">{{ greeting }}，{{ username }}。当前 {{ currentTime }}</p>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div v-for="stat in stats" :key="stat.label" class="stat-card">
+        <div class="stat-icon" :style="{ background: stat.iconBg }">
+          <el-icon><component :is="stat.icon" /></el-icon>
+        </div>
+        <div class="stat-body">
+          <p class="stat-value">{{ stat.value }}</p>
+          <p class="stat-label">{{ stat.label }}</p>
+        </div>
+        <div class="stat-trend" :class="stat.trendType">
+          <el-icon><component :is="stat.trendIcon" /></el-icon>
+          <span>{{ stat.trend }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="content-grid">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title">任务完成率</h3>
+            <p class="card-desc">按创建日期统计最近 7 日任务</p>
           </div>
-          <div class="kpi-sub">
-            <span
-              v-for="sub in card.subs"
-              :key="sub.label"
-              class="kpi-sub-item"
+          <div class="chart-tabs">
+            <button
+              v-for="tab in chartTabs"
+              :key="tab.value"
+              type="button"
+              class="chart-tab"
+              :class="{ active: activeTab === tab.value }"
+              @click="activeTab = tab.value"
             >
-              <i class="dot" :style="{ background: sub.color }"></i>
-              {{ sub.label }} {{ sub.value }}
-            </span>
+              {{ tab.label }}
+            </button>
           </div>
         </div>
-        <div class="kpi-icon-bg">
-          <el-icon><component :is="card.icon" /></el-icon>
-        </div>
-        <!-- 装饰圆圈 -->
-        <div class="deco-circle deco-1"></div>
-        <div class="deco-circle deco-2"></div>
-      </div>
-    </div>
-
-    <!-- 图表行 -->
-    <div class="chart-row">
-      <!-- 任务趋势折线图 -->
-      <div class="chart-card chart-left">
-        <div class="card-header">
-          <div class="card-title">任务趋势</div>
-          <div class="card-subtitle">近 7 天订单统计</div>
-        </div>
-        <div ref="trendChartRef" class="chart-body"></div>
-      </div>
-
-      <!-- 车辆状态饼图 -->
-      <div class="chart-card chart-right">
-        <div class="card-header">
-          <div class="card-title">车辆状态分布</div>
-          <div class="card-subtitle">实时统计</div>
-        </div>
-        <div ref="vehicleChartRef" class="chart-body"></div>
-      </div>
-    </div>
-
-    <!-- 列表行 -->
-    <div class="list-row">
-      <!-- 实时告警 -->
-      <div class="list-card">
-        <div class="card-header">
-          <div class="card-title">
-            实时告警
-            <span v-if="alarmList.length > 0" class="badge-dot"></span>
-          </div>
-          <el-button link type="primary" size="small">查看全部</el-button>
-        </div>
-        <div class="alarm-list">
-          <div v-if="alarmList.length === 0" class="empty-state">
-            <el-icon class="empty-icon" style="color: var(--success-500)"><CircleCheck /></el-icon>
-            <span>系统运行正常，暂无告警</span>
-          </div>
-          <div
-            v-for="alarm in alarmList"
-            :key="alarm.id"
-            class="alarm-item"
-            :class="`alarm-${alarm.level}`"
-          >
-            <div class="alarm-level-bar"></div>
-            <div class="alarm-info">
-              <div class="alarm-title">{{ alarm.title }}</div>
-              <div class="alarm-meta">
-                <span>{{ alarm.vehicle }}</span>
-                <span>{{ alarm.time }}</span>
+        <div class="chart-area">
+          <div v-if="chartData.length" class="mini-bar-chart">
+            <div v-for="(bar, i) in chartData" :key="i" class="bar-col">
+              <div class="bar-wrap">
+                <div class="bar-fill" :style="{ height: bar.pct + '%' }"></div>
               </div>
+              <span class="bar-label">{{ bar.day }}</span>
             </div>
-            <el-tag
-              :type="alarm.level === 'critical' ? 'danger' : alarm.level === 'warning' ? 'warning' : 'info'"
-              size="small"
-              effect="light"
-            >{{ alarm.levelText }}</el-tag>
           </div>
+          <div v-else class="chart-empty">暂无任务数据</div>
         </div>
       </div>
 
-      <!-- 最近订单 -->
-      <div class="list-card">
+      <div class="card">
         <div class="card-header">
-          <div class="card-title">最近订单</div>
-          <el-button link type="primary" size="small" @click="goOrders">查看全部</el-button>
-        </div>
-        <div class="order-list">
-          <div v-if="recentOrders.length === 0" class="empty-state">
-            <el-icon class="empty-icon"><Document /></el-icon>
-            <span>暂无订单数据</span>
+          <div>
+            <h3 class="card-title">机器人状态</h3>
+            <p class="card-desc">实时在线状态分布</p>
           </div>
-          <div
-            v-for="order in recentOrders"
-            :key="order.id"
-            class="order-item"
-          >
-            <div class="order-no">{{ order.orderNo }}</div>
-            <div class="order-route">
-              <span class="route-from">{{ order.from }}</span>
-              <el-icon class="route-arrow"><Right /></el-icon>
-              <span class="route-to">{{ order.to }}</span>
+        </div>
+        <div class="status-list">
+          <div v-for="item in robotStatus" :key="item.label" class="status-item">
+            <div class="status-left">
+              <span class="status-dot" :style="{ background: item.color }"></span>
+              <span class="status-label">{{ item.label }}</span>
             </div>
-            <div class="order-vehicle">{{ order.vehicle || '未分配' }}</div>
-            <el-tag
-              :type="orderStatusType(order.status)"
-              size="small"
-              effect="light"
-              class="order-status"
-            >{{ orderStatusText(order.status) }}</el-tag>
+            <div class="status-right">
+              <div class="status-bar-bg">
+                <div class="status-bar-fill" :style="{ width: item.pct + '%', background: item.color }"></div>
+              </div>
+              <span class="status-count">{{ item.count }}</span>
+              <span class="status-pct">{{ item.pct }}%</span>
+            </div>
           </div>
         </div>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">最近运输订单</h3>
+          <p class="card-desc">最新创建的调度任务</p>
+        </div>
+        <router-link to="/task/operation" class="view-all-link">
+          查看全部
+          <el-icon><ArrowRight /></el-icon>
+        </router-link>
+      </div>
+      <el-table v-loading="loading" :data="recentOrders" class="clean-table" empty-text="暂无订单数据">
+        <el-table-column prop="orderNo" label="订单编号" min-width="160" show-overflow-tooltip />
+        <el-table-column label="起止位置" min-width="200" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ formatRoute(row) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="vehicleName" label="执行车辆" width="120" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.vehicleName || '未分配' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="createTime" label="创建时间" width="170" />
+        <el-table-column prop="status" label="状态" width="110">
+          <template #default="{ row }">
+            <span class="result-chip" :class="orderStatusClass(row.status)">
+              {{ orderStatusLabel(row.status) }}
+            </span>
+          </template>
+        </el-table-column>
+      </el-table>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
-import * as echarts from 'echarts';
-import { useRouter } from 'vue-router';
-import {
-  Cpu,
-  Document,
-  Warning,
-  CircleCheck,
-  Right,
-  Van
-} from '@element-plus/icons-vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { Van, Cpu, Check, WarningFilled, ArrowRight, ArrowUp, ArrowDown } from '@element-plus/icons-vue';
+import { monitorApi, type VehicleRuntimeVO, type AmrStats, type TaskStats } from '@/api/ops/monitor';
+import { listOrder } from '@/api/ops/order';
+import type { OrderVO } from '@/api/ops/order/types';
+import { useUserStore } from '@/store/modules/user';
 
-const router = useRouter();
+const userStore = useUserStore();
+const loading = ref(false);
+const currentTime = ref('');
+let timer: number | undefined;
 
-// ===================== Mock 数据 =====================
+const vehicles = ref<VehicleRuntimeVO[]>([]);
+const orders = ref<OrderVO[]>([]);
+const amrStats = ref<AmrStats | null>(null);
+const taskStats = ref<TaskStats | null>(null);
 
-const vehicleData = {
-  total: 12,
-  idle: 5,
-  working: 4,
-  charging: 2,
-  error: 1
+const username = computed(() => userStore.nickname || userStore.name || '管理员');
+
+const greeting = computed(() => {
+  const h = new Date().getHours();
+  if (h < 12) return '早上好';
+  if (h < 18) return '下午好';
+  return '晚上好';
+});
+
+const updateTime = () => {
+  const now = new Date();
+  currentTime.value =
+    now.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' }) +
+    ' ' +
+    now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
 };
 
-const orderData = {
-  total: 87,
-  pending: 6,
-  transporting: 4,
-  completed: 74,
-  cancelled: 3
+const unwrapStats = <T>(res: unknown): T | null => {
+  if (!res || typeof res !== 'object') return null;
+  const body = res as Record<string, unknown>;
+  if (body.data && typeof body.data === 'object') return body.data as T;
+  return body as T;
 };
 
-const completionRate = Math.round((orderData.completed / orderData.total) * 100);
+const loadDashboard = async () => {
+  loading.value = true;
+  try {
+    const [vehicleStatsRes, orderStatsRes, vehiclesRes, ordersRes] = await Promise.all([
+      monitorApi.getVehicleStatistics(),
+      monitorApi.getOrderStatistics(),
+      monitorApi.listVehicleRuntime(),
+      listOrder({ pageNum: 1, pageSize: 200 })
+    ]);
 
-const alarmList = ref([
+    amrStats.value = unwrapStats<AmrStats>(vehicleStatsRes);
+    taskStats.value = unwrapStats<TaskStats>(orderStatsRes);
+
+    const vehicleBody = vehiclesRes as { data?: VehicleRuntimeVO[] };
+    vehicles.value = Array.isArray(vehicleBody?.data) ? vehicleBody.data : [];
+
+    const orderRows = (ordersRes as { rows?: OrderVO[] })?.rows;
+    orders.value = Array.isArray(orderRows) ? orderRows : [];
+  } catch {
+    vehicles.value = [];
+    orders.value = [];
+    amrStats.value = null;
+    taskStats.value = null;
+  } finally {
+    loading.value = false;
+  }
+};
+
+const totalVehicles = computed(() => amrStats.value?.totalVehicles ?? vehicles.value.length);
+const onlineVehicles = computed(() => {
+  if (amrStats.value) {
+    const offline = amrStats.value.offlineVehicles ?? 0;
+    return Math.max(0, amrStats.value.totalVehicles - offline);
+  }
+  return vehicles.value.filter((v) => v.state !== 'UNAVAILABLE' && v.state !== 'UNKNOWN').length;
+});
+const activeTasks = computed(() => {
+  if (taskStats.value) return taskStats.value.activeOrders ?? 0;
+  return orders.value.filter((o) => o.status === '2').length;
+});
+const waitingTasks = computed(() => {
+  if (taskStats.value) return taskStats.value.waitingOrders ?? 0;
+  return orders.value.filter((o) => o.status === '0' || o.status === '1').length;
+});
+const completedTasks = computed(() => {
+  if (taskStats.value) return taskStats.value.finishedOrders ?? 0;
+  return orders.value.filter((o) => o.status === '3').length;
+});
+const terminalTasks = computed(() => {
+  if (taskStats.value) {
+    return (
+      (taskStats.value.finishedOrders ?? 0) +
+      (taskStats.value.cancelledOrders ?? 0) +
+      (taskStats.value.failedOrders ?? 0)
+    );
+  }
+  return orders.value.filter((o) => ['3', '4'].includes(o.status)).length;
+});
+const completionRate = computed(() =>
+  terminalTasks.value ? Math.round((completedTasks.value / terminalTasks.value) * 100) : 0
+);
+const faultRobots = computed(
+  () => amrStats.value?.errorVehicles ?? vehicles.value.filter((v) => v.state === 'ERROR').length
+);
+const alertCount = computed(
+  () => faultRobots.value + (taskStats.value?.failedOrders ?? 0)
+);
+
+const stats = computed(() => [
   {
-    id: 1,
-    level: 'warning',
-    levelText: '警告',
-    title: 'AGV-03 电量不足 (18%)',
-    vehicle: 'AGV-03',
-    time: '3 分钟前'
+    label: '在线车辆',
+    value: onlineVehicles.value,
+    icon: Van,
+    iconBg: 'var(--primary-50)',
+    trend: `${totalVehicles.value} 台注册`,
+    trendType: 'neutral',
+    trendIcon: ArrowUp
   },
   {
-    id: 2,
-    level: 'info',
-    levelText: '提示',
-    title: 'AGV-07 已完成充电',
-    vehicle: 'AGV-07',
-    time: '12 分钟前'
+    label: '执行中任务',
+    value: activeTasks.value,
+    icon: Cpu,
+    iconBg: 'var(--success-50)',
+    trend: `${waitingTasks.value} 个等待`,
+    trendType: 'up',
+    trendIcon: ArrowUp
   },
   {
-    id: 3,
-    level: 'info',
-    levelText: '提示',
-    title: '地图版本 v2.1 已更新',
-    vehicle: '系统',
-    time: '1 小时前'
+    label: '任务完成率',
+    value: `${completionRate.value}%`,
+    icon: Check,
+    iconBg: 'var(--warning-50)',
+    trend: `${completedTasks.value} 单已完成`,
+    trendType: 'neutral',
+    trendIcon: ArrowUp
+  },
+  {
+    label: '异常告警',
+    value: alertCount.value,
+    icon: WarningFilled,
+    iconBg: 'var(--danger-50)',
+    trend: `${faultRobots.value} 台故障`,
+    trendType: alertCount.value ? 'down' : 'up',
+    trendIcon: alertCount.value ? ArrowDown : ArrowUp
   }
 ]);
 
-const recentOrders = ref([
-  { id: 1, orderNo: 'ORD-20260415-001', from: 'A-01', to: 'B-03', vehicle: 'AGV-02', status: '2' },
-  { id: 2, orderNo: 'ORD-20260415-002', from: 'C-05', to: 'D-02', vehicle: 'AGV-05', status: '3' },
-  { id: 3, orderNo: 'ORD-20260415-003', from: 'A-03', to: 'E-01', vehicle: '', status: '0' },
-  { id: 4, orderNo: 'ORD-20260415-004', from: 'B-02', to: 'F-04', vehicle: 'AGV-01', status: '3' },
-  { id: 5, orderNo: 'ORD-20260415-005', from: 'D-01', to: 'A-05', vehicle: 'AGV-04', status: '1' },
-  { id: 6, orderNo: 'ORD-20260415-006', from: 'E-03', to: 'C-01', vehicle: 'AGV-03', status: '2' },
-]);
+const activeTab = ref<'all' | 'success' | 'fail'>('all');
+const chartTabs = [
+  { label: '全部', value: 'all' as const },
+  { label: '成功', value: 'success' as const },
+  { label: '失败', value: 'fail' as const }
+];
 
-// ===================== KPI 卡片 =====================
+const chartData = computed(() => {
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - index));
+    const key = date.toISOString().slice(0, 10);
+    return { key, day: `${date.getMonth() + 1}/${date.getDate()}`, total: 0, hit: 0 };
+  });
 
-const kpiCards = ref([
-  {
-    key: 'vehicle',
-    label: '车辆在线',
-    value: vehicleData.total - vehicleData.error,
-    displayValue: '0',
-    unit: '台',
-    color: '#2563eb',
-    colorDark: '#1d4ed8',
-    icon: 'Van',
-    subs: [
-      { label: '空闲', value: vehicleData.idle, color: '#64748b' },
-      { label: '作业', value: vehicleData.working, color: '#2563eb' },
-      { label: '充电', value: vehicleData.charging, color: '#f59e0b' }
-    ]
-  },
-  {
-    key: 'order',
-    label: '今日任务',
-    value: orderData.total,
-    displayValue: '0',
-    unit: '单',
-    color: '#7c3aed',
-    colorDark: '#6d28d9',
-    icon: 'Document',
-    subs: [
-      { label: '待分配', value: orderData.pending, color: '#94a3b8' },
-      { label: '运输中', value: orderData.transporting, color: '#7c3aed' },
-      { label: '已完成', value: orderData.completed, color: '#16a34a' }
-    ]
-  },
-  {
-    key: 'rate',
-    label: '完成率',
-    value: completionRate,
-    displayValue: '0',
-    unit: '%',
-    color: '#059669',
-    colorDark: '#047857',
-    icon: 'CircleCheck',
-    subs: [
-      { label: '已完成', value: orderData.completed, color: '#16a34a' },
-      { label: '已取消', value: orderData.cancelled, color: '#ef4444' }
-    ]
-  },
-  {
-    key: 'alarm',
-    label: '活跃告警',
-    value: alarmList.value.length,
-    displayValue: '0',
-    unit: '条',
-    color: alarmList.value.length === 0 ? '#059669' : '#d97706',
-    colorDark: alarmList.value.length === 0 ? '#047857' : '#b45309',
-    icon: 'Warning',
-    subs: [
-      { label: '严重', value: alarmList.value.filter(a => a.level === 'critical').length, color: '#ef4444' },
-      { label: '警告', value: alarmList.value.filter(a => a.level === 'warning').length, color: '#f59e0b' },
-      { label: '提示', value: alarmList.value.filter(a => a.level === 'info').length, color: '#3b82f6' }
-    ]
-  }
-]);
+  orders.value.forEach((order) => {
+    const key = order.createTime?.slice(0, 10);
+    const item = days.find((day) => day.key === key);
+    if (!item) return;
+    item.total += 1;
+    if (activeTab.value === 'all' && order.status === '3') item.hit += 1;
+    if (activeTab.value === 'success' && order.status === '3') item.hit += 1;
+    if (activeTab.value === 'fail' && order.status === '4') item.hit += 1;
+  });
 
-// countUp 动画
-const startCountUp = () => {
-  const duration = 1200;
-  const startTime = performance.now();
+  return days.map((day) => {
+    const ratio = day.total ? day.hit / day.total : 0;
+    const pct =
+      activeTab.value === 'all'
+        ? Math.max(8, Math.round(ratio * 100))
+        : Math.max(day.hit > 0 ? 12 : 4, Math.round(ratio * 100) || day.hit * 18);
+    return { day: day.day, pct };
+  });
+});
 
-  const animate = (currentTime: number) => {
-    const elapsed = currentTime - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    // easeOutCubic
-    const eased = 1 - Math.pow(1 - progress, 3);
-
-    kpiCards.value.forEach(card => {
-      card.displayValue = Math.round(eased * card.value).toString();
-    });
-
-    if (progress < 1) {
-      requestAnimationFrame(animate);
+const robotStatus = computed(() => {
+  const list = vehicles.value;
+  const total = amrStats.value?.totalVehicles || list.length || 1;
+  const rows = [
+    {
+      label: '执行中',
+      count:
+        amrStats.value?.executingVehicles ??
+        list.filter((v) => v.state === 'WORKING').length,
+      color: '#2563eb'
+    },
+    {
+      label: '空闲待命',
+      count: amrStats.value?.idleVehicles ?? list.filter((v) => v.state === 'IDLE').length,
+      color: '#10b981'
+    },
+    {
+      label: '充电中',
+      count:
+        amrStats.value?.chargingVehicles ?? list.filter((v) => v.state === 'CHARGING').length,
+      color: '#f59e0b'
+    },
+    {
+      label: '故障/离线',
+      count: amrStats.value
+        ? (amrStats.value.errorVehicles ?? 0) + (amrStats.value.offlineVehicles ?? 0)
+        : list.filter((v) => ['ERROR', 'UNKNOWN', 'UNAVAILABLE'].includes(v.state)).length,
+      color: '#ef4444'
     }
+  ];
+  return rows.map((row) => ({
+    ...row,
+    pct: Math.round((row.count / Math.max(total, 1)) * 100)
+  }));
+});
+
+const recentOrders = computed(() =>
+  [...orders.value]
+    .sort((a, b) => (b.createTime || '').localeCompare(a.createTime || ''))
+    .slice(0, 8)
+);
+
+const orderStatusLabel = (status: string) => {
+  const map: Record<string, string> = {
+    '0': '待分配',
+    '1': '已分配',
+    '2': '运输中',
+    '3': '已完成',
+    '4': '已取消'
   };
-  requestAnimationFrame(animate);
+  return map[status] ?? status;
 };
 
-// ===================== 图表 =====================
-
-const trendChartRef = ref<HTMLElement>();
-const vehicleChartRef = ref<HTMLElement>();
-let trendChart: echarts.ECharts | null = null;
-let vehicleChart: echarts.ECharts | null = null;
-
-const trendDays = ['4/9', '4/10', '4/11', '4/12', '4/13', '4/14', '4/15'];
-const trendNew = [14, 19, 12, 23, 18, 25, 87];
-const trendDone = [12, 16, 11, 20, 17, 22, 74];
-
-const initTrendChart = () => {
-  if (!trendChartRef.value) return;
-  trendChart = echarts.init(trendChartRef.value);
-
-  const option: echarts.EChartsOption = {
-    grid: { top: 20, right: 16, bottom: 48, left: 8, containLabel: true },
-    tooltip: {
-      trigger: 'axis',
-      backgroundColor: 'var(--bg-elevated)',
-      borderColor: 'var(--border-default)',
-      textStyle: { color: 'var(--text-primary)', fontSize: 12 },
-      axisPointer: { type: 'cross', lineStyle: { color: 'var(--border-default)' } }
-    },
-    legend: {
-      data: ['新增订单', '完成订单'],
-      bottom: 0,
-      textStyle: { color: 'var(--text-secondary)', fontSize: 11 },
-      itemWidth: 12,
-      itemHeight: 6
-    },
-    xAxis: {
-      type: 'category',
-      data: trendDays,
-      axisLine: { lineStyle: { color: 'var(--border-default)' } },
-      axisTick: { show: false },
-      axisLabel: { color: 'var(--text-tertiary)', fontSize: 11 }
-    },
-    yAxis: {
-      type: 'value',
-      splitLine: { lineStyle: { color: 'var(--border-light)', type: 'dashed' } },
-      axisLabel: { color: 'var(--text-tertiary)', fontSize: 11 }
-    },
-    series: [
-      {
-        name: '新增订单',
-        type: 'line',
-        data: trendNew,
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 5,
-        lineStyle: { color: '#2563eb', width: 2 },
-        itemStyle: { color: '#2563eb' },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(37,99,235,0.25)' },
-            { offset: 1, color: 'rgba(37,99,235,0.02)' }
-          ])
-        }
-      },
-      {
-        name: '完成订单',
-        type: 'line',
-        data: trendDone,
-        smooth: true,
-        symbol: 'circle',
-        symbolSize: 5,
-        lineStyle: { color: '#16a34a', width: 2 },
-        itemStyle: { color: '#16a34a' },
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(22,163,74,0.2)' },
-            { offset: 1, color: 'rgba(22,163,74,0.02)' }
-          ])
-        }
-      }
-    ]
-  };
-  trendChart.setOption(option);
+const orderStatusClass = (status: string) => {
+  if (status === '3') return 'success';
+  if (status === '4') return 'fail';
+  if (status === '2') return 'running';
+  return 'pending';
 };
 
-const initVehicleChart = () => {
-  if (!vehicleChartRef.value) return;
-  vehicleChart = echarts.init(vehicleChartRef.value);
-
-  const option: echarts.EChartsOption = {
-    tooltip: {
-      trigger: 'item',
-      formatter: '{b}: {c} 台 ({d}%)',
-      backgroundColor: 'var(--bg-elevated)',
-      borderColor: 'var(--border-default)',
-      textStyle: { color: 'var(--text-primary)', fontSize: 12 }
-    },
-    legend: {
-      orient: 'vertical',
-      right: 16,
-      top: 'center',
-      textStyle: { color: 'var(--text-secondary)', fontSize: 11 },
-      itemWidth: 10,
-      itemHeight: 10
-    },
-    series: [
-      {
-        type: 'pie',
-        radius: ['48%', '70%'],
-        center: ['38%', '50%'],
-        avoidLabelOverlap: false,
-        label: {
-          show: true,
-          position: 'center',
-          formatter: () => `{total|${vehicleData.total}}\n{label|台}`,
-          rich: {
-            total: { fontSize: 26, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 32 },
-            label: { fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 18 }
-          }
-        },
-        emphasis: {
-          label: { show: true },
-          scaleSize: 4
-        },
-        labelLine: { show: false },
-        data: [
-          { value: vehicleData.idle, name: '空闲', itemStyle: { color: '#64748b' } },
-          { value: vehicleData.working, name: '作业中', itemStyle: { color: '#2563eb' } },
-          { value: vehicleData.charging, name: '充电中', itemStyle: { color: '#f59e0b' } },
-          { value: vehicleData.error, name: '故障', itemStyle: { color: '#ef4444' } }
-        ]
-      }
-    ]
-  };
-  vehicleChart.setOption(option);
+const formatRoute = (row: OrderVO) => {
+  const from = row.startLocationName || row.startLocationId || '-';
+  const to = row.targetLocationName || row.targetLocationId || '-';
+  return `${from} → ${to}`;
 };
 
-const handleResize = () => {
-  trendChart?.resize();
-  vehicleChart?.resize();
-};
-
-// ===================== 工具函数 =====================
-
-const orderStatusType = (status: string) => {
-  const map: Record<string, string> = { '0': 'info', '1': 'primary', '2': 'warning', '3': 'success', '4': 'danger' };
-  return (map[status] ?? 'info') as any;
-};
-
-const orderStatusText = (status: string) => {
-  const map: Record<string, string> = { '0': '待分配', '1': '已分配', '2': '运输中', '3': '已完成', '4': '已取消' };
-  return map[status] ?? '-';
-};
-
-const goOrders = () => {
-  router.push('/ops/order');
-};
-
-// ===================== 生命周期 =====================
-
-onMounted(async () => {
-  await nextTick();
-  startCountUp();
-  initTrendChart();
-  initVehicleChart();
-  window.addEventListener('resize', handleResize);
+onMounted(() => {
+  updateTime();
+  loadDashboard();
+  timer = window.setInterval(() => {
+    updateTime();
+    loadDashboard();
+  }, 30000);
 });
 
 onUnmounted(() => {
-  trendChart?.dispose();
-  vehicleChart?.dispose();
-  window.removeEventListener('resize', handleResize);
+  if (timer) window.clearInterval(timer);
 });
 </script>
 
-<style lang="scss" scoped>
+<style scoped lang="scss">
 .dashboard {
-  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
+  padding: 20px;
   min-height: 100%;
   background: var(--bg-secondary);
 }
 
-// ===================== KPI 卡片 =====================
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
 
-.kpi-row {
+.page-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  line-height: var(--leading-tight);
+  margin: 0 0 4px;
+}
+
+.page-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.stats-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 16px;
@@ -480,126 +421,79 @@ onUnmounted(() => {
   }
 }
 
-.kpi-card {
-  position: relative;
-  border-radius: var(--radius-xl);
+.stat-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
   padding: 20px;
-  overflow: hidden;
-  cursor: default;
-  animation: slideUp 0.4s var(--ease-out) both;
-  background: linear-gradient(135deg, var(--card-color) 0%, var(--card-color-dark) 100%);
-  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.2);
-  transition: transform var(--duration-200) var(--ease-out),
-              box-shadow var(--duration-200) var(--ease-out);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: box-shadow var(--duration-200) var(--ease-out);
+  box-shadow: var(--shadow-card);
 
   &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 8px 28px -4px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--shadow-md);
   }
 }
 
-.kpi-content {
-  position: relative;
-  z-index: 1;
-  color: #fff;
-}
-
-.kpi-label {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  opacity: 0.85;
-  margin-bottom: 8px;
-  letter-spacing: 0.02em;
-}
-
-.kpi-value {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  margin-bottom: 14px;
-
-  .kpi-number {
-    font-size: 36px;
-    font-weight: var(--font-weight-bold);
-    line-height: 1;
-    letter-spacing: var(--letter-spacing-tight);
-  }
-
-  .kpi-unit {
-    font-size: var(--font-size-base);
-    opacity: 0.75;
-    font-weight: var(--font-weight-medium);
-  }
-}
-
-.kpi-sub {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-
-  .kpi-sub-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    opacity: 0.85;
-    background: rgba(255, 255, 255, 0.15);
-    padding: 2px 8px;
-    border-radius: var(--radius-full);
-
-    .dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: rgba(255, 255, 255, 0.8);
-      flex-shrink: 0;
-    }
-  }
-}
-
-.kpi-icon-bg {
-  position: absolute;
-  right: -10px;
-  bottom: -10px;
-  width: 80px;
-  height: 80px;
+.stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.12;
+  flex-shrink: 0;
 
   .el-icon {
-    font-size: 72px;
-    color: #fff;
+    font-size: 20px;
+    color: var(--primary-500);
   }
 }
 
-.deco-circle {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  pointer-events: none;
+.stat-body {
+  flex: 1;
+  min-width: 0;
+}
 
-  &.deco-1 {
-    width: 100px;
-    height: 100px;
-    top: -30px;
-    right: 30px;
+.stat-value {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-primary);
+  line-height: 1;
+  margin: 0 0 4px;
+}
+
+.stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.stat-trend {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+
+  &.up {
+    color: var(--success-600);
   }
 
-  &.deco-2 {
-    width: 60px;
-    height: 60px;
-    top: 10px;
-    right: 110px;
+  &.down {
+    color: var(--danger-500);
+  }
+
+  &.neutral {
+    color: var(--text-tertiary);
   }
 }
 
-// ===================== 图表 =====================
-
-.chart-row {
+.content-grid {
   display: grid;
-  grid-template-columns: 3fr 2fr;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
 
   @media (max-width: 1000px) {
@@ -607,228 +501,240 @@ onUnmounted(() => {
   }
 }
 
-.chart-card {
+.card {
   background: var(--bg-primary);
-  border-radius: var(--radius-xl);
   border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
   box-shadow: var(--shadow-card);
-  padding: 20px;
-  animation: slideUp 0.4s var(--ease-out) 0.2s both;
-
-  .chart-body {
-    height: 220px;
-    margin-top: 12px;
-  }
 }
-
-// ===================== 列表 =====================
-
-.list-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  animation: slideUp 0.4s var(--ease-out) 0.32s both;
-
-  @media (max-width: 900px) {
-    grid-template-columns: 1fr;
-  }
-}
-
-.list-card {
-  background: var(--bg-primary);
-  border-radius: var(--radius-xl);
-  border: 1px solid var(--border-light);
-  box-shadow: var(--shadow-card);
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-}
-
-// ===================== 通用卡片头 =====================
 
 .card-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-light);
+  gap: 12px;
+}
 
-  .card-title {
-    font-size: var(--font-size-base);
-    font-weight: var(--font-weight-semibold);
+.card-title {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0 0 2px;
+}
+
+.card-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+  margin: 0;
+}
+
+.chart-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--gray-100);
+  border-radius: var(--radius-md);
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.chart-tab {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  padding: 4px 12px;
+  border-radius: 5px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--duration-150) var(--ease-out);
+
+  &.active {
+    background: var(--bg-primary);
     color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 6px;
-
-    .badge-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--danger-500);
-      animation: pulse 1.5s infinite;
-    }
-  }
-
-  .card-subtitle {
-    font-size: var(--font-size-xs);
-    color: var(--text-tertiary);
-  }
-}
-
-// ===================== 告警列表 =====================
-
-.alarm-list {
-  margin-top: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-}
-
-.alarm-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: var(--radius-lg);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-light);
-  transition: var(--transition-all);
-
-  &:hover {
-    border-color: var(--border-default);
     box-shadow: var(--shadow-xs);
   }
-
-  .alarm-level-bar {
-    width: 3px;
-    height: 32px;
-    border-radius: 2px;
-    flex-shrink: 0;
-  }
-
-  &.alarm-critical .alarm-level-bar { background: var(--danger-500); }
-  &.alarm-warning .alarm-level-bar { background: var(--warning-500); }
-  &.alarm-info .alarm-level-bar { background: var(--info-500); }
-
-  .alarm-info {
-    flex: 1;
-    min-width: 0;
-
-    .alarm-title {
-      font-size: var(--font-size-sm);
-      color: var(--text-primary);
-      font-weight: var(--font-weight-medium);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .alarm-meta {
-      display: flex;
-      gap: 10px;
-      font-size: 11px;
-      color: var(--text-tertiary);
-      margin-top: 2px;
-    }
-  }
 }
 
-// ===================== 订单列表 =====================
+.chart-area {
+  padding: 20px;
+}
 
-.order-list {
-  margin-top: 14px;
+.chart-empty {
+  height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+}
+
+.mini-bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  height: 140px;
+}
+
+.bar-col {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+}
+
+.bar-wrap {
+  flex: 1;
+  width: 100%;
+  background: var(--gray-100);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.bar-fill {
+  width: 100%;
+  background: var(--primary-500);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  opacity: 0.85;
+  transition: height var(--duration-300) var(--ease-out);
+  min-height: 4px;
+}
+
+.bar-col:hover .bar-fill {
+  opacity: 1;
+}
+
+.bar-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.status-list {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.status-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 88px;
+  flex-shrink: 0;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   flex: 1;
 }
 
-.order-item {
-  display: grid;
-  grid-template-columns: 1.8fr 1.6fr 0.8fr auto;
+.status-bar-bg {
+  flex: 1;
+  height: 6px;
+  background: var(--gray-100);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.status-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width var(--duration-300) var(--ease-out);
+}
+
+.status-count {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  width: 28px;
+  text-align: right;
+}
+
+.status-pct {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  width: 32px;
+  text-align: right;
+}
+
+.view-all-link {
+  display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  border-radius: var(--radius-lg);
-  transition: var(--transition-all);
-  border: 1px solid transparent;
+  gap: 4px;
+  font-size: var(--font-size-sm);
+  color: var(--primary-500);
+  text-decoration: none;
+  font-weight: var(--font-weight-medium);
+  transition: opacity var(--duration-150) var(--ease-out);
+  flex-shrink: 0;
 
   &:hover {
-    background: var(--bg-secondary);
-    border-color: var(--border-light);
-  }
-
-  .order-no {
-    font-size: 12px;
-    font-weight: var(--font-weight-medium);
-    color: var(--text-primary);
-    font-family: var(--font-family-mono);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .order-route {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 12px;
-    color: var(--text-secondary);
-
-    .route-from, .route-to {
-      font-weight: var(--font-weight-medium);
-      color: var(--text-primary);
-    }
-
-    .route-arrow {
-      color: var(--text-tertiary);
-      font-size: 11px;
-    }
-  }
-
-  .order-vehicle {
-    font-size: 11px;
-    color: var(--text-tertiary);
-    white-space: nowrap;
-  }
-
-  .order-status {
-    font-size: 11px;
+    opacity: 0.75;
   }
 }
 
-// ===================== 空状态 =====================
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 32px 0;
-  color: var(--text-tertiary);
-  font-size: var(--font-size-sm);
-
-  .empty-icon {
-    font-size: 32px;
-  }
+.clean-table {
+  padding: 0 4px 4px;
 }
 
-// ===================== 动画 =====================
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.clean-table :deep(.el-table__header-wrapper) {
+  border-radius: 0;
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.3); }
+.result-chip {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+}
+
+.result-chip.success {
+  background: var(--success-100);
+  color: var(--success-800);
+}
+
+.result-chip.fail {
+  background: var(--danger-100);
+  color: var(--danger-800);
+}
+
+.result-chip.running {
+  background: var(--warning-100);
+  color: var(--warning-800);
+}
+
+.result-chip.pending {
+  background: var(--gray-100);
+  color: var(--gray-600);
 }
 </style>

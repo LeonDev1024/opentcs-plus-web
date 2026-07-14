@@ -1,6 +1,8 @@
 <template>
-  <div :class="{ 'has-logo': showLogo }" :style="{ backgroundColor: bgColor }">
-    <el-scrollbar :class="sideTheme" wrap-class="scrollbar-wrapper">
+  <div class="sidebar-inner" :style="{ backgroundColor: bgColor }">
+    <!-- Logo 固定在侧边栏顶部 -->
+    <logo :collapse="isCollapse" />
+    <el-scrollbar :class="sideTheme" class="sidebar-scrollbar" wrap-class="scrollbar-wrapper">
       <transition :enter-active-class="proxy?.animate.menuSearchAnimate.enter" mode="out-in">
         <el-menu
           :default-active="activeMenu"
@@ -21,6 +23,7 @@
 </template>
 
 <script setup lang="ts">
+import Logo from './Logo.vue';
 import SidebarItem from './SidebarItem.vue';
 import variables from '@/assets/styles/variables.module.scss';
 import { useAppStore } from '@/store/modules/app';
@@ -35,7 +38,6 @@ const appStore = useAppStore();
 const settingsStore = useSettingsStore();
 const permissionStore = usePermissionStore();
 const sidebarRouters = computed<RouteRecordRaw[]>(() => permissionStore.getSidebarRoutes());
-const showLogo = computed(() => false); // Logo 已移至顶部导航栏
 const sideTheme = computed(() => settingsStore.sideTheme);
 const theme = computed(() => settingsStore.theme);
 const isCollapse = computed(() => !appStore.sidebar.opened);
@@ -49,10 +51,20 @@ const activeMenu = computed(() => {
   return path;
 });
 
-/**
- * 约定：顶部导航深色、侧边栏浅色（与系统暗黑模式 html.dark 无关）
- * 如果将来需要可配置，再把 settings 抽成开关即可。
- */
-const bgColor = computed(() => (settingsStore.topNav ? variables.menuLightBackground : sideTheme.value === 'theme-dark' ? variables.menuBackground : variables.menuLightBackground));
-const textColor = computed(() => (settingsStore.topNav ? variables.menuLightColor : sideTheme.value === 'theme-dark' ? variables.menuColor : variables.menuLightColor));
+const bgColor = computed(() => (sideTheme.value === 'theme-dark' ? variables.menuBackground : variables.menuLightBackground));
+const textColor = computed(() => (sideTheme.value === 'theme-dark' ? variables.menuColor : variables.menuLightColor));
 </script>
+
+<style lang="scss" scoped>
+.sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.sidebar-scrollbar {
+  flex: 1;
+  min-height: 0;
+}
+</style>

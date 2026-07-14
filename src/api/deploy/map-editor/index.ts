@@ -107,7 +107,8 @@ export const loadMapEditorData = (mapId: string | number): AxiosPromise<MapEdito
   return request({
     url: `/map/editor/load`,
     method: 'post',
-    data: { mapId }
+    data: { mapId },
+    headers: { repeatSubmit: false }
   });
 };
 
@@ -149,4 +150,3 @@ export const importMapFile = (file: File) => {
     headers: { 'Content-Type': 'multipart/form-data' }
   });
 };
-

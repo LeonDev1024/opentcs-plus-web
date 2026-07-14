@@ -26,7 +26,7 @@ import {
   computeClipForElements,
   computeMaxExtentForElements,
   unwrapAjaxMapPayload
-} from '@/views/ops/monitor/operationsdesk/utils/mapElementNormalize';
+} from '@/views/monitor/operationsdesk/utils/mapElementNormalize';
 import { getLayoutScaleMm } from '@/utils/mapEditor/rasterAlignment';
 import layerIconUrl from '@/assets/icons/svg/layer.svg?url';
 

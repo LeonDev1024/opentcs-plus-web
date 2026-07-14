@@ -1,21 +1,21 @@
 // 全局SCSS变量（与 design-system 保持一致）
 :root {
-  // 侧边栏 - 与主色同色系
-  --menuBg: #1e3a5f;
-  --menuColor: #cbd5e1;
+  // 侧边栏 - 参考 FleetX 深色企业导航
+  --menuBg: #1e293b;
+  --menuColor: rgba(255, 255, 255, 0.68);
   --menuActiveText: #ffffff;
-  --menuActiveBg: #2563eb;
-  --menuHover: #334155;
+  --menuActiveBg: rgba(37, 99, 235, 0.2);
+  --menuHover: rgba(255, 255, 255, 0.06);
 
-  --subMenuBg: #1e3a5f;
+  --subMenuBg: #1e293b;
   --subMenuActiveText: #ffffff;
-  --subMenuHover: #0f172a;
-  --subMenuTitleHover: #334155;
+  --subMenuHover: rgba(255, 255, 255, 0.05);
+  --subMenuTitleHover: rgba(255, 255, 255, 0.06);
 
   // 菜单栏缩进
   --el-menu-base-level-padding: 12px;
   --el-menu-level-padding: 8px;
-  --el-menu-item-height: 50px;
+  --el-menu-item-height: 42px;
 
   // 顶部导航栏
   --fixedHeaderBg: #ffffff;
@@ -104,9 +104,9 @@ $base-menu-color-active: var(--menuActiveText);
 $base-menu-background: var(--menuBg);
 $base-logo-title-color: #ffffff;
 
-$base-menu-light-color: rgba(0, 0, 0, 0.7);
-$base-menu-light-background: #ffffff;
-$base-logo-light-title-color: #001529;
+$base-menu-light-color: $base-menu-color;
+$base-menu-light-background: $base-menu-background;
+$base-logo-light-title-color: #ffffff;
 
 $base-sub-menu-background: var(--subMenuBg);
 $base-sub-menu-hover: var(--subMenuHover);

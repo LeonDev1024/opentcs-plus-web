@@ -20,7 +20,7 @@ const setting: DefaultSettings = {
   /**
    * 是否显示顶部导航
    */
-  topNav: true,
+  topNav: false,
 
   /**
    * 是否显示 tagsView

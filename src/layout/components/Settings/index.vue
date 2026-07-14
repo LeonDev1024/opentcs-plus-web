@@ -45,8 +45,8 @@
 
     <h3 class="drawer-title">系统布局配置</h3>
 
-    <!-- TopNav 固定启用 -->
-    <input type="hidden" name="topNav" :value="true" />
+    <!-- 顶部导航固定关闭，菜单统一收敛到左侧边栏 -->
+    <input type="hidden" name="topNav" :value="false" />
 
     <div class="drawer-item">
       <span>开启 Tags-Views</span>
@@ -92,17 +92,13 @@
 
 <script setup lang="ts">
 import { useDynamicTitle } from '@/utils/dynamicTitle';
-import { useAppStore } from '@/store/modules/app';
 import { useSettingsStore } from '@/store/modules/settings';
-import { usePermissionStore } from '@/store/modules/permission';
 import { handleThemeStyle } from '@/utils/theme';
 import { SideThemeEnum } from '@/enums/SideThemeEnum';
 import defaultSettings from '@/settings';
 
 const { proxy } = getCurrentInstance() as ComponentInternalInstance;
-const appStore = useAppStore();
 const settingsStore = useSettingsStore();
-const permissionStore = usePermissionStore();
 
 const showSettings = ref(false);
 const theme = ref(settingsStore.theme);
@@ -125,13 +121,6 @@ watch(isDark, () => {
   }
 });
 const toggleDark = () => useToggle(isDark);
-
-const topNavChange = (val: any) => {
-  if (!val) {
-    appStore.toggleSideBarHide(false);
-    permissionStore.setSidebarRouters(permissionStore.defaultRoutes as any);
-  }
-};
 
 const dynamicTitleChange = () => {
   // 动态设置网页标题
