@@ -4,18 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="68659fab-5c1c-4a5b-bbc5-08bb17bf7f1d" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/src/store/modules/mapEditor.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/store/modules/mapEditor.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/types/components.d.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/types/components.d.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/types/mapEditor.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/types/mapEditor.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils/mapEditor/command.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/mapEditor/command.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/views/deploy/map-editor/MapEditor.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/views/deploy/map-editor/MapEditor.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/views/deploy/map-editor/components/ComponentsPanel.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/views/deploy/map-editor/components/ComponentsPanel.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/views/deploy/map-editor/components/MapCanvas.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/views/deploy/map-editor/components/MapCanvas.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/views/deploy/map-editor/components/PropertyPanel.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/views/deploy/map-editor/components/PropertyPanel.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/views/deploy/map-editor/composables/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/src/views/deploy/map-editor/composables/index.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/views/opentcs/map/editor/MapEditor.vue" beforeDir="false" afterPath="$PROJECT_DIR$/src/views/opentcs/map/editor/MapEditor.vue" afterDir="false" />
-    </list>
+    <list default="true" id="68659fab-5c1c-4a5b-bbc5-08bb17bf7f1d" name="更改" comment="fix(monitor):场景监控" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -36,10 +25,10 @@
     &quot;accountId&quot;: &quot;0338e79e-37e6-48e7-82aa-31e8a4829990&quot;
   }
 }</component>
-  <component name="KubernetesApiPersistence"><![CDATA[{}]]></component>
-  <component name="KubernetesApiProvider"><![CDATA[{
-  "isMigrated": true
-}]]></component>
+  <component name="KubernetesApiPersistence">{}</component>
+  <component name="KubernetesApiProvider">{
+  &quot;isMigrated&quot;: true
+}</component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 6
 }</component>
@@ -53,7 +42,7 @@
     &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;release/v1.0.1&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;dev-1.0.2&quot;,
     &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
     &quot;last_opened_file_path&quot;: &quot;/Users/liuyichun/Documents/code/opentcsplus/opentcs-plus-web&quot;,
     &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
@@ -61,6 +50,7 @@
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
     &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;/Users/liuyichun/Documents/code/opentcsplus/opentcs-plus-web/node_modules/typescript/lib&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
@@ -83,7 +73,19 @@
       <workItem from="1776268333001" duration="1773000" />
       <workItem from="1776389054075" duration="599000" />
       <workItem from="1776837183667" duration="173000" />
+      <workItem from="1783006690034" duration="129000" />
+      <workItem from="1785241126596" duration="16000" />
+      <workItem from="1785241630957" duration="50000" />
     </task>
+    <task id="LOCAL-00001" summary="fix(monitor):场景监控">
+      <option name="closed" value="true" />
+      <created>1785241662246</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1785241662246</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -93,10 +95,62 @@
     <option name="OPEN_GENERIC_TABS">
       <map>
         <entry key="9a4c7602-0c38-41fe-bcb1-c5fa49963fa7" value="TOOL_WINDOW" />
+        <entry key="35c23445-18f7-4a22-8c77-36ac8f9736d6" value="TOOL_WINDOW" />
+        <entry key="6b13d8e4-cda7-4a06-a5e3-d4d08d1ea93e" value="TOOL_WINDOW" />
       </map>
     </option>
     <option name="TAB_STATES">
       <map>
+        <entry key="35c23445-18f7-4a22-8c77-36ac8f9736d6">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="HEAD" />
+                      </list>
+                    </value>
+                  </entry>
+                  <entry key="roots">
+                    <value>
+                      <list>
+                        <option value="$PROJECT_DIR$" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+              <option name="SHOW_ONLY_AFFECTED_CHANGES" value="true" />
+            </State>
+          </value>
+        </entry>
+        <entry key="6b13d8e4-cda7-4a06-a5e3-d4d08d1ea93e">
+          <value>
+            <State>
+              <option name="FILTERS">
+                <map>
+                  <entry key="branch">
+                    <value>
+                      <list>
+                        <option value="HEAD" />
+                      </list>
+                    </value>
+                  </entry>
+                  <entry key="structure">
+                    <value>
+                      <list>
+                        <option value="dir:/Users/liuyichun/Documents/code/opentcsplus/opentcs-plus-web/src/views" />
+                      </list>
+                    </value>
+                  </entry>
+                </map>
+              </option>
+              <option name="SHOW_ONLY_AFFECTED_CHANGES" value="true" />
+            </State>
+          </value>
+        </entry>
         <entry key="9a4c7602-0c38-41fe-bcb1-c5fa49963fa7">
           <value>
             <State>
@@ -129,5 +183,9 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="fix(monitor):场景监控" />
+    <option name="LAST_COMMIT_MESSAGE" value="fix(monitor):场景监控" />
   </component>
 </project>
