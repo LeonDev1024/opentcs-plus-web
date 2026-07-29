@@ -10,7 +10,6 @@ import type {
   MapPoint,
   MapPath,
   MapLocation,
-  MapBlock,
   ToolMode,
   CanvasState,
   SelectionState,
@@ -69,9 +68,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const points = ref<MapPoint[]>([]);
   const paths = ref<MapPath[]>([]);
   const locations = ref<MapLocation[]>([]);
-
-  // Block（资源互斥规则）数据
-  const blocks = ref<MapBlock[]>([]);
   
   // 选择状态 - 使用 ref 包装 Set 以确保响应式
   const selectedIds = ref(new Set<string>());
@@ -482,24 +478,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   };
 
 
-  const normalizeBlock = (b: Record<string, any>): MapBlock => {
-    const id = b?.id != null ? String(b.id) : `block_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
-    const members = Array.isArray(b?.members)
-      ? b.members.map((m: any) => String(m))
-      : [];
-    return {
-      id,
-      blockId: b?.blockId != null ? String(b.blockId) : id,
-      name: b?.name ?? id,
-      type: (b?.type === 'SAME_DIRECTION_ONLY' ? 'SAME_DIRECTION_ONLY' : 'SINGLE_VEHICLE_ONLY'),
-      members,
-      color: b?.color || '#F44336',
-      properties: (b?.properties && typeof b.properties === 'object' && !Array.isArray(b.properties))
-        ? b.properties
-        : {}
-    };
-  };
-
   /** 将后端位置转为前端 MapLocation（xPosition/yPosition->x/y，id 转 string，补 geometry/editorProps） */
   const normalizeLocation = (l: Record<string, any>, defaultLayerId: string): MapLocation => {
     const parsedLayout = parseLayoutJson(l?.layout);
@@ -798,7 +776,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               paths: rawPaths.map((p: Record<string, any>) => normalizePath(p, defaultPathLayerId, rawPoints)),
               locations: []
             },
-            blocks: (Array.isArray(apiData.blocks) ? apiData.blocks : []).map((b: Record<string, any>) => normalizeBlock(b)),
             metadata: {
               createdAt: flatHeader.createTime || new Date().toISOString(),
               updatedAt: flatHeader.updateTime || new Date().toISOString()
@@ -861,7 +838,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               paths: rpath.map((p: Record<string, any>) => normalizePath(p, dpathId, rp)),
               locations: []
             },
-            blocks: (Array.isArray(apiData.blocks) ? apiData.blocks : []).map((b: Record<string, any>) => normalizeBlock(b)),
             metadata: {
               createdAt: apiData.mapInfo.createTime || new Date().toISOString(),
               updatedAt: apiData.mapInfo.updateTime || new Date().toISOString()
@@ -914,10 +890,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       paths.value = data.elements.paths || [];
       locations.value = [];
       console.log('[MapEditor] store points 数量:', points.value.length, 'store paths:', paths.value.length);
-      blocks.value = Array.isArray(data.blocks) ? data.blocks.map((b: any) => normalizeBlock(b)) : [];
-      if (mapData.value) {
-        mapData.value.blocks = blocks.value;
-      }
 
       syncPointNameCounter();
       
@@ -1003,7 +975,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       mapData.value.elements.points = points.value;
       mapData.value.elements.paths = paths.value;
       mapData.value.elements.locations = [];
-      mapData.value.blocks = [];
       mapData.value.mapInfo.scale = canvasState.scale;
       mapData.value.mapInfo.offsetX = canvasState.offsetX;
       mapData.value.mapInfo.offsetY = canvasState.offsetY;
@@ -1186,16 +1157,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           })
         })),
         points: serializePoints(rawData.elements?.points || []),
-        paths: serializePaths(rawData.elements?.paths || []),
-        blocks: (blocks.value || []).map((b) => ({
-          id: null,
-          blockId: b.blockId || b.id,
-          name: b.name,
-          type: b.type || 'SINGLE_VEHICLE_ONLY',
-          members: Array.isArray(b.members) ? b.members : [],
-          color: b.color || '#F44336',
-          properties: b.properties || {}
-        }))
+        paths: serializePaths(rawData.elements?.paths || [])
       };
 
       // 保存到后端（语义数据）
@@ -1988,46 +1950,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     versionHistory.value = [];
   };
 
-  // ==================== Block Actions ====================
-
-  /**
-   * 添加 Block
-   */
-  const addBlock = (partial: Omit<MapBlock, 'id'>): MapBlock => {
-    const block: MapBlock = {
-      ...partial,
-      id: `block_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-    };
-    blocks.value = [...blocks.value, block];
-    isDirty.value = true;
-    return block;
-  };
-
-  /**
-   * 更新 Block（不可变替换）
-   */
-  const updateBlock = (id: string, updates: Partial<MapBlock>): void => {
-    blocks.value = blocks.value.map((b) =>
-      b.id === id ? { ...b, ...updates } : b
-    );
-    isDirty.value = true;
-  };
-
-  /**
-   * 删除 Block
-   */
-  const deleteBlock = (id: string): void => {
-    blocks.value = blocks.value.filter((b) => b.id !== id);
-    isDirty.value = true;
-  };
-
-  /**
-   * 获取包含指定元素（按 name）的所有 Blocks
-   */
-  const getBlocksForElement = (elementName: string): MapBlock[] => {
-    return blocks.value.filter((b) => b.members.includes(elementName));
-  };
-
   /**
    * 重置编辑器
    */
@@ -2040,7 +1962,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     points.value = [];
     paths.value = [];
     locations.value = [];
-    blocks.value = [];
     activeLayerId.value = null;
     clearSelection();
     commandManager.clear();
@@ -2083,7 +2004,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     points,
     paths,
     locations,
-    blocks,
     selection,
     selectedIds,
     selectedType,
@@ -2149,10 +2069,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     reset,
     setRasterBackground,
     clearRasterBackground,
-    initEditorState,
-    addBlock,
-    updateBlock,
-    deleteBlock,
-    getBlocksForElement
+    initEditorState
   };
 });

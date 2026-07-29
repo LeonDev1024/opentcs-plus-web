@@ -103,19 +103,10 @@ export function usePathRendering(
     return false
   }
 
-  const getBlockStrokeForPath = (path: MapPath): string | null => {
-    const name = path.name || path.id
-    if (!name) return null
-    const block = mapEditorStore.getBlocksForElement(String(name))[0]
-    return block?.color || null
-  }
-
   const getPathDisplayStroke = (path: MapPath): string => {
     const isSelected = mapEditorStore.selection.selectedIds.has(path.id)
     const raw = path.editorProps?.strokeColor
     if (isSelected) return PATH_DISPLAY_SELECTED_STROKE
-    const blockColor = getBlockStrokeForPath(path)
-    if (blockColor) return blockColor
     const deferredArrow = path.editorProps?.arrowVisible === false
     if (deferredArrow) {
       if (raw && !isColorEffectivelyInvisible(raw)) return raw

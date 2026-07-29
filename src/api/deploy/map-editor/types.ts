@@ -180,8 +180,6 @@ export interface MapEditorResponse {
   points?: any[];
   /** 路径数据 */
   paths?: any[];
-  /** Block 资源互斥分组 */
-  blocks?: any[];
   /** 视觉布局数据 */
   visualLayout?: VisualLayoutData;
   /** 图层组数据（备用） */

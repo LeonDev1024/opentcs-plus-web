@@ -104,13 +104,6 @@ export function usePointRendering(
     shadow: Record<string, unknown>
   }
 
-  const getBlockColorForPoint = (point: MapPoint): string | null => {
-    const name = point.name || point.id
-    if (!name) return null
-    const block = mapEditorStore.getBlocksForElement(String(name))[0]
-    return block?.color || null
-  }
-
   const resolvePointBullseyeStyle = (point: MapPoint): PointBullseyeStyle => {
     const isSelected = mapEditorStore.selection.selectedIds.has(point.id)
     const isPathStart =
@@ -125,7 +118,6 @@ export function usePointRendering(
       hoveredPointId.value === point.id
     const isConnected = isPointConnected(point)
     const visual = getPointVisualMeta(point)
-    const blockColor = getBlockColorForPoint(point)
 
     let coreFill = visual.fill || '#2563EB'
     let coreStroke = 'transparent'
@@ -141,8 +133,6 @@ export function usePointRendering(
       coreFill = '#73c0ff'; outerStroke = '#60a5fa'
     } else if (isDashedLinkTarget) {
       coreFill = '#f7ba2a'; coreStroke = '#f5d48f'; coreStrokeWidth = 1.5; outerStroke = '#e6a23c'
-    } else if (blockColor) {
-      coreFill = blockColor; outerStroke = blockColor
     } else if (isConnected) {
       coreFill = '#4c8dff'; outerStroke = '#2563EB'
     }
