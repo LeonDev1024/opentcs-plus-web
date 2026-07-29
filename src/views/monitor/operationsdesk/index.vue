@@ -11,7 +11,8 @@
  * - KPI 卡承担「指标展示 + 筛选触发器」双重职责；左侧机器人面板按 KPI 选中态过滤。
  * - 订单 / 告警是独立页面，本页只承担「空间态势感知 + 跳转」。
  */
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useFullscreen } from '@vueuse/core';
 import { Bell, DArrowLeft, DArrowRight, FullScreen } from '@element-plus/icons-vue';
 import { useMonitorStats } from './composables/useMonitorStats';
@@ -21,6 +22,9 @@ import AmrStatsBar from './components/AmrStatsBar.vue';
 import RobotPanel from './components/RobotPanel.vue';
 import type { AmrFilterKey } from './components/AmrStatsBar.vue';
 import type { RobotCardVO } from '@/api/ops/monitor';
+import { listMonitorAlarms } from '@/api/ops/monitor';
+
+const router = useRouter();
 
 const {
   vehicles,
@@ -32,8 +36,8 @@ const {
   currentFactoryId
 } = useMonitorStats();
 
-const { lastUpdated, isActive, start: startPolling, updateFactoryId } =
-  useRealtimeData();
+const { lastUpdated, isActive, start: startPolling, stop: stopPolling, updateFactoryId } =
+  useRealtimeData(4000);
 
 // 当前选中的车辆
 const activeVehicleId = ref<string | undefined>(undefined);
@@ -84,7 +88,19 @@ const connectionLabel = computed(() => {
 });
 
 /** 顶栏「告警」角标 */
-const alarmCount = computed(() => amrStats.value.errorVehicles ?? 0);
+const alarmCount = ref(0);
+
+async function refreshAlarmCount() {
+  try {
+    const res: any = await listMonitorAlarms();
+    const list = res?.data || res || [];
+    alarmCount.value = Array.isArray(list)
+      ? list.filter((a: any) => !a.acked).length
+      : (amrStats.value.errorVehicles ?? 0);
+  } catch {
+    alarmCount.value = amrStats.value.errorVehicles ?? 0;
+  }
+}
 
 // 工厂切换
 function handleFactoryChange(id: number) {
@@ -92,6 +108,7 @@ function handleFactoryChange(id: number) {
   robotFilter.value = 'all'; // 切工厂时重置筛选
   updateFactoryId(id);
   fetchStats(id);
+  refreshAlarmCount();
 }
 
 // 机器人面板点击 → 画布定位
@@ -107,20 +124,25 @@ function handleVehicleClick(vehicle: any) {
 // 手动刷新
 async function handleRefresh() {
   if (!currentFactoryId.value) return;
-  await fetchStats(currentFactoryId.value);
+  await fetchStats(currentFactoryId.value, true);
   lastUpdated.value = Date.now();
+  refreshAlarmCount();
 }
 
-// 告警角标点击：PR2 接告警中心路由
+// 告警角标点击：跳转告警中心
 function handleAlarmClick() {
-  // TODO(PR2): router.push({ path: '/ops/alarm', query: { factoryId } })
-  console.info('[operationsdesk] 跳转告警中心（PR2 接入）');
+  router.push({ path: '/monitoring/alarm' });
 }
 
 // 初始化
 onMounted(async () => {
   await init();
-  startPolling(fetchStats, currentFactoryId.value);
+  startPolling((id) => fetchStats(id, true), currentFactoryId.value);
+  refreshAlarmCount();
+});
+
+onUnmounted(() => {
+  stopPolling();
 });
 </script>
 

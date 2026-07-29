@@ -58,3 +58,11 @@ export const listActionRecords = (vehicleName?: string): AxiosPromise<OpsActionR
     params: { vehicleName }
   });
 };
+
+export const precheck = (vehicleName: string, actionType: string): AxiosPromise<Record<string, any>> => {
+  return request({
+    url: `/ops/amr/${vehicleName}/precheck`,
+    method: 'get',
+    params: { actionType }
+  });
+};

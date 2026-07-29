@@ -89,8 +89,18 @@ export { simulationApi }
 
 import { AxiosPromise } from 'axios';
 
-/** 车辆状态枚举 */
-export type VehicleState = 'IDLE' | 'WORKING' | 'CHARGING' | 'ERROR' | 'UNKNOWN' | 'UNAVAILABLE';
+/** 车辆状态枚举（运行态含 EXECUTING；WORKING 为历史兼容别名） */
+export type VehicleState =
+  | 'IDLE'
+  | 'WORKING'
+  | 'EXECUTING'
+  | 'CHARGING'
+  | 'ERROR'
+  | 'UNKNOWN'
+  | 'UNAVAILABLE'
+  | 'OFFLINE'
+  | 'PAUSED'
+  | 'WAITING';
 
 /** 位置信息 */
 export interface Position {
@@ -157,6 +167,32 @@ export interface RobotCardVO {
   taskDescription?: string;
 }
 
+/** 资源锁 */
+export interface ResourceLockVO {
+  lockId: string;
+  resourceId: string;
+  resourceType: string;
+  vehicleId: string;
+  orderId: string;
+  status: string;
+  createdAt?: string;
+  expiresAt?: string;
+}
+
+/** 监控告警 */
+export interface MonitorAlarmVO {
+  alarmId: string;
+  severity: string;
+  category: string;
+  title: string;
+  message: string;
+  vehicleName?: string;
+  resourceId?: string;
+  resourceType?: string;
+  acked?: boolean;
+  createdAt?: string;
+}
+
 const monitorApi = {
   /** 获取 AMR 运行时状态列表 */
   listVehicleRuntime: (factoryId?: number): AxiosPromise<VehicleRuntimeVO[]> => {
@@ -178,6 +214,26 @@ const monitorApi = {
   getVehicleRuntime: (vehicleId: string): AxiosPromise<VehicleRuntimeVO> => {
     return request({ url: '/vehicle/runtime/status/' + vehicleId, method: 'get' });
   }
+};
+
+export const listResourceLocks = (): AxiosPromise<ResourceLockVO[]> => {
+  return request({ url: '/ops/monitor/locks', method: 'get' });
+};
+
+export const forceReleaseLock = (resourceType: string, resourceId: string): AxiosPromise<boolean> => {
+  return request({
+    url: '/ops/monitor/locks/release',
+    method: 'post',
+    params: { resourceType, resourceId }
+  });
+};
+
+export const listMonitorAlarms = (): AxiosPromise<MonitorAlarmVO[]> => {
+  return request({ url: '/ops/monitor/alarms', method: 'get' });
+};
+
+export const ackMonitorAlarm = (alarmId: string): AxiosPromise<boolean> => {
+  return request({ url: `/ops/monitor/alarms/${alarmId}/ack`, method: 'post' });
 };
 
 export { monitorApi };

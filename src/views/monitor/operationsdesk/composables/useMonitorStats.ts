@@ -56,21 +56,21 @@ export function useMonitorStats() {
   const amrStats = computed<AmrStats>(() => {
     if (remoteAmrStats.value) return remoteAmrStats.value;
     const list = vehicles.value;
+    const isExecuting = (s?: string) => s === 'WORKING' || s === 'EXECUTING' || s === 'WAITING' || s === 'PAUSED';
+    const isOffline = (s?: string) => s === 'UNKNOWN' || s === 'UNAVAILABLE' || s === 'OFFLINE';
     return {
       totalVehicles: list.length,
       idleVehicles: list.filter((v) => v.state === 'IDLE').length,
-      executingVehicles: list.filter((v) => v.state === 'WORKING').length,
+      executingVehicles: list.filter((v) => isExecuting(v.state)).length,
       chargingVehicles: list.filter((v) => v.state === 'CHARGING').length,
       errorVehicles: list.filter((v) => v.state === 'ERROR').length,
-      offlineVehicles: list.filter(
-        (v) => v.state === 'UNKNOWN' || v.state === 'UNAVAILABLE'
-      ).length
+      offlineVehicles: list.filter((v) => isOffline(v.state)).length
     };
   });
 
-  /** 加载数据 */
-  const fetchStats = async (factoryId: number) => {
-    loading.value = true;
+  /** 加载数据（静默刷新时不闪 loading） */
+  const fetchStats = async (factoryId: number, silent = false) => {
+    if (!silent) loading.value = true;
     currentFactoryId.value = factoryId;
     try {
       const [statsRes, vehicleRes] = await Promise.all([
@@ -80,7 +80,7 @@ export function useMonitorStats() {
       vehicles.value = vehicleRes.data || [];
       remoteAmrStats.value = statsRes?.data ?? null;
     } finally {
-      loading.value = false;
+      if (!silent) loading.value = false;
     }
   };
 
