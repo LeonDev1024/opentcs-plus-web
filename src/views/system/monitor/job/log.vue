@@ -1,72 +1,61 @@
 <template>
-  <div class="p-4">
-    <!-- 搜索区域 -->
-    <div v-show="showSearch" class="mb-3">
-      <el-card shadow="hover">
-        <el-form ref="queryFormRef" :model="queryParams" :inline="true">
-          <el-form-item label="任务名称" prop="jobName">
-            <el-input v-model="queryParams.jobName" placeholder="请输入任务名称" clearable @keyup.enter="handleQuery" />
-          </el-form-item>
-          <el-form-item label="任务组名" prop="jobGroup">
-            <el-select v-model="queryParams.jobGroup" placeholder="请选择" clearable style="width: 140px">
-              <el-option label="DEFAULT" value="DEFAULT" />
-              <el-option label="SYSTEM" value="SYSTEM" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="执行状态" prop="status">
-            <el-select v-model="queryParams.status" placeholder="请选择" clearable style="width: 120px">
-              <el-option label="成功" value="0" />
-              <el-option label="失败" value="1" />
-            </el-select>
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
-            <el-button icon="Refresh" @click="resetQuery">重置</el-button>
-          </el-form-item>
-        </el-form>
-      </el-card>
-    </div>
+  <div class="p-2">
+    <transition :enter-active-class="proxy?.animate.searchAnimate.enter" :leave-active-class="proxy?.animate.searchAnimate.leave">
+      <div v-show="showSearch" class="job-filter-panel">
+        <div class="query-toolbar">
+          <el-input
+            v-model="queryParams.jobName"
+            placeholder="任务名称"
+            clearable
+            size="default"
+            @keyup.enter="handleQuery"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+          <el-select v-model="queryParams.jobGroup" placeholder="全部任务组" clearable size="default">
+            <el-option label="DEFAULT" value="DEFAULT" />
+            <el-option label="SYSTEM" value="SYSTEM" />
+          </el-select>
+          <el-select v-model="queryParams.status" placeholder="全部状态" clearable size="default">
+            <el-option label="成功" value="0" />
+            <el-option label="失败" value="1" />
+          </el-select>
+          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
+          <el-button :icon="Refresh" @click="resetQuery">重置</el-button>
+        </div>
+      </div>
+    </transition>
 
-    <el-card shadow="hover">
+    <el-card shadow="never">
       <template #header>
-        <div class="toolbar">
-          <div class="toolbar-left">
-            <el-button type="danger" plain :icon="Delete" @click="handleClean">清空日志</el-button>
-            <el-button plain :icon="Back" @click="goBack">返回任务</el-button>
-          </div>
-          <div class="toolbar-right">
-            <el-tooltip :content="showSearch ? '隐藏搜索' : '显示搜索'" placement="top">
-              <el-button :icon="Search" circle @click="showSearch = !showSearch" />
-            </el-tooltip>
-            <el-tooltip content="刷新" placement="top">
-              <el-button :icon="Refresh" circle @click="handleRefresh" />
-            </el-tooltip>
-          </div>
+        <div class="action-toolbar">
+          <el-button type="danger" plain :icon="Delete" @click="handleClean">清空日志</el-button>
+          <el-button plain :icon="Back" @click="goBack">返回任务</el-button>
+          <right-toolbar v-model:show-search="showSearch" @query-table="getList" />
         </div>
       </template>
 
-      <el-table v-loading="loading" :data="tableData" stripe border>
+      <el-table v-loading="loading" :data="tableData" border>
         <el-table-column prop="jobLogId" label="日志编号" width="90" align="center" />
-        <el-table-column prop="jobName" label="任务名称" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="jobGroup" label="任务组名" width="100" align="center">
+        <el-table-column prop="jobName" label="任务名称" min-width="140" align="center" show-overflow-tooltip />
+        <el-table-column prop="jobGroup" label="任务组名" width="110" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="row.jobGroup === 'DEFAULT' ? undefined : 'warning'">{{ row.jobGroup }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="invokeTarget" label="调用目标" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="jobMessage" label="执行信息" min-width="160" show-overflow-tooltip />
+        <el-table-column prop="invokeTarget" label="调用目标" min-width="200" align="center" show-overflow-tooltip />
+        <el-table-column prop="jobMessage" label="执行信息" min-width="160" align="center" show-overflow-tooltip />
         <el-table-column prop="status" label="状态" width="90" align="center">
           <template #default="{ row }">
-            <el-tag
-              :type="row.status === '0' ? 'success' : 'danger'"
-              size="small"
-            >
+            <el-tag :type="row.status === '0' ? 'success' : 'danger'" size="small">
               {{ row.status === '0' ? '成功' : '失败' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createTime" label="执行时间" width="160" align="center" />
-        <el-table-column label="操作" width="100" align="center" fixed="right">
+        <el-table-column prop="createTime" label="执行时间" width="180" align="center" />
+        <el-table-column label="操作" width="110" align="center" fixed="right">
           <template #default="{ row }">
             <el-tooltip content="详情" placement="top">
               <el-button link type="primary" :icon="View" @click="handleDetail(row)" />
@@ -78,20 +67,15 @@
         </el-table-column>
       </el-table>
 
-      <div class="pagination-wrap">
-        <el-pagination
-          v-model:current-page="queryParams.pageNum"
-          v-model:page-size="queryParams.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper"
-          :total="total"
-          @size-change="getList"
-          @current-change="getList"
-        />
-      </div>
+      <pagination
+        v-show="total > 0"
+        v-model:page="queryParams.pageNum"
+        v-model:limit="queryParams.pageSize"
+        :total="total"
+        @pagination="getList"
+      />
     </el-card>
 
-    <!-- 详情对话框 -->
     <el-dialog
       v-model="detailVisible"
       title="执行日志详情"
@@ -110,7 +94,7 @@
             {{ currentLog.status === '0' ? '成功' : '失败' }}
           </el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="异常信息" v-if="currentLog.exceptionInfo">
+        <el-descriptions-item v-if="currentLog.exceptionInfo" label="异常信息">
           <el-text type="danger" class="exception-text">{{ currentLog.exceptionInfo }}</el-text>
         </el-descriptions-item>
         <el-descriptions-item label="执行时间">{{ currentLog.createTime }}</el-descriptions-item>
@@ -122,17 +106,16 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+<script setup lang="ts" name="JobLog">
+import { ref, reactive, onMounted, getCurrentInstance, type ComponentInternalInstance } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import type { FormInstance } from 'element-plus'
 import { Delete, Search, Refresh, View, Back } from '@element-plus/icons-vue'
 import { listJobLog, delJobLog, cleanJobLog, type JobLog } from '@/api/monitor/job'
 
+const { proxy } = getCurrentInstance() as ComponentInternalInstance
 const router = useRouter()
 const route = useRoute()
-const queryFormRef = ref<FormInstance>()
 
 const loading = ref(false)
 const showSearch = ref(true)
@@ -153,7 +136,6 @@ const getList = async () => {
   loading.value = true
   try {
     const res = await listJobLog(queryParams)
-    // Backend returns R<IPage<SysJobLog>>; res.data is a MyBatis-Plus Page object
     const page = res.data ?? {}
     tableData.value = page.records ?? []
     total.value = page.total ?? tableData.value.length
@@ -168,12 +150,10 @@ const handleQuery = () => {
 }
 
 const resetQuery = () => {
-  queryFormRef.value?.resetFields()
+  queryParams.jobName = undefined
+  queryParams.jobGroup = undefined
+  queryParams.status = undefined
   handleQuery()
-}
-
-const handleRefresh = () => {
-  resetQuery()
 }
 
 const handleDetail = (row: JobLog) => {
@@ -200,27 +180,9 @@ const goBack = () => router.push('/system/monitor/job')
 onMounted(() => getList())
 </script>
 
-<style scoped>
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.pagination-wrap {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
-}
+<style scoped lang="scss">
+@import '@/assets/styles/device-toolbar.scss';
+
 .exception-text {
   white-space: pre-wrap;
   word-break: break-all;
