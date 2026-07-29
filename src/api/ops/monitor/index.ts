@@ -179,6 +179,20 @@ export interface ResourceLockVO {
   expiresAt?: string;
 }
 
+/** 资源锁审计 */
+export interface ResourceLockAuditVO {
+  lockId: string;
+  resourceType: string;
+  resourceId: string;
+  vehicleId?: string;
+  orderId?: string;
+  eventReason: string;
+  status: string;
+  operatorName?: string;
+  detail?: string;
+  eventTime?: string;
+}
+
 /** 监控告警 */
 export interface MonitorAlarmVO {
   alarmId: string;
@@ -218,6 +232,10 @@ const monitorApi = {
 
 export const listResourceLocks = (): AxiosPromise<ResourceLockVO[]> => {
   return request({ url: '/ops/monitor/locks', method: 'get' });
+};
+
+export const listResourceLockAudits = (limit = 100): AxiosPromise<ResourceLockAuditVO[]> => {
+  return request({ url: '/ops/monitor/locks/audit', method: 'get', params: { limit } });
 };
 
 export const forceReleaseLock = (resourceType: string, resourceId: string): AxiosPromise<boolean> => {
