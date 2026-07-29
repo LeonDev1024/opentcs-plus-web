@@ -15,11 +15,12 @@
       label-position="right"
     >
       <el-form-item label="名称" prop="name">
-        <el-input v-model="formData.name" placeholder="请输入名称" />
+        <el-input v-model="formData.name" placeholder="请输入名称" @blur="syncCodeWithName" />
       </el-form-item>
       
-      <el-form-item label="编码" prop="code">
-        <el-input v-model="formData.code" placeholder="请输入编码" />
+      <el-form-item label="编号" prop="code">
+        <el-input v-model="formData.code" placeholder="默认与名称一致" />
+        <div class="form-tip">点位编号默认与点位名称保持一致</div>
       </el-form-item>
       
       <el-form-item label="类型" prop="type">
@@ -169,7 +170,7 @@ watch(() => props.point, (point) => {
   if (point) {
     formData.value = {
       name: point.name || '',
-      code: point.code || '',
+      code: point.code || point.name || '',
       type: point.type || 'Halt point',
       x: point.x,
       y: point.y,
@@ -190,6 +191,17 @@ const handleClose = () => {
   emit('update:modelValue', false);
 };
 
+/** 编号默认与名称保持一致：编号为空，或仍等于旧名称时，跟随名称 */
+const syncCodeWithName = () => {
+  const name = (formData.value.name || '').trim();
+  const code = (formData.value.code || '').trim();
+  const oldName = (props.point?.name || '').trim();
+  if (!name) return;
+  if (!code || code === oldName) {
+    formData.value.code = name;
+  }
+};
+
 const handleSave = async () => {
   if (!props.point) return;
   
@@ -198,11 +210,13 @@ const handleSave = async () => {
   try {
     await formRef.value.validate();
     saving.value = true;
+    syncCodeWithName();
+    const pointNo = (formData.value.code || formData.value.name || '').trim();
     
     // 更新点数据
     mapEditorStore.updatePoint(props.point.id, {
       name: formData.value.name,
-      code: formData.value.code || undefined,
+      code: pointNo || undefined,
       type: formData.value.type,
       x: formData.value.x,
       y: formData.value.y,
@@ -231,4 +245,13 @@ const handleSave = async () => {
   }
 };
 </script>
+
+<style scoped>
+.form-tip {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--el-text-color-secondary);
+}
+</style>
 

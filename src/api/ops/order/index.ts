@@ -1,6 +1,6 @@
 import request from '@/utils/request';
 import { AxiosPromise } from 'axios';
-import { OrderVO, OrderForm, OrderQuery } from '@/api/ops/order/types';
+import { OrderVO, OrderForm, OrderQuery, CreateOrderCommand } from '@/api/ops/order/types';
 
 /**
  * 查询运输订单列表
@@ -27,12 +27,23 @@ export const getOrder = (id: string | number): AxiosPromise<OrderVO> => {
 };
 
 /**
- * 新增运输订单
+ * 创建运输订单（经内核路径规划）
+ */
+export const createTransportOrder = (data: CreateOrderCommand) => {
+  return request({
+    url: '/transport-order/',
+    method: 'post',
+    data
+  });
+};
+
+/**
+ * 新增运输订单（草稿/兼容旧接口）
  * @param data
  */
 export const addOrder = (data: OrderForm) => {
   return request({
-    url: '/transport-order',
+    url: '/transport-order/draft',
     method: 'post',
     data: data
   });

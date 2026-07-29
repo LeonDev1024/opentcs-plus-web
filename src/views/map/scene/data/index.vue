@@ -21,7 +21,7 @@
           <el-input
             v-model="keyword"
             class="filter-keyword"
-            :placeholder="activeTab === 'points' ? '点位编码或名称' : '路径编码或名称'"
+            :placeholder="activeTab === 'points' ? '点位编号或名称' : '路径编号或名称'"
             clearable
             @keyup.enter="refreshActivePanel"
           >
@@ -38,9 +38,9 @@
           >
             <el-option
               v-for="map in mapOptions"
-              :key="getMapBusinessId(map)"
+              :key="map.id"
               :label="map.name"
-              :value="getMapBusinessId(map)"
+              :value="map.id"
             />
           </el-select>
           <el-button type="primary" :icon="Search" :disabled="!sceneId" @click="refreshActivePanel">查询</el-button>
@@ -75,6 +75,7 @@
             :scene-name="currentScene?.name"
             :keyword="keyword"
             :navigation-map-id="navigationMapId"
+            :maps="mapOptions"
           />
         </el-tab-pane>
       </el-tabs>
@@ -123,8 +124,6 @@ const refreshActivePanel = () => {
   if (activeTab.value === 'points') pointsPanelRef.value?.reload();
   else pathsPanelRef.value?.reload();
 };
-
-const getMapBusinessId = (map: NavigationMapVO) => Number((map as any).mapId ?? (map as any).id);
 
 const loadMapOptions = async () => {
   if (!sceneId.value) {
