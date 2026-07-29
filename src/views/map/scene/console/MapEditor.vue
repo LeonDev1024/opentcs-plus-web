@@ -226,6 +226,7 @@
             :layer-visibility="layerVisibility"
             @point-double-click="handlePointDoubleClick"
             @path-context-menu="handlePathContextMenu"
+            @point-context-menu="handlePointContextMenu"
           />
         </MapCanvasRuler>
         <div class="canvas-floating-controls">
@@ -333,6 +334,7 @@
         <div class="right-panel-body">
           <PropertyPanel v-show="activeRightTab === 'property'" />
           <ComponentsPanel v-show="activeRightTab === 'components'" />
+          <BlockPanel v-show="activeRightTab === 'blocks'" />
           <LayerPanel v-show="activeRightTab === 'layers'" />
         </div>
       </div>
@@ -870,10 +872,29 @@
           <el-icon><Sort /></el-icon>
           <span>反转方向</span>
         </li>
+        <li class="path-context-menu__item" @click="handleAddPathToBlock">
+          <el-icon><Plus /></el-icon>
+          <span>加入 Block</span>
+        </li>
         <li class="path-context-menu__divider" />
         <li class="path-context-menu__item path-context-menu__item--danger" @click="handleDeletePathFromMenu">
           <el-icon><Delete /></el-icon>
           <span>删除路径</span>
+        </li>
+      </ul>
+    </div>
+
+    <!-- 点位右键上下文菜单 -->
+    <div
+      v-if="pointContextMenu.visible"
+      class="path-context-menu"
+      :style="{ left: pointContextMenu.x + 'px', top: pointContextMenu.y + 'px' }"
+      @click.stop
+    >
+      <ul class="path-context-menu__list">
+        <li class="path-context-menu__item" @click="handleAddPointToBlock">
+          <el-icon><Plus /></el-icon>
+          <span>加入 Block</span>
         </li>
       </ul>
     </div>
@@ -906,6 +927,7 @@ import MapCanvasRuler from "./components/MapCanvasRuler.vue";
 import LayerPanel from "./components/LayerPanel.vue";
 import ComponentsPanel from "./components/ComponentsPanel.vue";
 import PropertyPanel from "./components/PropertyPanel.vue";
+import BlockPanel from "./components/BlockPanel.vue";
 import PointEditDialog from "./components/PointEditDialog.vue";
 import ImportBaseLayerDialog from "./components/ImportBaseLayerDialog.vue";
 import { useMapEditorStore } from "@/store/modules/mapEditor";
@@ -935,6 +957,7 @@ import {
   DArrowRight,
   Upload,
   Sort,
+  Plus,
   ArrowDown,
 } from "@element-plus/icons-vue";
 import { parsePgmToDataUrl } from "@/utils/mapEditor/pgmParser";
@@ -1006,6 +1029,7 @@ const handlePathContextMenu = (path: MapPath, clientX: number, clientY: number) 
   pathContextMenu.x = clientX;
   pathContextMenu.y = clientY;
   pathContextMenu.visible = true;
+  closePointContextMenu();
 };
 
 const closePathContextMenu = () => {
@@ -1026,6 +1050,65 @@ const handleDeletePathFromMenu = () => {
     ElMessage.success('路径已删除');
   }
   closePathContextMenu();
+};
+
+const handleAddPathToBlock = () => {
+  const path = mapEditorStore.paths.find((p) => p.id === pathContextMenu.pathId);
+  if (!path?.name) {
+    closePathContextMenu();
+    return;
+  }
+  addElementNameToBlock(path.name);
+  closePathContextMenu();
+};
+
+const pointContextMenu = reactive({
+  visible: false,
+  x: 0,
+  y: 0,
+  pointId: '' as string,
+});
+
+const handlePointContextMenu = (point: MapPoint, clientX: number, clientY: number) => {
+  pointContextMenu.pointId = point.id;
+  pointContextMenu.x = clientX;
+  pointContextMenu.y = clientY;
+  pointContextMenu.visible = true;
+  closePathContextMenu();
+};
+
+const closePointContextMenu = () => {
+  pointContextMenu.visible = false;
+};
+
+const addElementNameToBlock = (elementName: string) => {
+  let target = mapEditorStore.blocks[0];
+  if (!target) {
+    target = mapEditorStore.addBlock({
+      name: 'Block-1',
+      type: 'SINGLE_VEHICLE_ONLY',
+      members: [],
+      color: '#F44336',
+      properties: {}
+    });
+  }
+  if (!target.members.includes(elementName)) {
+    mapEditorStore.updateBlock(target.id, {
+      members: [...target.members, elementName]
+    });
+  }
+  activeRightTab.value = 'blocks';
+  ElMessage.success(`已加入 ${target.name}`);
+};
+
+const handleAddPointToBlock = () => {
+  const point = mapEditorStore.points.find((p) => p.id === pointContextMenu.pointId);
+  if (!point?.name) {
+    closePointContextMenu();
+    return;
+  }
+  addElementNameToBlock(point.name);
+  closePointContextMenu();
 };
 
 // 点编辑对话框
@@ -1148,6 +1231,7 @@ const activeRightTab = ref('property')
 const rightTabs = [
   { key: 'property', label: '属性' },
   { key: 'components', label: '图元' },
+  { key: 'blocks', label: 'Block' },
   { key: 'layers', label: '图层' },
 ]
 const isRightResizing = ref(false);
@@ -1634,6 +1718,7 @@ const handleResizeEnd = () => {
 // 点击页面任意位置关闭路径右键菜单
 const onDocumentClick = () => {
   if (pathContextMenu.visible) closePathContextMenu();
+  if (pointContextMenu.visible) closePointContextMenu();
 };
 
 onMounted(async () => {

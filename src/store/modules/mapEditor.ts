@@ -273,6 +273,11 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       : {};
     const x = pickCoordinate(p, 'x') ?? pickCoordinate(parsedLayout, 'x') ?? pickCoordinate(parsedPointProps, 'x') ?? 0;
     const y = pickCoordinate(p, 'y') ?? pickCoordinate(parsedLayout, 'y') ?? pickCoordinate(parsedPointProps, 'y') ?? 0;
+    const orientationRaw =
+      toFiniteNumber(p?.vehicleOrientationAngle) ??
+      toFiniteNumber(p?.vehicleOrientation) ??
+      toFiniteNumber(parsedPointProps?.vehicleOrientationAngle) ??
+      toFiniteNumber(parsedPointProps?.vehicleOrientation);
     return {
       ...parsedPointProps,
       ...p,
@@ -284,6 +289,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       y,
       z: p?.z ?? (p?.zPosition != null ? Number(p.zPosition) : undefined),
       status: p?.status ?? 'active',
+      locked: p?.locked ?? parsedPointProps?.locked ?? false,
+      vehicleOrientationAngle: orientationRaw,
       editorProps: {
         radius: parsedEditorProps?.radius ?? parsedLayoutEditorProps?.radius ?? p?.editorProps?.radius ?? p?.radius ?? 20,
         color: parsedEditorProps?.color ?? parsedLayoutEditorProps?.color ?? p?.editorProps?.color ?? '#4CAF50',
@@ -455,6 +462,9 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       startPointId,
       endPointId,
       status: p?.status ?? 'active',
+      locked: p?.locked ?? false,
+      maxVelocity: toFiniteNumber(p?.maxVelocity) ?? 0,
+      maxReverseVelocity: toFiniteNumber(p?.maxReverseVelocity) ?? 0,
       geometry: {
         ...geometry,
         pathType: p?.geometry?.pathType || parsedLayout?.pathType || 'line'
@@ -468,6 +478,25 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         label: parsedEditorProps?.label ?? p?.editorProps?.label,
         labelVisible: parsedEditorProps?.labelVisible ?? p?.editorProps?.labelVisible ?? true
       }
+    };
+  };
+
+
+  const normalizeBlock = (b: Record<string, any>): MapBlock => {
+    const id = b?.id != null ? String(b.id) : `block_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    const members = Array.isArray(b?.members)
+      ? b.members.map((m: any) => String(m))
+      : [];
+    return {
+      id,
+      blockId: b?.blockId != null ? String(b.blockId) : id,
+      name: b?.name ?? id,
+      type: (b?.type === 'SAME_DIRECTION_ONLY' ? 'SAME_DIRECTION_ONLY' : 'SINGLE_VEHICLE_ONLY'),
+      members,
+      color: b?.color || '#F44336',
+      properties: (b?.properties && typeof b.properties === 'object' && !Array.isArray(b.properties))
+        ? b.properties
+        : {}
     };
   };
 
@@ -769,7 +798,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               paths: rawPaths.map((p: Record<string, any>) => normalizePath(p, defaultPathLayerId, rawPoints)),
               locations: []
             },
-            blocks: [],
+            blocks: (Array.isArray(apiData.blocks) ? apiData.blocks : []).map((b: Record<string, any>) => normalizeBlock(b)),
             metadata: {
               createdAt: flatHeader.createTime || new Date().toISOString(),
               updatedAt: flatHeader.updateTime || new Date().toISOString()
@@ -832,7 +861,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               paths: rpath.map((p: Record<string, any>) => normalizePath(p, dpathId, rp)),
               locations: []
             },
-            blocks: [],
+            blocks: (Array.isArray(apiData.blocks) ? apiData.blocks : []).map((b: Record<string, any>) => normalizeBlock(b)),
             metadata: {
               createdAt: apiData.mapInfo.createTime || new Date().toISOString(),
               updatedAt: apiData.mapInfo.updateTime || new Date().toISOString()
@@ -885,7 +914,10 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       paths.value = data.elements.paths || [];
       locations.value = [];
       console.log('[MapEditor] store points 数量:', points.value.length, 'store paths:', paths.value.length);
-      blocks.value = [];
+      blocks.value = Array.isArray(data.blocks) ? data.blocks.map((b: any) => normalizeBlock(b)) : [];
+      if (mapData.value) {
+        mapData.value.blocks = blocks.value;
+      }
 
       syncPointNameCounter();
       
@@ -1038,6 +1070,12 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             type: p?.type ?? 'HALT_POSITION',
             radius: toNumberOrNull(p?.editorProps?.radius) ?? toNumberOrNull(p?.radius) ?? 0,
             locked: p?.locked ?? null,
+            // UI 使用度；后端字段 vehicleOrientation 按度存储（与属性面板一致）
+            vehicleOrientation: (() => {
+              const deg = toNumberOrNull(p?.vehicleOrientationAngle);
+              if (deg != null && Number.isFinite(deg)) return deg;
+              return toNumberOrNull(p?.vehicleOrientation);
+            })(),
             label: p?.editorProps?.label ?? p?.label ?? null,
             layout: JSON.stringify({
               x: toNumberOrNull(p?.x) ?? toNumberOrNull(p?.xPosition) ?? 0,
@@ -1089,6 +1127,8 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             locked: path?.locked ?? null,
             // path.length 在库里是 NOT NULL
             length: estimateLength(path?.geometry) ?? 0,
+            maxVelocity: toNumberOrNull(path?.maxVelocity) ?? 0,
+            maxReverseVelocity: toNumberOrNull(path?.maxReverseVelocity) ?? 0,
             // 几何连接类型：DIRECT / ELBOW / BEZIER
             connectionType: path?.type ?? 'DIRECT',
             properties: JSON.stringify({
@@ -1146,7 +1186,16 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           })
         })),
         points: serializePoints(rawData.elements?.points || []),
-        paths: serializePaths(rawData.elements?.paths || [])
+        paths: serializePaths(rawData.elements?.paths || []),
+        blocks: (blocks.value || []).map((b) => ({
+          id: null,
+          blockId: b.blockId || b.id,
+          name: b.name,
+          type: b.type || 'SINGLE_VEHICLE_ONLY',
+          members: Array.isArray(b.members) ? b.members : [],
+          color: b.color || '#F44336',
+          properties: b.properties || {}
+        }))
       };
 
       // 保存到后端（语义数据）

@@ -388,6 +388,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   "point-double-click": [point: MapPoint];
   "path-context-menu": [path: MapPath, x: number, y: number];
+  "point-context-menu": [point: MapPoint, x: number, y: number];
 }>();
 
 // 获取自动切换工具的状态（默认不自动切换）
@@ -2718,7 +2719,7 @@ const handleLocationContextMenu = (location: MapLocation, e: any) => {
   mapEditorStore.selectElement(location.id, "location", multiSelect);
 };
 
-// 处理点右键菜单（预留功能）
+// 处理点右键菜单
 const handlePointContextMenu = (point: MapPoint, e: any) => {
   if (props.readonly) return;
   e.cancelBubble = true;
@@ -2732,9 +2733,9 @@ const handlePointContextMenu = (point: MapPoint, e: any) => {
   const multiSelect = e.evt.ctrlKey || e.evt.metaKey;
   mapEditorStore.selectElement(point.id, "point", multiSelect);
 
-  // 预留：未来可以打开点的编辑对话框
-  // editingPointId.value = point.id;
-  // pointEditDialogVisible.value = true;
+  const clientX = e.evt?.clientX ?? 0;
+  const clientY = e.evt?.clientY ?? 0;
+  emit("point-context-menu", point, clientX, clientY);
 };
 
 // ==================== 路径控制点编辑 ====================
