@@ -53,8 +53,16 @@
             {{ mapNameOf(scope.row.navigationMapId) }}
           </template>
         </el-table-column>
-        <el-table-column label="起点" align="center" prop="sourcePoint" min-width="120" show-overflow-tooltip />
-        <el-table-column label="终点" align="center" prop="destPoint" min-width="120" show-overflow-tooltip />
+        <el-table-column label="起点" align="center" min-width="120" show-overflow-tooltip>
+          <template #default="scope">
+            {{ pointNoOf(scope.row.navigationMapId, scope.row.sourcePoint) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="终点" align="center" min-width="120" show-overflow-tooltip>
+          <template #default="scope">
+            {{ pointNoOf(scope.row.navigationMapId, scope.row.destPoint) }}
+          </template>
+        </el-table-column>
         <el-table-column label="默认优先级" align="center" prop="priority" width="110">
           <template #default="scope">
             <span>{{ scope.row.priority ?? 0 }}</span>
@@ -186,6 +194,8 @@ const { proxy } = getCurrentInstance() as ComponentInternalInstance;
 const templateList = ref<TaskTemplateVO[]>([]);
 const mapOptions = ref<NavigationMapVO[]>([]);
 const pointOptions = ref<MapPointOption[]>([]);
+/** mapId:pointId → 点位编号（优先名称，与地图主数据一致） */
+const pointNoCache = ref<Record<string, string>>({});
 const buttonLoading = ref(false);
 const pointsLoading = ref(false);
 const loading = ref(true);
@@ -240,9 +250,22 @@ const data = reactive<PageData<TaskTemplateForm, TaskTemplateQuery>>({
 
 const { queryParams, form, rules } = toRefs(data);
 
-const formatPointLabel = (point: MapPointOption) => {
-  const name = point.name || point.pointId;
-  return name === point.pointId ? point.pointId : `${name}（${point.pointId}）`;
+/** 点位编号：与地图主数据一致，优先名称，否则 pointId */
+const resolvePointNo = (point: Pick<MapPointOption, 'pointId' | 'name'> & { code?: string }) => {
+  const name = point.name != null ? String(point.name).trim() : '';
+  const code = point.code != null ? String(point.code).trim() : '';
+  return name || code || point.pointId || '-';
+};
+
+const formatPointLabel = (point: MapPointOption) => resolvePointNo(point);
+
+const pointCacheKey = (mapId: number | string, pointId: string) => `${mapId}:${pointId}`;
+
+const pointNoOf = (mapId?: number, pointId?: string) => {
+  if (pointId == null || String(pointId).trim() === '') return '-';
+  const id = String(pointId).trim();
+  if (mapId == null) return id;
+  return pointNoCache.value[pointCacheKey(mapId, id)] || id;
 };
 
 const mapNameOf = (mapId?: number) => {
@@ -255,9 +278,18 @@ const normalizePoints = (rows: any[]): MapPointOption[] => {
   return (rows || [])
     .map((point) => ({
       ...point,
-      pointId: String(point.pointId ?? point.code ?? point.name ?? point.id ?? '')
+      pointId: String(point.pointId ?? point.code ?? point.name ?? point.id ?? ''),
+      name: point.name != null ? String(point.name) : undefined
     }))
     .filter((point) => !!point.pointId);
+};
+
+const rememberPoints = (mapId: number, points: MapPointOption[]) => {
+  const next = { ...pointNoCache.value };
+  points.forEach((point) => {
+    next[pointCacheKey(mapId, point.pointId)] = resolvePointNo(point);
+  });
+  pointNoCache.value = next;
 };
 
 const loadMaps = async () => {
@@ -278,11 +310,33 @@ const loadPoints = async (mapId?: number) => {
   try {
     const res = await listPointsByMap(mapId);
     pointOptions.value = normalizePoints(res.data || []);
+    rememberPoints(mapId, pointOptions.value);
   } catch {
     pointOptions.value = [];
   } finally {
     pointsLoading.value = false;
   }
+};
+
+const ensurePointNosForList = async (rows: TaskTemplateVO[]) => {
+  const mapIds = [...new Set(rows.map((row) => row.navigationMapId).filter((id): id is number => id != null))];
+  await Promise.all(
+    mapIds.map(async (mapId) => {
+      const needLoad = rows.some((row) => {
+        if (row.navigationMapId !== mapId) return false;
+        const source = row.sourcePoint ? pointCacheKey(mapId, row.sourcePoint) : '';
+        const dest = row.destPoint ? pointCacheKey(mapId, row.destPoint) : '';
+        return (source && !pointNoCache.value[source]) || (dest && !pointNoCache.value[dest]);
+      });
+      if (!needLoad) return;
+      try {
+        const res = await listPointsByMap(mapId);
+        rememberPoints(mapId, normalizePoints(res.data || []));
+      } catch {
+        // 列表仍可回退展示 pointId
+      }
+    })
+  );
 };
 
 const onMapChange = async (mapId?: number) => {
@@ -297,6 +351,7 @@ const getList = async () => {
     const res = await listTaskTemplate(queryParams.value);
     templateList.value = res.rows;
     total.value = res.total;
+    await ensurePointNosForList(res.rows || []);
   } finally {
     loading.value = false;
   }
