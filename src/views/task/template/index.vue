@@ -431,6 +431,10 @@ const submitForm = () => {
 
 const handleDelete = async (row?: TaskTemplateVO) => {
   const targetIds = row?.id != null ? [row.id] : [...ids.value];
+  if (!targetIds.length) {
+    proxy?.$modal.msgWarning('请选择要删除的任务模板');
+    return;
+  }
   await proxy?.$modal.confirm('是否确认删除选中的任务模板？');
   await Promise.all(targetIds.map((id) => delTaskTemplate(id)));
   proxy?.$modal.msgSuccess('删除成功');

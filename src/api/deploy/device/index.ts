@@ -61,3 +61,44 @@ export const delVehicle = (id: string | number | Array<string | number>) => {
   });
 };
 
+/** 连接驱动 */
+export const connectVehicle = (id: string | number) => {
+  return request({
+    url: '/vehicle/connect/' + id,
+    method: 'post'
+  });
+};
+
+/** 断开驱动 */
+export const disconnectVehicle = (id: string | number) => {
+  return request({
+    url: '/vehicle/disconnect/' + id,
+    method: 'post'
+  });
+};
+
+/** 激活车辆（可接单） */
+export const activateVehicle = (id: string | number) => {
+  return request({
+    url: '/vehicle/activate/' + id,
+    method: 'post'
+  });
+};
+
+/** 停用车辆 */
+export const deactivateVehicle = (id: string | number) => {
+  return request({
+    url: '/vehicle/deactivate/' + id,
+    method: 'post'
+  });
+};
+
+/** 设置初始点 */
+export const setVehiclePosition = (id: string | number, pointId: string) => {
+  return request({
+    url: `/vehicle/${id}/position`,
+    method: 'put',
+    data: { pointId }
+  });
+};
+

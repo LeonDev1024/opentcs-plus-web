@@ -5,7 +5,9 @@
         <el-table-column label="路径ID" align="center" prop="id" width="100" show-overflow-tooltip />
         <el-table-column label="路径编号" align="center" prop="pathNo" min-width="180" show-overflow-tooltip />
         <el-table-column label="方向" align="center" width="80">
-          <template #default>单向</template>
+          <template #default="{ row }">
+            {{ formatDirection(row) }}
+          </template>
         </el-table-column>
         <el-table-column label="起点坐标(mm)" align="center" min-width="160" show-overflow-tooltip>
           <template #default="{ row }">
@@ -70,6 +72,23 @@ const formatCoord = (x: unknown, y: unknown) => {
   const fy = formatPos(y);
   if (fx == null || fy == null || Number.isNaN(fx) || Number.isNaN(fy)) return '-';
   return `${fx.toFixed(0)}, ${fy.toFixed(0)}`;
+};
+
+const formatDirection = (row: any) => {
+  const laneMode = row?.editorProps?.laneMode;
+  if (laneMode === 'one-way') return '单向';
+  if (laneMode === 'two-way') return '双向';
+  try {
+    const props = typeof row?.properties === 'string' ? JSON.parse(row.properties) : row?.properties;
+    const mode = props?.editorProps?.laneMode;
+    if (mode === 'one-way') return '单向';
+    if (mode === 'two-way') return '双向';
+  } catch {
+    // ignore
+  }
+  const routingType = String(row?.routingType || '').toUpperCase();
+  if (routingType === 'ONE_WAY' || routingType === 'FORWARD') return '单向';
+  return '双向';
 };
 
 const resolvePointLabel = (point?: PointLookup | null, fallbackId?: string) => {

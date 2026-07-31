@@ -15,7 +15,8 @@
  * 关键约定：
  *   • 工厂坐标系 Y 向上为正；CSS / Konva 内部 Y 向下为正 → 通过 top: -oy 翻转
  *   • mapOrigin 来自后端 `mapOrigin` / `map_origin` 字段（[ox, oy, θ]）
- *   • 1px = 1mm（项目默认）
+ *   • 点位与仿真车辆位置均为地图模型坐标（与地图编辑器一致），1 模型单位 = 1 CSS px
+ *   • 车辆工厂 CSS：cssX = originX + x，cssY = -originY + y（与路径点一致）
  */
 import { ref, watch, computed, reactive, onMounted, onBeforeUnmount } from 'vue';
 import { Monitor, View, Hide } from '@element-plus/icons-vue';
@@ -410,31 +411,88 @@ function vehicleColor(state: string): string {
 }
 
 /**
- * 车辆坐标转换：机器人 API 返回 m，模型坐标单位由 mapMmPerUnit 决定
- * 转换公式：modelUnit = meters × 1000 / mmPerUnit
- *   - mmPerUnit=1000（1模型单位=1m）：除数=1，直接对应
- *   - mmPerUnit=50（1模型单位=50mm=5cm）：需乘以20
+ * 车辆坐标：与路径点同一套地图模型坐标（非米制换算）
  *
- * 方向：OpenTCS orientation 为 CCW 度数（从正东起），Y 轴已翻转，
+ * 工厂 CSS（Y-down）放置：
+ *   cssX = mapOriginX + x
+ *   cssY = -mapOriginY + y
+ * 与 MapRenderer(flipY=false) + getMapRendererStyle 一致。
+ *
+ * 方向：OpenTCS orientation 为 CCW 度数（从正东起），
  * SVG rotate 为顺时针，故 svgAngle = -orientation
  */
 const vehicleMarkers = computed(() => {
-  const mpu = mapMmPerUnit.value || 1000;
-  const metersToModel = 1000 / mpu;
   const ONLINE_STATES = new Set(['IDLE', 'WORKING', 'CHARGING', 'ERROR', 'EXECUTING', 'PAUSED', 'WAITING']);
   return props.vehicles
     .filter((v) => ONLINE_STATES.has(v.state))
-    .map((v) => ({
-      vehicleId: v.vehicleId,
-      name: v.name,
-      state: v.state,
-      color: vehicleColor(v.state),
-      cssX: (v.position?.x ?? 0) * metersToModel,
-      cssY: -(v.position?.y ?? 0) * metersToModel,
-      svgAngle: -(v.position?.orientation ?? 0),
-      isActive: v.vehicleId === props.activeVehicleId
-    }));
+    .map((v) => {
+      const { originX, originY, x, y } = resolveVehiclePose(v);
+      return {
+        vehicleId: v.vehicleId,
+        name: v.name,
+        state: v.state,
+        color: vehicleColor(v.state),
+        cssX: originX + x,
+        cssY: -originY + y,
+        svgAngle: -(v.position?.orientation ?? 0),
+        isActive: v.vehicleId === props.activeVehicleId
+      };
+    });
 });
+
+function matchPoint(p: any, pointId: string): boolean {
+  const id = String(pointId ?? '').trim();
+  if (!id) return false;
+  return [p?.pointId, p?.name, p?.id].some((v) => String(v ?? '').trim() === id);
+}
+
+/** 解析车辆在地图模型坐标中的位姿（含 mapOrigin） */
+function resolveVehiclePose(v: VehicleRuntimeVO): {
+  originX: number;
+  originY: number;
+  x: number;
+  y: number;
+} {
+  const layers = mapData.value?.layers || [];
+  let originX = 0;
+  let originY = 0;
+  let layer: FactoryMapLayer | undefined;
+
+  const mapId = v.position?.mapId;
+  if (mapId) {
+    layer = layers.find((l) => l.mapId === String(mapId));
+  }
+  const pointId = v.position?.pointId;
+  if (!layer && pointId) {
+    layer = layers.find((l) => l.points.some((p: any) => matchPoint(p, pointId)));
+  }
+  if (!layer && layers.length === 1) {
+    layer = layers[0];
+  }
+  if (layer) {
+    originX = layer.originX;
+    originY = layer.originY;
+  }
+
+  let x = Number(v.position?.x ?? 0);
+  let y = Number(v.position?.y ?? 0);
+  // 运行态偶发只有 pointId、坐标为 0：回退到地图点位坐标，避免车图标掉到原点
+  if (pointId && Math.abs(x) < 1e-6 && Math.abs(y) < 1e-6) {
+    const searchLayers = layer ? [layer] : layers;
+    for (const l of searchLayers) {
+      const pt = l.points.find((p: any) => matchPoint(p, pointId));
+      if (pt) {
+        x = Number(pt.x ?? pt.xPosition ?? 0);
+        y = Number(pt.y ?? pt.yPosition ?? 0);
+        originX = l.originX;
+        originY = l.originY;
+        break;
+      }
+    }
+  }
+
+  return { originX, originY, x, y };
+}
 
 // ============================================================================
 // 缩放与平移

@@ -20,6 +20,7 @@ export type VehicleState =
 /** 位置信息 */
 export interface Position {
   pointId?: string;
+  mapId?: string;
   x: number;
   y: number;
   orientation: number;

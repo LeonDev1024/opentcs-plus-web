@@ -1952,7 +1952,7 @@ const handleSave = async () => {
   }
   try {
     await mapEditorStore.saveMap();
-    ElMessage.success("保存成功");
+    ElMessage.success("保存成功，地图已生效");
     // 通知父组件地图已更新
     const mapName =
       mapEditorStore.mapData?.mapInfo?.name || props.mapName || "未命名";

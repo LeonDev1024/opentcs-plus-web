@@ -5,7 +5,7 @@
         <div class="query-toolbar">
           <el-input
             v-model="queryParams.orderNo"
-            placeholder="订单编号"
+            placeholder="订单号"
             clearable
             size="default"
             @keyup.enter="handleQuery"
@@ -15,18 +15,27 @@
             </template>
           </el-input>
           <el-input
-            v-model="queryParams.vehicleVin"
-            placeholder="机器人编码"
+            v-model="queryParams.name"
+            placeholder="任务号"
             clearable
             size="default"
             @keyup.enter="handleQuery"
           />
-          <el-select v-model="queryParams.status" placeholder="全部状态" clearable size="default">
-            <el-option label="待分配" value="0" />
-            <el-option label="已分配" value="1" />
-            <el-option label="运输中" value="2" />
-            <el-option label="已完成" value="3" />
-            <el-option label="已取消" value="4" />
+          <el-input
+            v-model="queryParams.vehicleVin"
+            placeholder="执行AMR"
+            clearable
+            size="default"
+            @keyup.enter="handleQuery"
+          />
+          <el-select v-model="queryParams.displayState" placeholder="全部状态" clearable size="default">
+            <el-option label="待执行" value="PENDING" />
+            <el-option label="寻车中" value="DISPATCHING" />
+            <el-option label="执行中" value="EXECUTING" />
+            <el-option label="已完成" value="FINISHED" />
+            <el-option label="已取消" value="CANCELLED" />
+            <el-option label="暂停中" value="PAUSED" />
+            <el-option label="失败" value="FAILED" />
           </el-select>
           <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
           <el-button :icon="Refresh" @click="resetQuery">重置</el-button>
@@ -53,34 +62,56 @@
 
       <el-table v-loading="loading" :data="orderList" border @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55" align="center" />
-        <el-table-column label="订单编号" align="center" prop="orderNo" width="180" />
-        <el-table-column label="订单名称" align="center" prop="name" />
-        <el-table-column label="车辆" align="center" prop="vehicleName" />
-        <el-table-column label="起始位置" align="center" prop="startLocationName" />
-        <el-table-column label="目标位置" align="center" prop="targetLocationName" />
-        <el-table-column label="订单状态" align="center" prop="status" width="100">
+        <el-table-column label="订单号" align="center" min-width="160" show-overflow-tooltip>
           <template #default="scope">
-            <el-tag v-if="scope.row.status === '0'" type="info">待分配</el-tag>
-            <el-tag v-else-if="scope.row.status === '1'" type="warning">已分配</el-tag>
-            <el-tag v-else-if="scope.row.status === '2'" type="primary">运输中</el-tag>
-            <el-tag v-else-if="scope.row.status === '3'" type="success">已完成</el-tag>
-            <el-tag v-else-if="scope.row.status === '4'" type="danger">已取消</el-tag>
-            <span v-else>{{ scope.row.status }}</span>
+            {{ scope.row.externalOrderNo || scope.row.orderNo || '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="优先级" align="center" prop="priority" width="80" />
-        <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
-        <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="160">
+        <el-table-column label="任务号" align="center" prop="name" min-width="160" show-overflow-tooltip>
           <template #default="scope">
-            <el-tooltip content="删除" placement="top">
-              <el-button v-hasPermi="['opentcs:transportOrder:remove']" link type="primary" icon="Delete" @click="handleDelete(scope.row)"></el-button>
-            </el-tooltip>
-            <el-tooltip v-if="scope.row.status === '0'" content="分配车辆" placement="top">
-              <el-button v-hasPermi="['opentcs:transportOrder:assign']" link type="warning" icon="Connection" @click="handleAssign(scope.row)"></el-button>
-            </el-tooltip>
-            <el-tooltip v-if="['0', '1', '2'].includes(scope.row.status)" content="取消订单" placement="top">
-              <el-button v-hasPermi="['opentcs:transportOrder:cancel']" link type="danger" icon="Close" @click="handleCancel(scope.row)"></el-button>
-            </el-tooltip>
+            {{ scope.row.name || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="任务模板号" align="center" prop="templateCode" min-width="120" show-overflow-tooltip>
+          <template #default="scope">
+            {{ scope.row.templateCode || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="执行AMR" align="center" prop="vehicleName" min-width="110" show-overflow-tooltip>
+          <template #default="scope">
+            {{ scope.row.vehicleName || scope.row.processingVehicle || scope.row.intendedVehicle || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" align="center" prop="displayState" width="100">
+          <template #default="scope">
+            <el-tag v-if="scope.row.displayState === 'PENDING'" type="info">待执行</el-tag>
+            <el-tag v-else-if="scope.row.displayState === 'DISPATCHING'" type="warning">寻车中</el-tag>
+            <el-tag v-else-if="scope.row.displayState === 'EXECUTING'" type="primary">执行中</el-tag>
+            <el-tag v-else-if="scope.row.displayState === 'PAUSED'" type="warning">暂停中</el-tag>
+            <el-tag v-else-if="scope.row.displayState === 'FINISHED'" type="success">已完成</el-tag>
+            <el-tag v-else-if="scope.row.displayState === 'CANCELLED'" type="info">已取消</el-tag>
+            <el-tag v-else-if="scope.row.displayState === 'FAILED'" type="danger">失败</el-tag>
+            <span v-else>{{ scope.row.displayState || scope.row.state || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="优先级" align="center" prop="priority" width="80">
+          <template #default="scope">
+            {{ scope.row.priority ?? '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="预约时间" align="center" prop="deadline" width="170">
+          <template #default="scope">
+            {{ scope.row.deadline || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="备注" align="center" prop="remark" min-width="120" show-overflow-tooltip>
+          <template #default="scope">
+            {{ scope.row.remark || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="创建时间" align="center" prop="createTime" width="170">
+          <template #default="scope">
+            {{ scope.row.createTime || scope.row.creationTime || '-' }}
           </template>
         </el-table-column>
       </el-table>
@@ -261,8 +292,9 @@ const data = reactive<PageData<OrderForm, OrderQuery>>({
     pageNum: 1,
     pageSize: 10,
     orderNo: undefined,
+    name: undefined,
     vehicleVin: undefined,
-    status: undefined
+    displayState: undefined
   },
   rules: {
     templateCode: [{ required: true, message: '请选择任务模板号', trigger: 'change' }]
@@ -307,10 +339,59 @@ const getList = async () => {
   loading.value = true;
   try {
     const res = await listOrder(queryParams.value);
-    orderList.value = res.rows;
+    orderList.value = (res.rows || []).map(normalizeOrderRow);
     total.value = res.total;
   } finally {
     loading.value = false;
+  }
+};
+
+/** 兼容旧接口字段，补齐展示用属性 */
+const normalizeOrderRow = (row: OrderVO): OrderVO => {
+  let props: Record<string, string> = {};
+  if (row.properties) {
+    try {
+      props = JSON.parse(row.properties);
+    } catch {
+      props = {};
+    }
+  }
+  const processingVehicle = (row.processingVehicle || '').trim() || undefined;
+  const intendedVehicle = (row.intendedVehicle || '').trim() || undefined;
+  const displayState =
+    row.displayState ||
+    resolveDisplayState(row.state, processingVehicle);
+  return {
+    ...row,
+    processingVehicle,
+    intendedVehicle,
+    externalOrderNo: row.externalOrderNo || props.externalOrderNo,
+    templateCode: row.templateCode || props.templateCode,
+    remark: row.remark || props.remark,
+    priority: row.priority ?? (props.priority != null && props.priority !== '' ? Number(props.priority) : undefined),
+    vehicleName: row.vehicleName || processingVehicle || intendedVehicle,
+    displayState,
+    createTime: row.createTime || row.creationTime
+  };
+};
+
+const resolveDisplayState = (state?: string, processingVehicle?: string) => {
+  if (!state) return undefined;
+  switch (state) {
+    case 'RAW':
+      return 'PENDING';
+    case 'ACTIVE':
+      return processingVehicle ? 'EXECUTING' : 'DISPATCHING';
+    case 'RECOVERING':
+      return 'PAUSED';
+    case 'FINISHED':
+      return 'FINISHED';
+    case 'CANCELLED':
+      return 'CANCELLED';
+    case 'FAILED':
+      return 'FAILED';
+    default:
+      return state;
   }
 };
 
@@ -335,8 +416,9 @@ const handleQuery = () => {
 /** 重置按钮操作 */
 const resetQuery = () => {
   queryParams.value.orderNo = undefined;
+  queryParams.value.name = undefined;
   queryParams.value.vehicleVin = undefined;
-  queryParams.value.status = undefined;
+  queryParams.value.displayState = undefined;
   handleQuery();
 };
 
