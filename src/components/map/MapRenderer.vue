@@ -94,6 +94,16 @@ import {
   resolvePointBullseyeStyleReadonly,
   updateConnectedPointIds,
 } from "@/utils/mapEditor/pointStyle";
+import {
+  DASHED_LINK_DASH_PATTERN,
+  DASHED_LINK_STROKE_WIDTH,
+  MAP_ELEMENT_LABEL_COLOR,
+  MAP_ELEMENT_LABEL_FONT_FAMILY,
+  MAP_ELEMENT_LABEL_FONT_SIZE,
+  PATH_DIRECTION_ARROW_FILL,
+  PATH_RIBBON_DEFAULT_STROKE,
+  PATH_RIBBON_STROKE_WIDTH,
+} from "@/utils/mapEditor/mapVisualTokens";
 
 // ==================== Props ====================
 interface Props {
@@ -110,8 +120,10 @@ interface Props {
   originX?: number;
   originY?: number;
   autoCenter?: boolean;
-  /** 监控大屏专用：标签居中显示在点正上方 30px 处 */
-  centerLabelsAbove?: boolean;
+  /** 监控画布可独立隐藏路径方向箭头 */
+  pathDirectionsVisible?: boolean;
+  /** 监控画布可独立隐藏点位编号 */
+  pointLabelsVisible?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -128,7 +140,8 @@ const props = withDefaults(defineProps<Props>(), {
   originX: 0,
   originY: 0,
   autoCenter: false,
-  centerLabelsAbove: false,
+  pathDirectionsVisible: true,
+  pointLabelsVisible: true,
 });
 
 const emit = defineEmits<{
@@ -152,12 +165,6 @@ watch(
 );
 
 // ==================== 常量 ====================
-const PATH_RIBBON_STROKE_WIDTH = 18;
-const DASHED_LINK_STROKE_WIDTH = 4;
-const DASHED_LINK_DASH_PATTERN = [12, 8];
-const PATH_DEFAULT_STROKE = "rgba(186, 206, 245, 0.95)";
-const PATH_DIRECTION_ARROW_FILL = "#2563EB";
-
 function isColorEffectivelyInvisible(color?: string): boolean {
   if (!color) return true;
   const s = String(color).trim().toLowerCase();
@@ -365,7 +372,7 @@ function getPointBullseyeDotConfig(point: MapPoint) {
 
 function shouldShowPointLabel(point: MapPoint) {
   const labelVisible = point.editorProps?.labelVisible !== false;
-  return labelVisible && !!(point.name || point.id);
+  return props.pointLabelsVisible && labelVisible && !!(point.name || point.id);
 }
 
 function getPointLabelConfig(point: MapPoint) {
@@ -373,41 +380,16 @@ function getPointLabelConfig(point: MapPoint) {
   const pos = transformPoint(Number(point.x ?? 0), Number(point.y ?? 0));
   const labelText = point.name || point.id;
 
-  // 监控大屏模式：标签居中显示在点正上方 30px
-  // 使用固定宽度 80px + align:'center' 实现水平居中，x 向左移半宽确保对齐点中心
-  if (props.centerLabelsAbove) {
-    const labelWidth = 80;
-    return {
-      x: pos.x - labelWidth / 2,
-      y: pos.y - 30,
-      width: labelWidth,
-      text: String(labelText ?? ""),
-      fontSize: 11,
-      fontFamily: "Arial, sans-serif",
-      fill: "#303133",
-      align: "center",
-      verticalAlign: "bottom",
-      scaleY: labelScaleY,
-      listening: false,
-      perfectDrawEnabled: false,
-    };
-  }
-
-  // 编辑器默认模式：按 editorProps.labelOffset 偏移
-  const labelOffset = point.editorProps?.labelOffset ?? { x: -30, y: -30 };
-  const offsetX = labelOffset.x;
-  const offsetY = labelOffset.y;
-
   return {
-    x: pos.x + offsetX,
-    y: pos.y + offsetY,
+    x: pos.x - 30,
+    y: pos.y - visual.radius - 16,
+    width: 60,
     text: String(labelText ?? ""),
-    fontSize: 12,
-    fontFamily: "Arial, sans-serif",
-    fill: "#303133",
+    fontSize: MAP_ELEMENT_LABEL_FONT_SIZE,
+    fontFamily: MAP_ELEMENT_LABEL_FONT_FAMILY,
+    fill: MAP_ELEMENT_LABEL_COLOR,
     align: "center",
-    verticalAlign: "top",
-    padding: 2,
+    padding: 0,
     scaleY: labelScaleY,
     listening: false,
     perfectDrawEnabled: false,
@@ -459,13 +441,26 @@ function getPathConfig(path: MapPath) {
     path.geometry?.pathType === "curve" || connectionType === "curve";
   const isOrthogonal = connectionType === "orthogonal";
 
-  const stroke = path.editorProps?.strokeColor || PATH_DEFAULT_STROKE;
-  const strokeWidth =
-    path.editorProps?.strokeWidth ||
-    (path.editorProps?.lineStyle === "dashed"
-      ? DASHED_LINK_STROKE_WIDTH
-      : PATH_RIBBON_STROKE_WIDTH);
   const isDashedLine = path.editorProps?.lineStyle === "dashed";
+  const rawStroke = path.editorProps?.strokeColor;
+  const stroke =
+    rawStroke == null
+      ? PATH_RIBBON_DEFAULT_STROKE
+      : isColorEffectivelyInvisible(rawStroke)
+        ? rawStroke || "transparent"
+        : rawStroke;
+  const configuredStrokeWidth = path.editorProps?.strokeWidth;
+  const strokeWidth = isDashedLine
+    ? typeof configuredStrokeWidth === "number" &&
+      configuredStrokeWidth >= 1 &&
+      configuredStrokeWidth <= 16
+      ? configuredStrokeWidth
+      : DASHED_LINK_STROKE_WIDTH
+    : typeof configuredStrokeWidth === "number" &&
+        configuredStrokeWidth >= 8 &&
+        configuredStrokeWidth <= 48
+      ? configuredStrokeWidth
+      : PATH_RIBBON_STROKE_WIDTH;
 
   return {
     id: String(path.id),
@@ -482,8 +477,9 @@ function getPathConfig(path: MapPath) {
 }
 
 function shouldShowPathArrow(path: MapPath) {
-  // 位置到点的虚线连接不显示箭头；普通路径显示箭头
-  return path.editorProps?.lineStyle !== "dashed";
+  return (
+    props.pathDirectionsVisible && path.editorProps?.arrowVisible !== false
+  );
 }
 
 function buildChevronConfig(
@@ -525,7 +521,8 @@ function getPathArrowConfigs(path: MapPath) {
   const transformedCps = cps.map((cp: any) =>
     transformPoint(Number(cp.x ?? 0), Number(cp.y ?? 0)),
   );
-  const lineStroke = path.editorProps?.strokeColor || PATH_DEFAULT_STROKE;
+  const rawStroke = path.editorProps?.strokeColor;
+  const lineStroke = rawStroke == null ? PATH_RIBBON_DEFAULT_STROKE : rawStroke;
   const arrowColor = getPathArrowFillColor(lineStroke);
   const opacity = 0.92;
   const len = Math.max(10, PATH_RIBBON_STROKE_WIDTH * 0.52);

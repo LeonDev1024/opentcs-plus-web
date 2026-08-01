@@ -6,6 +6,17 @@
 /** 路径默认带状线宽（px，与 MapCanvas getPathConfig 默认一致） */
 export const PATH_RIBBON_STROKE_WIDTH = 18;
 
+/** 路径默认填充色（编辑器与只读监控共用） */
+export const PATH_RIBBON_DEFAULT_STROKE = "#d8e6ff";
+
+/** 路径方向箭头颜色 */
+export const PATH_DIRECTION_ARROW_FILL = "#2563EB";
+
+/** 地图元素名称标签（点位、监控车辆等）共用文字样式 */
+export const MAP_ELEMENT_LABEL_FONT_SIZE = 12;
+export const MAP_ELEMENT_LABEL_FONT_FAMILY = "Arial, sans-serif";
+export const MAP_ELEMENT_LABEL_COLOR = "#303133";
+
 /**
  * 位置↔点「虚线链接」线宽（px）：明显细于带状行驶路径，仍保持粗虚线可读。
  * 勿与 PATH_RIBBON 混用：旧逻辑曾把不足 8 的 strokeWidth 误判成带状宽度导致虚线过粗。
@@ -18,20 +29,21 @@ export const DASHED_LINK_DASH_PATTERN: [number, number] = [10, 6];
 /**
  * 默认点外圈半径（px）：直径 = PATH_RIBBON_STROKE_WIDTH × 4/3
  */
-export const DEFAULT_POINT_OUTER_RADIUS = (PATH_RIBBON_STROKE_WIDTH * 4) / 3 / 2;
+export const DEFAULT_POINT_OUTER_RADIUS =
+  (PATH_RIBBON_STROKE_WIDTH * 4) / 3 / 2;
 
 /**
  * 各点位类型相对 Halt 的半径比例（保持类型间差异）
  */
 export const POINT_TYPE_RADIUS: Record<string, number> = {
-  'Halt point': DEFAULT_POINT_OUTER_RADIUS,
-  'Park point': DEFAULT_POINT_OUTER_RADIUS * (10 / 8),
-  'Station': DEFAULT_POINT_OUTER_RADIUS * (9 / 8),
-  'Charge point': DEFAULT_POINT_OUTER_RADIUS * (10 / 8)
+  "Halt point": DEFAULT_POINT_OUTER_RADIUS,
+  "Park point": DEFAULT_POINT_OUTER_RADIUS * (10 / 8),
+  Station: DEFAULT_POINT_OUTER_RADIUS * (9 / 8),
+  "Charge point": DEFAULT_POINT_OUTER_RADIUS * (10 / 8),
 };
 
 /** 无类型或未知类型时的兜底半径 */
 export function getDefaultPointRadiusForType(type: string | undefined): number {
-  const key = type || 'Halt point';
+  const key = type || "Halt point";
   return POINT_TYPE_RADIUS[key] ?? DEFAULT_POINT_OUTER_RADIUS;
 }

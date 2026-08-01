@@ -20,8 +20,9 @@ import { useRealtimeData } from './composables/useRealtimeData';
 import MonitorCanvas from './components/MonitorCanvas.vue';
 import AmrStatsBar from './components/AmrStatsBar.vue';
 import RobotPanel from './components/RobotPanel.vue';
+import VehicleDetailPanel from './components/VehicleDetailPanel.vue';
 import type { AmrFilterKey } from './components/AmrStatsBar.vue';
-import type { RobotCardVO } from '@/api/ops/monitor';
+import type { RobotCardVO, VehicleRuntimeVO } from '@/api/ops/monitor';
 import { listMonitorAlarms } from '@/api/ops/monitor';
 
 const router = useRouter();
@@ -37,10 +38,15 @@ const {
 } = useMonitorStats();
 
 const { lastUpdated, isActive, start: startPolling, stop: stopPolling, updateFactoryId } =
-  useRealtimeData(4000);
+  useRealtimeData(500);
 
 // 当前选中的车辆
 const activeVehicleId = ref<string | undefined>(undefined);
+const detailVisible = ref(false);
+
+const selectedVehicle = computed<VehicleRuntimeVO | undefined>(() =>
+  vehicles.value.find((vehicle) => vehicle.vehicleId === activeVehicleId.value)
+);
 
 // KPI 联动的筛选 key（顶栏 KPI ↔ 右侧机器人列表）
 const robotFilter = ref<AmrFilterKey>('all');
@@ -106,6 +112,8 @@ async function refreshAlarmCount() {
 function handleFactoryChange(id: number) {
   if (!id) return;
   robotFilter.value = 'all'; // 切工厂时重置筛选
+  activeVehicleId.value = undefined;
+  detailVisible.value = false;
   updateFactoryId(id);
   fetchStats(id);
   refreshAlarmCount();
@@ -114,11 +122,13 @@ function handleFactoryChange(id: number) {
 // 机器人面板点击 → 画布定位
 function handleRobotClick(robot: RobotCardVO) {
   activeVehicleId.value = robot.vehicleId;
+  detailVisible.value = true;
 }
 
 // 画布机器人点击 → 高亮机器人面板
 function handleVehicleClick(vehicle: any) {
   activeVehicleId.value = vehicle.vehicleId;
+  detailVisible.value = true;
 }
 
 // 手动刷新
@@ -243,6 +253,12 @@ onUnmounted(() => {
             :vehicles="vehicles"
             :active-vehicle-id="activeVehicleId"
             @vehicle-click="handleVehicleClick"
+          />
+          <VehicleDetailPanel
+            v-if="detailVisible && selectedVehicle"
+            :vehicle="selectedVehicle"
+            :last-updated="lastUpdated"
+            @close="detailVisible = false"
           />
         </div>
       </div>

@@ -3,6 +3,8 @@ import type { Ref, ComputedRef } from 'vue'
 import type { MapPath, MapPoint } from '@/types/mapEditor'
 import {
   PATH_RIBBON_STROKE_WIDTH,
+  PATH_RIBBON_DEFAULT_STROKE,
+  PATH_DIRECTION_ARROW_FILL,
   DASHED_LINK_STROKE_WIDTH,
   DASHED_LINK_DASH_PATTERN,
 } from '@/utils/mapEditor/mapVisualTokens'
@@ -34,11 +36,10 @@ export const PATH_ARROW = { radius: 6, color: '#409eff' }
 /** 橡皮筋预览线：与正式路径同宽，略低透明度 */
 export const PATH_PREVIEW_STROKE = 'rgba(59, 130, 246, 0.42)'
 
-const PATH_DISPLAY_BASE_STROKE = 'rgba(147, 197, 253, 0.78)'
+const PATH_DISPLAY_BASE_STROKE = PATH_RIBBON_DEFAULT_STROKE
 const PATH_DISPLAY_SELECTED_STROKE = 'rgba(37, 99, 235, 0.94)'
 /** 箭头延迟（arrowVisible=false）时路径默认用实色 */
 const PATH_DEFERRED_ARROW_DEFAULT_STROKE = '#2563EB'
-const PATH_DIRECTION_ARROW_FILL = '#2563EB'
 
 type PointLike = { x: number; y: number }
 
@@ -260,7 +261,7 @@ export function usePathRendering(
         pathType: connectionType === 'curve' ? 'curve' : 'line',
       },
       editorProps: {
-        strokeColor: '#d8e6ff',
+        strokeColor: PATH_RIBBON_DEFAULT_STROKE,
         strokeWidth: PATH_RIBBON_STROKE_WIDTH,
         lineStyle: 'solid',
         arrowVisible: true,

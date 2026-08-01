@@ -3109,12 +3109,14 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use "@/assets/styles/map-canvas" as mapCanvas;
+
 .map-canvas-container {
   width: 100%;
   height: 100%;
   position: relative;
   overflow: hidden;
-  background-color: #eef2f7;
+  background-color: mapCanvas.$surface-background;
 
   :deep(canvas) {
     display: block;
@@ -3122,10 +3124,10 @@ onUnmounted(() => {
 
   &.grid-visible {
     background-image:
-      linear-gradient(rgba(180, 200, 220, 0.45) 1px,
+      linear-gradient(mapCanvas.$grid-color 1px,
       transparent 1px),
-      linear-gradient(90deg, rgba(180, 200, 220, 0.45) 1px, transparent 1px);
-    background-size: 20px 20px;
+      linear-gradient(90deg, mapCanvas.$grid-color 1px, transparent 1px);
+    background-size: mapCanvas.$grid-size mapCanvas.$grid-size;
   }
 }
 

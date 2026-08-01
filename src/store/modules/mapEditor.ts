@@ -18,6 +18,7 @@ import type {
 } from '@/types/mapEditor';
 import { ToolMode as ToolModeEnum, LayerType } from '@/types/mapEditor';
 import { CommandManager } from '@/utils/mapEditor/command';
+import { PATH_RIBBON_DEFAULT_STROKE } from '@/utils/mapEditor/mapVisualTokens';
 import { loadMapEditorData, saveMapEditorData, saveMap as saveMapApi } from '@/api/deploy/map-editor';
 import type { MapEditorResponse, VisualLayoutData } from '@/api/deploy/map-editor/types';
 import { parseMapOriginFields } from '@/utils/mapEditor/navigationMapOrigin';
@@ -501,7 +502,10 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         pathType: p?.geometry?.pathType || parsedLayout?.pathType || 'line'
       },
       editorProps: {
-        strokeColor: parsedEditorProps?.strokeColor ?? p?.editorProps?.strokeColor ?? '#d8e6ff',
+        strokeColor:
+          parsedEditorProps?.strokeColor ??
+          p?.editorProps?.strokeColor ??
+          PATH_RIBBON_DEFAULT_STROKE,
         strokeWidth: parsedEditorProps?.strokeWidth ?? p?.editorProps?.strokeWidth ?? 18,
         lineStyle: parsedEditorProps?.lineStyle ?? p?.editorProps?.lineStyle ?? 'solid',
         arrowVisible: parsedEditorProps?.arrowVisible ?? p?.editorProps?.arrowVisible ?? true,
