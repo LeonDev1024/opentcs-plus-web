@@ -181,8 +181,6 @@ onMounted(() => getList())
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/device-toolbar.scss';
-
 .exception-text {
   white-space: pre-wrap;
   word-break: break-all;

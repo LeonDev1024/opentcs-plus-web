@@ -534,8 +534,6 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/device-toolbar.scss';
-
 .create-task-form {
   .form-tip {
     margin-top: 4px;

@@ -467,8 +467,6 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/device-toolbar.scss';
-
 .form-tip {
   margin-top: 4px;
   font-size: 12px;

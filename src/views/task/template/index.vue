@@ -456,12 +456,6 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/device-toolbar.scss';
-
-.template-filter-panel {
-  @extend .brand-filter-panel;
-}
-
 .form-tip {
   margin-top: 4px;
   font-size: 12px;

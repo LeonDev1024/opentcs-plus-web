@@ -150,5 +150,4 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/device-toolbar.scss';
 </style>

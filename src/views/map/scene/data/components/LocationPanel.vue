@@ -129,8 +129,6 @@ defineExpose({ reload });
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/device-toolbar.scss';
-
 .panel-container {
   display: flex;
   flex-direction: column;

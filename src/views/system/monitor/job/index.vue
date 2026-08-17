@@ -404,8 +404,6 @@ onMounted(() => getList())
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/device-toolbar.scss';
-
 .cron-result {
   display: flex;
   align-items: center;

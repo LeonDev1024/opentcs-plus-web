@@ -166,8 +166,6 @@ onMounted(async () => {
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/device-toolbar.scss';
-
 .factory-container {
   height: 100%;
   padding: 16px;

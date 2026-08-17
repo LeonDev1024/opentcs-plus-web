@@ -298,8 +298,6 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/device-toolbar.scss';
-
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
