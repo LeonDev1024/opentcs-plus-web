@@ -123,6 +123,21 @@ export interface MonitorAlarmVO {
   createdAt?: string;
 }
 
+/** 监控大屏聚合快照 */
+export type MonitorChannelType = 'snapshot' | 'delta' | 'heartbeat' | 'pong';
+
+export interface MonitorSnapshotVO {
+  type?: MonitorChannelType | string;
+  factoryId?: number;
+  generatedAt?: number;
+  seq?: number;
+  fingerprint?: string;
+  vehicles?: VehicleRuntimeVO[];
+  amrStats?: AmrStats;
+  taskStats?: TaskStats;
+  alarmCount?: number;
+}
+
 const monitorApi = {
   /** 获取 AMR 运行时状态列表 */
   listVehicleRuntime: (factoryId?: number): AxiosPromise<VehicleRuntimeVO[]> => {
@@ -143,6 +158,10 @@ const monitorApi = {
   /** 获取单个车辆运行时状态 */
   getVehicleRuntime: (vehicleId: string): AxiosPromise<VehicleRuntimeVO> => {
     return request({ url: '/vehicle/runtime/status/' + vehicleId, method: 'get' });
+  },
+  /** 监控大屏聚合快照（首屏 / HTTP 降级） */
+  getSnapshot: (factoryId?: number): AxiosPromise<MonitorSnapshotVO> => {
+    return request({ url: '/ops/monitor/snapshot', method: 'get', params: { factoryId } });
   }
 };
 

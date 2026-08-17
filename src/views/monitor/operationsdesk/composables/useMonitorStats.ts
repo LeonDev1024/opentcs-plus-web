@@ -1,27 +1,25 @@
 /**
- * 监控大屏 - 统计业务逻辑
+ * 监控大屏 - 统计与快照应用
  *
  * 提供：
  * - vehicles：车辆运行时列表（地图标记、机器人面板共用）
  * - amrStats：AMR 聚合统计（顶栏 KPI 用）
  * - factoryList：工厂下拉选项
  * - currentFactoryId：当前选中工厂
- * - fetchStats / init：数据加载
+ * - fetchStats / applySnapshot / init：数据加载
  *
- * 说明：amrStats 优先取后端 /vehicle/statistics 的聚合结果；
- *       若后端暂未返回，前端会基于 vehicles 状态本地兜底统计，
- *       保证顶栏指标卡始终有可见数字，避免空白态。
+ * 说明：amrStats 优先取 snapshot 聚合结果；
+ *       若后端暂未返回，前端会基于 vehicles 状态本地兜底统计。
  */
 import { ref, computed } from 'vue';
 import {
   monitorApi,
   type VehicleRuntimeVO,
-  type AmrStats
+  type AmrStats,
+  type MonitorSnapshotVO
 } from '@/api/ops/monitor';
 import { listFactoryModel } from '@/api/deploy/factory/model';
 import type { FactoryModelVO } from '@/api/deploy/factory/model/types';
-
-const { listVehicleRuntime, getVehicleStatistics } = monitorApi;
 
 interface FactoryInfo {
   id: number;
@@ -37,10 +35,18 @@ const EMPTY_AMR_STATS: AmrStats = {
   offlineVehicles: 0
 };
 
+function unwrap<T>(res: unknown): T | null {
+  if (!res || typeof res !== 'object') return null;
+  const body = res as Record<string, unknown>;
+  if (body.data !== undefined) return body.data as T;
+  return body as T;
+}
+
 export function useMonitorStats() {
   const vehicles = ref<VehicleRuntimeVO[]>([]);
   const factoryList = ref<FactoryInfo[]>([]);
   const loading = ref(false);
+  const alarmCount = ref(0);
 
   /** 后端返回的 AMR 聚合统计 */
   const remoteAmrStats = ref<AmrStats | null>(null);
@@ -68,17 +74,32 @@ export function useMonitorStats() {
     };
   });
 
+  const applySnapshot = (snapshot: MonitorSnapshotVO | null | undefined) => {
+    if (!snapshot) return;
+    if (snapshot.type === 'heartbeat' || snapshot.type === 'pong') {
+      if (typeof snapshot.alarmCount === 'number') {
+        alarmCount.value = snapshot.alarmCount;
+      }
+      return;
+    }
+    if (Array.isArray(snapshot.vehicles)) {
+      vehicles.value = snapshot.vehicles;
+    }
+    if (snapshot.amrStats) {
+      remoteAmrStats.value = snapshot.amrStats;
+    }
+    if (typeof snapshot.alarmCount === 'number') {
+      alarmCount.value = snapshot.alarmCount;
+    }
+  };
+
   /** 加载数据（静默刷新时不闪 loading） */
   const fetchStats = async (factoryId: number, silent = false) => {
     if (!silent) loading.value = true;
     currentFactoryId.value = factoryId;
     try {
-      const [statsRes, vehicleRes] = await Promise.all([
-        getVehicleStatistics(factoryId),
-        listVehicleRuntime(factoryId)
-      ]);
-      vehicles.value = vehicleRes.data || [];
-      remoteAmrStats.value = statsRes?.data ?? null;
+      const res = await monitorApi.getSnapshot(factoryId);
+      applySnapshot(unwrap<MonitorSnapshotVO>(res));
     } finally {
       if (!silent) loading.value = false;
     }
@@ -87,32 +108,25 @@ export function useMonitorStats() {
   // 初始化：加载工厂列表
   const init = async () => {
     try {
-      // 注意：项目 request 拦截器已拆包，runtime 拿到的就是响应体本身
-      // 分页接口形态：{ code, msg, rows, total }，与 deploy/factory/map 保持一致
       const res: any = await listFactoryModel({ pageNum: 1, pageSize: 100 });
-
-      // 防御性兜底：rows 优先（分页），其次 data，再次直接是数组
       const rows: FactoryModelVO[] = Array.isArray(res?.rows)
         ? res.rows
         : Array.isArray(res?.data)
-        ? res.data
-        : Array.isArray(res)
-        ? res
-        : [];
+          ? res.data
+          : Array.isArray(res)
+            ? res
+            : [];
 
       factoryList.value = rows.map((item) => ({
         id: item.id as number,
         name: item.name as string
       }));
 
-      // 默认选中第一个工厂场景，并立刻拉一次数据
-      // —— 这样画布会自动加载工厂下所有地图，无需用户手动操作
       if (factoryList.value.length > 0) {
         const firstId = factoryList.value[0].id;
         currentFactoryId.value = firstId;
         await fetchStats(firstId);
       } else {
-        // 工厂列表为空：保持 currentFactoryId=0，UI 会落到「暂无工厂」空态
         currentFactoryId.value = 0;
       }
     } catch (e) {
@@ -125,7 +139,9 @@ export function useMonitorStats() {
     amrStats,
     factoryList,
     loading,
+    alarmCount,
     fetchStats,
+    applySnapshot,
     init,
     currentFactoryId,
     EMPTY_AMR_STATS

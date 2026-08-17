@@ -16,14 +16,13 @@ import { useRouter } from 'vue-router';
 import { useFullscreen } from '@vueuse/core';
 import { Bell, DArrowLeft, DArrowRight, FullScreen } from '@element-plus/icons-vue';
 import { useMonitorStats } from './composables/useMonitorStats';
-import { useRealtimeData } from './composables/useRealtimeData';
+import { useMonitorLiveChannel } from './composables/useMonitorLiveChannel';
 import MonitorCanvas from './components/MonitorCanvas.vue';
 import AmrStatsBar from './components/AmrStatsBar.vue';
 import RobotPanel from './components/RobotPanel.vue';
 import VehicleDetailPanel from './components/VehicleDetailPanel.vue';
 import type { AmrFilterKey } from './components/AmrStatsBar.vue';
 import type { RobotCardVO, VehicleRuntimeVO } from '@/api/ops/monitor';
-import { listMonitorAlarms } from '@/api/ops/monitor';
 
 const router = useRouter();
 
@@ -32,13 +31,24 @@ const {
   amrStats,
   factoryList,
   loading,
+  alarmCount,
   fetchStats,
+  applySnapshot,
   init,
   currentFactoryId
 } = useMonitorStats();
 
-const { lastUpdated, isActive, start: startPolling, stop: stopPolling, updateFactoryId } =
-  useRealtimeData(500);
+const {
+  lastUpdated,
+  start: startLive,
+  stop: stopLive,
+  updateFactoryId,
+  connectionState,
+  mode: liveMode
+} = useMonitorLiveChannel({
+  onMessage: applySnapshot,
+  fallbackIntervalMs: 3000
+});
 
 // 当前选中的车辆
 const activeVehicleId = ref<string | undefined>(undefined);
@@ -75,16 +85,12 @@ const robotCards = computed<RobotCardVO[]>(() =>
 );
 
 /** 连接状态 */
-const connectionState = computed<'live' | 'stale' | 'offline'>(() => {
-  if (!isActive.value) return 'offline';
-  if (!lastUpdated.value) return 'stale';
-  return 'live';
-});
+const liveState = computed<'live' | 'stale' | 'offline'>(() => connectionState());
 
 const connectionLabel = computed(() => {
-  switch (connectionState.value) {
+  switch (liveState.value) {
     case 'live':
-      return '已连接';
+      return liveMode.value === 'http' ? '轮询中' : '已连接';
     case 'stale':
       return '数据延迟';
     case 'offline':
@@ -92,21 +98,6 @@ const connectionLabel = computed(() => {
       return '未连接';
   }
 });
-
-/** 顶栏「告警」角标 */
-const alarmCount = ref(0);
-
-async function refreshAlarmCount() {
-  try {
-    const res: any = await listMonitorAlarms();
-    const list = res?.data || res || [];
-    alarmCount.value = Array.isArray(list)
-      ? list.filter((a: any) => !a.acked).length
-      : (amrStats.value.errorVehicles ?? 0);
-  } catch {
-    alarmCount.value = amrStats.value.errorVehicles ?? 0;
-  }
-}
 
 // 工厂切换
 function handleFactoryChange(id: number) {
@@ -116,7 +107,6 @@ function handleFactoryChange(id: number) {
   detailVisible.value = false;
   updateFactoryId(id);
   fetchStats(id);
-  refreshAlarmCount();
 }
 
 // 机器人面板点击 → 画布定位
@@ -136,7 +126,6 @@ async function handleRefresh() {
   if (!currentFactoryId.value) return;
   await fetchStats(currentFactoryId.value, true);
   lastUpdated.value = Date.now();
-  refreshAlarmCount();
 }
 
 // 告警角标点击：跳转告警中心
@@ -147,12 +136,13 @@ function handleAlarmClick() {
 // 初始化
 onMounted(async () => {
   await init();
-  startPolling((id) => fetchStats(id, true), currentFactoryId.value);
-  refreshAlarmCount();
+  if (currentFactoryId.value) {
+    await startLive(currentFactoryId.value);
+  }
 });
 
 onUnmounted(() => {
-  stopPolling();
+  stopLive();
 });
 </script>
 
@@ -191,7 +181,7 @@ onUnmounted(() => {
         <div class="top-bar-right">
           <div
             class="conn-indicator"
-            :class="`conn-${connectionState}`"
+            :class="`conn-${liveState}`"
             title="点击刷新数据"
             @click="handleRefresh"
           >
