@@ -14,6 +14,7 @@
 import { ref, computed } from 'vue';
 import RobotCard from './RobotCard.vue';
 import type { RobotCardVO, VehicleState, AmrStats } from '@/api/ops/monitor';
+import type { AmrFilterKey } from './AmrStatsBar.vue';
 
 const activeTab = ref<'robot' | 'order'>('robot');
 
@@ -35,7 +36,8 @@ const search = ref('');
 
 function matchesFilter(state: VehicleState, key: AmrFilterKey): boolean {
   if (key === 'all') return true;
-  if (key === 'OFFLINE') return state === 'UNKNOWN' || state === 'UNAVAILABLE';
+  if (key === 'OFFLINE') return state === 'UNKNOWN' || state === 'UNAVAILABLE' || state === 'OFFLINE';
+  if (key === 'WORKING') return state === 'WORKING' || state === 'EXECUTING' || state === 'WAITING' || state === 'PAUSED';
   return state === key;
 }
 

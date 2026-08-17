@@ -2718,23 +2718,15 @@ const handleLocationContextMenu = (location: MapLocation, e: any) => {
   mapEditorStore.selectElement(location.id, "location", multiSelect);
 };
 
-// 处理点右键菜单（预留功能）
+// 点右键：仅选中并阻止浏览器菜单
 const handlePointContextMenu = (point: MapPoint, e: any) => {
   if (props.readonly) return;
   e.cancelBubble = true;
-
-  // 阻止浏览器默认右键菜单
   if (e.evt) {
     e.evt.preventDefault();
   }
-
-  // 选中该点
   const multiSelect = e.evt.ctrlKey || e.evt.metaKey;
   mapEditorStore.selectElement(point.id, "point", multiSelect);
-
-  // 预留：未来可以打开点的编辑对话框
-  // editingPointId.value = point.id;
-  // pointEditDialogVisible.value = true;
 };
 
 // ==================== 路径控制点编辑 ====================
@@ -3117,12 +3109,14 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use "@/assets/styles/map-canvas" as mapCanvas;
+
 .map-canvas-container {
   width: 100%;
   height: 100%;
   position: relative;
   overflow: hidden;
-  background-color: #eef2f7;
+  background-color: mapCanvas.$surface-background;
 
   :deep(canvas) {
     display: block;
@@ -3130,10 +3124,10 @@ onUnmounted(() => {
 
   &.grid-visible {
     background-image:
-      linear-gradient(rgba(180, 200, 220, 0.45) 1px,
+      linear-gradient(mapCanvas.$grid-color 1px,
       transparent 1px),
-      linear-gradient(90deg, rgba(180, 200, 220, 0.45) 1px, transparent 1px);
-    background-size: 20px 20px;
+      linear-gradient(90deg, mapCanvas.$grid-color 1px, transparent 1px);
+    background-size: mapCanvas.$grid-size mapCanvas.$grid-size;
   }
 }
 

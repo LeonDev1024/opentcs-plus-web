@@ -15,13 +15,15 @@
  * 关键约定：
  *   • 工厂坐标系 Y 向上为正；CSS / Konva 内部 Y 向下为正 → 通过 top: -oy 翻转
  *   • mapOrigin 来自后端 `mapOrigin` / `map_origin` 字段（[ox, oy, θ]）
- *   • 1px = 1mm（项目默认）
+ *   • 点位与仿真车辆位置均为地图模型坐标（与地图编辑器一致），1 模型单位 = 1 CSS px
+ *   • 车辆工厂 CSS：cssX = originX + x，cssY = -originY + y（与路径点一致）
  */
 import { ref, watch, computed, reactive, onMounted, onBeforeUnmount } from 'vue';
 import { Monitor, View, Hide } from '@element-plus/icons-vue';
 import { loadMapEditorData } from '@/api/deploy/map-editor';
 import { listMapsByFactory } from '@/api/deploy/factory/map';
 import MapRenderer from '@/components/map/MapRenderer.vue';
+import MonitorRuler from './MonitorRuler.vue';
 import {
   normalizeMapEditorPayload,
   computeClipForElements,
@@ -30,6 +32,10 @@ import {
 } from '../utils/mapElementNormalize';
 import { parseNavigationMapOrigin } from '@/utils/mapEditor/navigationMapOrigin';
 import { getLayoutScaleMm } from '@/utils/mapEditor/rasterAlignment';
+import {
+  MAP_ELEMENT_LABEL_COLOR,
+  MAP_ELEMENT_LABEL_FONT_FAMILY
+} from '@/utils/mapEditor/mapVisualTokens';
 import layerIconUrl from '@/assets/icons/svg/layer.svg?url';
 import type { VehicleRuntimeVO } from '@/api/ops/monitor';
 
@@ -40,6 +46,7 @@ import type { VehicleRuntimeVO } from '@/api/ops/monitor';
 interface FactoryMapLayer {
   mapId: string;
   name: string;
+  floorNumber?: number | null;
   /** 该地图原点在工厂坐标系下的位置（mm） */
   originX: number;
   originY: number;
@@ -94,6 +101,11 @@ const SCALE_MIN = 0.05;
 const SCALE_MAX = 20;
 const INITIAL_FIT_MAX_SCALE = 1;
 const SCALE_STEP = 1.1;
+/**
+ * 车辆名称位于会随工厂画布一起缩放的 SVG 中。
+ * SVG 与 Konva 的字体光栅化存在视觉差异，10px 在同屏下与 12px 点位编号等大。
+ */
+const VEHICLE_LABEL_FONT_SIZE = 10;
 
 const canvasRef = ref<HTMLElement | null>(null);
 /** 工厂原点 O(0,0) 在画布内容区的屏幕像素位置（参考左下角） */
@@ -122,31 +134,53 @@ const mapLayerStyle = computed(() => ({
   }px) scale(${canvasScale.value})`
 }));
 
+/** 标尺使用自画布顶部向下的原点位置 */
+const rulerOffsetY = computed(() => canvasSize.h - viewOffset.y);
+
+const footerLayer = computed(() =>
+  mapData.value?.layers.length === 1 ? mapData.value.layers[0] : null
+);
+
+function formatFloorLabel(floor?: number | null) {
+  if (floor === null || floor === undefined) return '未设置楼层';
+  if (floor < 0) return `B${Math.abs(floor)}`;
+  return `${floor + 1}F`;
+}
+
 // ============================================================================
 // 图层显隐（与地图管理控制台 / 编辑器对齐 + 监控专属车辆）
 // ============================================================================
 interface LayerVisibility {
-  station: boolean;
-  path: boolean;
-  pathDirection: boolean;
-  grid: boolean;
   vehicle: boolean;
+  taskTargetLine: boolean;
+  controlZone: boolean;
+  mapPoint: boolean;
+  mapPath: boolean;
+  mapRegion: boolean;
+  pathDirection: boolean;
+  pointLabel: boolean;
 }
 
 const layerVisibility = reactive<LayerVisibility>({
-  station: true,
-  path: true,
+  vehicle: true,
+  taskTargetLine: false,
+  controlZone: true,
+  mapPoint: true,
+  mapPath: true,
+  mapRegion: true,
   pathDirection: true,
-  grid: true,
-  vehicle: true
+  pointLabel: false
 });
 
 const layerMenuItems: { key: keyof LayerVisibility; label: string }[] = [
-  { key: 'station', label: '站点显隐' },
-  { key: 'path', label: '路径显隐' },
-  { key: 'pathDirection', label: '方向显隐' },
-  { key: 'grid', label: '网格显隐' },
-  { key: 'vehicle', label: '车辆显隐' }
+  { key: 'vehicle', label: '机器人显隐' },
+  { key: 'taskTargetLine', label: '任务目标线显隐' },
+  { key: 'controlZone', label: '管制区显隐' },
+  { key: 'mapPoint', label: '地图点位显隐' },
+  { key: 'mapPath', label: '地图路径显隐' },
+  { key: 'mapRegion', label: '地图区域显隐' },
+  { key: 'pathDirection', label: '路径方向显隐' },
+  { key: 'pointLabel', label: '点位编号显隐' }
 ];
 
 function toggleLayerKey(key: keyof LayerVisibility) {
@@ -181,10 +215,11 @@ const loadMap = async () => {
     );
 
     const layers: FactoryMapLayer[] = [];
-    let cssMinX = Infinity;
-    let cssMaxX = -Infinity;
-    let cssMinY = Infinity;
-    let cssMaxY = -Infinity;
+    // 自动适配范围包含工厂原点与坐标轴，视觉行为与地图控制台一致。
+    let cssMinX = 0;
+    let cssMaxX = 120;
+    let cssMinY = -120;
+    let cssMaxY = 0;
     let mmPerUnitResolved = false;
 
     results.forEach((r, idx) => {
@@ -257,6 +292,10 @@ const loadMap = async () => {
       layers.push({
         mapId: String(meta.mapId ?? meta.id ?? `map-${idx}`),
         name: String(meta.name ?? meta.mapId ?? `map ${idx + 1}`),
+        floorNumber:
+          meta.floorNumber === null || meta.floorNumber === undefined
+            ? null
+            : Number(meta.floorNumber),
         originX: origin.originX,
         originY: origin.originY,
         rotation: origin.rotation,
@@ -368,73 +407,148 @@ function getLayerPaths(layer: FactoryMapLayer): any[] {
 
 function getLayerLocations(layer: FactoryMapLayer): any[] {
   const { clip } = layer;
-  if (clip.x === 0 && clip.y === 0) return layer.locations;
-  return layer.locations.map((l: any) => {
-    const x = Number(l.x ?? 0) + clip.x;
-    const y = Number(l.y ?? 0) + clip.y;
-    return {
-      ...l,
-      x,
-      y,
-      geometry: l.geometry
-        ? {
-            ...l.geometry,
-            vertices: Array.isArray(l.geometry.vertices)
-              ? l.geometry.vertices.map((v: any) => ({
-                  ...v,
-                  x: Number(v.x ?? 0) + clip.x,
-                  y: Number(v.y ?? 0) + clip.y
-                }))
-              : l.geometry.vertices
-          }
-        : l.geometry
-    };
+  const locations =
+    clip.x === 0 && clip.y === 0
+      ? layer.locations
+      : layer.locations.map((l: any) => {
+          const x = Number(l.x ?? 0) + clip.x;
+          const y = Number(l.y ?? 0) + clip.y;
+          return {
+            ...l,
+            x,
+            y,
+            geometry: l.geometry
+              ? {
+                  ...l.geometry,
+                  vertices: Array.isArray(l.geometry.vertices)
+                    ? l.geometry.vertices.map((v: any) => ({
+                        ...v,
+                        x: Number(v.x ?? 0) + clip.x,
+                        y: Number(v.y ?? 0) + clip.y
+                      }))
+                    : l.geometry.vertices
+                }
+              : l.geometry
+          };
+        });
+
+  return locations.filter((location: any) => {
+    const isControlZone = location.editorProps?.shapeType === 'polygon';
+    return isControlZone
+      ? layerVisibility.controlZone
+      : layerVisibility.mapRegion;
   });
 }
 
 // ============================================================================
 // 车辆标记
 // ============================================================================
-const VEHICLE_HALF = 14; // 车体半尺寸，整车 28x28 px
-
-function vehicleColor(state: string): string {
+function vehicleStatusColor(state: string): string {
   const map: Record<string, string> = {
-    IDLE: '#D97757',
-    WORKING: '#D97757',
+    IDLE: '#67C23A',
+    WORKING: '#22C55E',
+    EXECUTING: '#22C55E',
     CHARGING: '#E6A23C',
     ERROR: '#F56C6C',
+    PAUSED: '#E6A23C',
+    WAITING: '#E6A23C',
     UNKNOWN: '#909399',
-    UNAVAILABLE: '#909399'
+    UNAVAILABLE: '#909399',
+    OFFLINE: '#909399'
   };
-  return map[state] || '#D97757';
+  return map[state] || '#909399';
 }
 
 /**
- * 车辆坐标转换：机器人 API 返回 m，模型坐标单位由 mapMmPerUnit 决定
- * 转换公式：modelUnit = meters × 1000 / mmPerUnit
- *   - mmPerUnit=1000（1模型单位=1m）：除数=1，直接对应
- *   - mmPerUnit=50（1模型单位=50mm=5cm）：需乘以20
+ * 车辆坐标：与路径点同一套地图模型坐标（非米制换算）
  *
- * 方向：OpenTCS orientation 为 CCW 度数（从正东起），Y 轴已翻转，
- * SVG rotate 为顺时针，故 svgAngle = -orientation
+ * 工厂 CSS（Y-down）放置：
+ *   cssX = mapOriginX + x
+ *   cssY = -mapOriginY + y
+ * 与 MapRenderer(flipY=false) + getMapRendererStyle 一致。
+ *
+ * 方向：仿真状态 orientation 为地图坐标系角度（0° 指向 X 正方向）。
+ * 车体 SVG 的默认车头朝上，因此需增加 90° 的基准补偿。
  */
 const vehicleMarkers = computed(() => {
-  const mpu = mapMmPerUnit.value || 1000;
-  const metersToModel = 1000 / mpu;
   const ONLINE_STATES = new Set(['IDLE', 'WORKING', 'CHARGING', 'ERROR', 'EXECUTING', 'PAUSED', 'WAITING']);
   return props.vehicles
     .filter((v) => ONLINE_STATES.has(v.state))
-    .map((v) => ({
-      vehicleId: v.vehicleId,
-      name: v.name,
-      state: v.state,
-      color: vehicleColor(v.state),
-      cssX: (v.position?.x ?? 0) * metersToModel,
-      cssY: -(v.position?.y ?? 0) * metersToModel,
-      svgAngle: -(v.position?.orientation ?? 0),
-      isActive: v.vehicleId === props.activeVehicleId
-    }));
+    .map((v) => {
+      const { originX, originY, x, y } = resolveVehiclePose(v);
+      return {
+        vehicleId: v.vehicleId,
+        name: v.name,
+        state: v.state,
+        statusColor: vehicleStatusColor(v.state),
+        hasPayload: Boolean(v.currentOrderId),
+        cssX: originX + x,
+        cssY: -originY + y,
+        svgAngle: normalizeSvgVehicleAngle(v.position?.orientation),
+        isActive: v.vehicleId === props.activeVehicleId
+      };
+    });
 });
+
+function normalizeSvgVehicleAngle(orientation?: number): number {
+  const heading = Number(orientation ?? 0);
+  if (!Number.isFinite(heading)) return 90;
+  return ((90 + heading) % 360 + 360) % 360;
+}
+
+function matchPoint(p: any, pointId: string): boolean {
+  const id = String(pointId ?? '').trim();
+  if (!id) return false;
+  return [p?.pointId, p?.name, p?.id].some((v) => String(v ?? '').trim() === id);
+}
+
+/** 解析车辆在地图模型坐标中的位姿（含 mapOrigin） */
+function resolveVehiclePose(v: VehicleRuntimeVO): {
+  originX: number;
+  originY: number;
+  x: number;
+  y: number;
+} {
+  const layers = mapData.value?.layers || [];
+  let originX = 0;
+  let originY = 0;
+  let layer: FactoryMapLayer | undefined;
+
+  const mapId = v.position?.mapId;
+  if (mapId) {
+    layer = layers.find((l) => l.mapId === String(mapId));
+  }
+  const pointId = v.position?.pointId;
+  if (!layer && pointId) {
+    layer = layers.find((l) => l.points.some((p: any) => matchPoint(p, pointId)));
+  }
+  if (!layer && layers.length === 1) {
+    layer = layers[0];
+  }
+  if (layer) {
+    originX = layer.originX;
+    originY = layer.originY;
+  }
+
+  let x = Number(v.position?.x ?? 0);
+  let y = Number(v.position?.y ?? 0);
+  // 运行态偶发只有 pointId、坐标为 0：回退到地图点位坐标，避免车图标掉到原点
+  if (pointId && Math.abs(x) < 1e-6 && Math.abs(y) < 1e-6) {
+    const searchLayers = layer ? [layer] : layers;
+    for (const l of searchLayers) {
+      const pt = l.points.find((p: any) => matchPoint(p, pointId));
+      if (pt) {
+        x = Number(pt.x ?? pt.xPosition ?? 0);
+        y = Number(pt.y ?? pt.yPosition ?? 0);
+        originX = l.originX;
+        originY = l.originY;
+        break;
+      }
+    }
+  }
+
+  return { originX, originY, x, y };
+}
 
 // ============================================================================
 // 缩放与平移
@@ -563,182 +677,284 @@ function resetZoom() {
 
 <template>
   <div class="monitor-canvas" v-loading="loading">
-    <!-- 画布主体：CSS 网格 + 鼠标平移/缩放 -->
-    <div
-      ref="canvasRef"
-      class="stage-canvas"
-      :class="{ 'no-grid': !layerVisibility.grid }"
-      @mousedown="startPan"
-      @wheel.prevent="handleCanvasWheel"
+    <MonitorRuler
+      :scale="canvasScale"
+      :offset-x="viewOffset.x"
+      :offset-y="rulerOffsetY"
+      :mm-per-unit="mapMmPerUnit"
+      class="ruler-wrap"
     >
-      <!-- 地图层（工厂坐标系 CSS Y-down，由 transform 统一 pan/zoom） -->
-      <div class="canvas-map-layer" :style="mapLayerStyle">
-        <!-- 工厂坐标原点 O(0,0) 实线坐标轴 -->
-        <div class="layer-axis">
-          <div class="axis-line axis-x" />
-          <div class="axis-line axis-y" />
-          <div class="axis-origin">O(0,0)</div>
-        </div>
-
-        <!-- 各地图：MapRenderer + 该地图原点虚线轴 -->
-        <template v-for="layer in mapData?.layers || []" :key="layer.mapId">
-          <MapRenderer
-            class="preview-konva-layer"
-            :style="getMapRendererStyle(layer)"
-            :points="layerVisibility.station ? getLayerPoints(layer) : []"
-            :paths="layerVisibility.path ? getLayerPaths(layer) : []"
-            :locations="layerVisibility.station ? getLayerLocations(layer) : []"
-            :width="layer.canvasW"
-            :height="layer.canvasH"
-            :scale="1"
-            :offset-x="0"
-            :offset-y="0"
-            :auto-center="false"
-            :flip-y="false"
-            :center-labels-above="true"
-            readonly
-          />
-          <div
-            class="layer-axis map-origin-axis"
-            :style="getMapOriginAxisStyle(layer)"
-          >
+      <!-- 画布主体：CSS 网格 + 鼠标平移/缩放 -->
+      <div
+        ref="canvasRef"
+        class="stage-canvas"
+        @mousedown="startPan"
+        @wheel.prevent="handleCanvasWheel"
+      >
+        <!-- 地图层（工厂坐标系 CSS Y-down，由 transform 统一 pan/zoom） -->
+        <div class="canvas-map-layer" :style="mapLayerStyle">
+          <!-- 工厂坐标原点 O(0,0) 实线坐标轴 -->
+          <div class="layer-axis">
             <div class="axis-line axis-x" />
             <div class="axis-line axis-y" />
+            <div class="axis-origin">O(0,0)</div>
+          </div>
+
+          <!-- 各地图：MapRenderer + 该地图原点虚线轴 -->
+          <template v-for="layer in mapData?.layers || []" :key="layer.mapId">
+            <MapRenderer
+              class="preview-konva-layer"
+              :style="getMapRendererStyle(layer)"
+              :points="layerVisibility.mapPoint ? getLayerPoints(layer) : []"
+              :paths="layerVisibility.mapPath ? getLayerPaths(layer) : []"
+              :locations="getLayerLocations(layer)"
+              :path-directions-visible="layerVisibility.pathDirection"
+              :point-labels-visible="layerVisibility.pointLabel"
+              :width="layer.canvasW"
+              :height="layer.canvasH"
+              :scale="1"
+              :offset-x="0"
+              :offset-y="0"
+              :auto-center="false"
+              :flip-y="false"
+              readonly
+            />
+            <div
+              class="layer-axis map-origin-axis"
+              :style="getMapOriginAxisStyle(layer)"
+            >
+              <div class="axis-line axis-x" />
+              <div class="axis-line axis-y" />
+            </div>
+          </template>
+
+          <!-- 车辆标记（工厂坐标系，单一 SVG） -->
+          <svg
+            v-if="layerVisibility.vehicle"
+            class="vehicle-svg"
+            width="1"
+            height="1"
+            overflow="visible"
+          >
+            <g
+              v-for="v in vehicleMarkers"
+              :key="v.vehicleId"
+              :style="{ transform: `translate(${v.cssX}px, ${v.cssY}px)` }"
+              class="vehicle-node"
+              :class="{ 'vehicle-active': v.isActive }"
+              @click="emit('vehicle-click', props.vehicles.find(p => p.vehicleId === v.vehicleId)!)"
+            >
+              <!-- 状态光晕：不随车体方向旋转 -->
+              <circle
+                class="vehicle-status-halo"
+                cx="0"
+                cy="0"
+                r="28"
+                :fill="v.statusColor"
+                :fill-opacity="v.isActive ? 0.2 : 0.11"
+              />
+              <circle
+                v-if="v.isActive"
+                cx="0"
+                cy="0"
+                r="31"
+                fill="none"
+                :stroke="v.statusColor"
+                stroke-width="2"
+                stroke-opacity="0.6"
+              />
+
+              <!-- 旋转车体 -->
+              <g :transform="`rotate(${v.svgAngle})`">
+                <!-- 两侧驱动轮 -->
+                <rect x="-20" y="-10" width="5" height="20" rx="2.5" fill="#111827" />
+                <rect x="15" y="-10" width="5" height="20" rx="2.5" fill="#111827" />
+
+                <!-- 蓝色防撞外框 + 深色车体 -->
+                <rect
+                  x="-18"
+                  y="-24"
+                  width="36"
+                  height="48"
+                  rx="10"
+                  fill="#2563EB"
+                  stroke="#1D4ED8"
+                  stroke-width="1.5"
+                />
+                <rect
+                  x="-15"
+                  y="-21"
+                  width="30"
+                  height="42"
+                  rx="8"
+                  fill="#252B33"
+                  stroke="#475569"
+                  stroke-width="1"
+                />
+
+                <!-- 车头方向标 -->
+                <path
+                  d="M 0 -20 L 7 -11 L -7 -11 Z"
+                  fill="#8EEB6A"
+                  stroke="#17202A"
+                  stroke-width="1"
+                  stroke-linejoin="round"
+                />
+
+                <!-- 载货状态：显示金色托盘 -->
+                <g v-if="v.hasPayload">
+                  <rect
+                    x="-11"
+                    y="-6"
+                    width="22"
+                    height="19"
+                    rx="2"
+                    fill="#E7B94F"
+                    stroke="#B98524"
+                    stroke-width="1.2"
+                  />
+                  <line x1="-8" y1="3.5" x2="8" y2="3.5" stroke="#A97722" stroke-width="1" />
+                  <line x1="0" y1="-3" x2="0" y2="10" stroke="#A97722" stroke-width="1" />
+                  <rect x="-10" y="14" width="20" height="2.5" rx="1" fill="#C9952C" />
+                </g>
+
+                <!-- 空载状态：显示潜伏式顶升旋转盘 -->
+                <g v-else>
+                  <circle cx="0" cy="3" r="8" fill="#343B45" stroke="#596474" stroke-width="1" />
+                  <circle cx="0" cy="3" r="2.5" :fill="v.statusColor" />
+                  <line x1="-5" y1="3" x2="5" y2="3" stroke="#667085" stroke-width="1" />
+                  <line x1="0" y1="-2" x2="0" y2="8" stroke="#667085" stroke-width="1" />
+                </g>
+
+                <!-- 车尾状态灯 -->
+                <rect
+                  x="-8"
+                  y="17"
+                  width="16"
+                  height="2.5"
+                  rx="1.25"
+                  :fill="v.statusColor"
+                  fill-opacity="0.9"
+                />
+              </g>
+
+              <!-- 车辆名称 -->
+              <text
+                x="0"
+                y="-40"
+                text-anchor="middle"
+                dominant-baseline="hanging"
+                :font-size="VEHICLE_LABEL_FONT_SIZE"
+                :font-family="MAP_ELEMENT_LABEL_FONT_FAMILY"
+                font-weight="400"
+                :fill="MAP_ELEMENT_LABEL_COLOR"
+                style="pointer-events:none;user-select:none;"
+              >{{ v.name }}</text>
+            </g>
+          </svg>
+        </div>
+
+        <!-- 左上角：合并地图数量徽章 -->
+        <div
+          v-if="mapData && mapData.layers.length > 1"
+          class="map-count-badge"
+        >
+          已合并 {{ mapData.layers.length }} 张地图
+        </div>
+
+        <!-- 与地图控制台一致的地图信息页脚 -->
+        <div v-if="footerLayer" class="canvas-footer">
+          <span class="footer-map-name">{{ footerLayer.name }}</span>
+          <span class="footer-sep">·</span>
+          <span class="muted">{{ formatFloorLabel(footerLayer.floorNumber) }}</span>
+          <span class="footer-sep">·</span>
+          <span class="muted">ID</span>
+          <span class="mono">{{ footerLayer.mapId }}</span>
+        </div>
+
+        <!-- 右下角浮动控件（与地图管理控制台 / 编辑器一致：图层 + 1:1） -->
+        <div class="canvas-floating-controls">
+          <div class="floating-slot">
+            <el-popover
+              placement="left-end"
+              trigger="click"
+              :width="200"
+              :show-arrow="false"
+              popper-class="map-layer-popover"
+            >
+              <template #reference>
+                <el-button
+                  class="floating-btn floating-btn--layer"
+                  :class="{ 'is-active': !layerAllVisible }"
+                  size="small"
+                  title="图层显隐"
+                >
+                  <img
+                    class="floating-layer-icon"
+                    :src="layerIconUrl"
+                    alt="图层"
+                  />
+                </el-button>
+              </template>
+              <ul class="layer-visibility-menu" @click.stop>
+                <li
+                  v-for="item in layerMenuItems"
+                  :key="item.key"
+                  class="layer-visibility-menu__item"
+                  :class="{ 'is-off': !layerVisibility[item.key] }"
+                  role="button"
+                  :aria-pressed="layerVisibility[item.key]"
+                  @click="toggleLayerKey(item.key)"
+                >
+                  <el-icon class="layer-visibility-menu__icon">
+                    <View v-if="layerVisibility[item.key]" />
+                    <Hide v-else />
+                  </el-icon>
+                  <span class="layer-visibility-menu__text">
+                    {{ item.label }}
+                  </span>
+                </li>
+              </ul>
+            </el-popover>
+          </div>
+          <div class="floating-slot">
+            <el-button
+              class="floating-btn mono-btn"
+              size="small"
+              title="还原 1:1 缩放"
+              @click="resetZoom"
+            >
+              1:1
+            </el-button>
+          </div>
+        </div>
+
+        <!-- 空状态 -->
+        <template v-if="!loading && !mapData">
+          <div class="empty-canvas">
+            <el-icon :size="48"><Monitor /></el-icon>
+            <p>选择工厂以加载地图</p>
           </div>
         </template>
-
-        <!-- 车辆标记（工厂坐标系，单一 SVG） -->
-        <svg
-          v-if="layerVisibility.vehicle"
-          class="vehicle-svg"
-          width="1"
-          height="1"
-          overflow="visible"
-        >
-          <g
-            v-for="v in vehicleMarkers"
-            :key="v.vehicleId"
-            :transform="`translate(${v.cssX}, ${v.cssY})`"
-            class="vehicle-node"
-            :class="{ 'vehicle-active': v.isActive }"
-            @click="emit('vehicle-click', props.vehicles.find(p => p.vehicleId === v.vehicleId)!)"
-          >
-            <!-- 激活光晕 -->
-            <circle
-              v-if="v.isActive"
-              cx="0" cy="0"
-              :r="VEHICLE_HALF + 7"
-              :fill="`${v.color}33`"
-              stroke="none"
-            />
-
-            <!-- 旋转车体 -->
-            <g :transform="`rotate(${v.svgAngle})`">
-              <!-- 车体：圆角正方形 -->
-              <rect
-                :x="-VEHICLE_HALF" :y="-VEHICLE_HALF"
-                :width="VEHICLE_HALF * 2" :height="VEHICLE_HALF * 2"
-                rx="4" ry="4"
-                :fill="v.color"
-                :stroke="v.isActive ? '#ffffff' : 'rgba(255,255,255,0.55)'"
-                :stroke-width="v.isActive ? 2.5 : 1.5"
-              />
-              <!-- 内部十字线（潜伏式AGV托举机构） -->
-              <line x1="-8" y1="0" x2="8" y2="0" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
-              <line x1="0" y1="-8" x2="0" y2="8" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
-              <!-- 前向指示点（车头方向，默认朝上 = SVG 0° = 北方） -->
-              <circle cx="0" :cy="-VEHICLE_HALF + 5" r="3" fill="rgba(255,255,255,0.92)"/>
-            </g>
-
-            <!-- 车辆名称（不随车体旋转，与点标签样式一致：正上方 30px） -->
-            <text
-              x="0" y="-30"
-              text-anchor="middle"
-              dominant-baseline="auto"
-              font-size="11"
-              font-family="Arial, sans-serif"
-              fill="#303133"
-              style="pointer-events:none;user-select:none;"
-            >{{ v.name }}</text>
-          </g>
-        </svg>
       </div>
-
-      <!-- 左上角：合并地图数量徽章 -->
-      <div
-        v-if="mapData && mapData.layers.length > 1"
-        class="map-count-badge"
-      >
-        已合并 {{ mapData.layers.length }} 张地图
-      </div>
-
-      <!-- 右下角浮动控件（与地图管理控制台 / 编辑器一致：图层 + 1:1） -->
-      <div class="canvas-floating-controls">
-        <div class="floating-slot">
-          <el-popover placement="left" trigger="click" :width="200">
-            <template #reference>
-              <el-button
-                class="floating-btn floating-btn--layer"
-                :class="{ 'is-active': !layerAllVisible }"
-                size="small"
-                title="图层显隐"
-              >
-                <img
-                  class="floating-layer-icon"
-                  :src="layerIconUrl"
-                  alt="图层"
-                />
-              </el-button>
-            </template>
-            <ul class="layer-visibility-menu" @click.stop>
-              <li
-                v-for="item in layerMenuItems"
-                :key="item.key"
-                class="layer-visibility-menu__item"
-                :class="{ 'is-off': !layerVisibility[item.key] }"
-                @click="toggleLayerKey(item.key)"
-              >
-                <el-icon class="layer-visibility-menu__icon">
-                  <View v-if="layerVisibility[item.key]" />
-                  <Hide v-else />
-                </el-icon>
-                <span class="layer-visibility-menu__text">
-                  {{ item.label }}
-                </span>
-              </li>
-            </ul>
-          </el-popover>
-        </div>
-        <div class="floating-slot">
-          <el-button
-            class="floating-btn mono-btn"
-            size="small"
-            title="还原 1:1 缩放"
-            @click="resetZoom"
-          >
-            1:1
-          </el-button>
-        </div>
-      </div>
-
-      <!-- 空状态 -->
-      <template v-if="!loading && !mapData">
-        <div class="empty-canvas">
-          <el-icon :size="48"><Monitor /></el-icon>
-          <p>选择工厂以加载地图</p>
-        </div>
-      </template>
-    </div>
+    </MonitorRuler>
   </div>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@use "@/assets/styles/map-canvas" as mapCanvas;
+
 .monitor-canvas {
   position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #ffffff;
+  background: mapCanvas.$surface-background;
+}
+
+.ruler-wrap {
+  position: absolute;
+  inset: 0;
 }
 
 /* —— 画布主体（背景网格，可关） —— */
@@ -746,9 +962,10 @@ function resetZoom() {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(#eef0f4 1px, transparent 1px),
-    linear-gradient(90deg, #eef0f4 1px, transparent 1px);
-  background-size: 18px 18px;
+    linear-gradient(mapCanvas.$grid-color 1px, transparent 1px),
+    linear-gradient(90deg, mapCanvas.$grid-color 1px, transparent 1px);
+  background-color: mapCanvas.$surface-background;
+  background-size: mapCanvas.$grid-size mapCanvas.$grid-size;
   overflow: hidden;
   cursor: grab;
 }
@@ -789,7 +1006,8 @@ function resetZoom() {
 .vehicle-node {
   cursor: pointer;
   pointer-events: all;
-  transition: transform 0.15s;
+  transition: transform 0.52s linear;
+  will-change: transform;
 }
 
 .vehicle-node:hover {
@@ -941,6 +1159,37 @@ function resetZoom() {
   z-index: 10;
 }
 
+/* —— 地图信息页脚（与地图控制台一致） —— */
+.canvas-footer {
+  position: absolute;
+  left: 40px;
+  bottom: 20px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 100px);
+  flex-wrap: wrap;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.footer-map-name {
+  font-weight: 600;
+  color: #303133;
+}
+
+.footer-sep,
+.muted {
+  color: #909399;
+}
+
+.mono {
+  color: #303133;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", monospace;
+}
+
 /* —— 右下角浮动控件（与 deploy/factory/map 同源） —— */
 .canvas-floating-controls {
   position: absolute;
@@ -954,28 +1203,29 @@ function resetZoom() {
 }
 
 .floating-slot {
-  width: 36px;
+  width: 40px;
   display: flex;
   justify-content: center;
 }
 
 .floating-btn {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid #dcdfe6;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
-.floating-btn.is-active {
-  border-color: #3388ff;
-  color: #3388ff;
+.floating-btn--layer.is-active {
+  border-color: #b6d1ff;
+  background: #eef5ff;
+  color: #1677ff;
 }
 
 .floating-btn--layer {
@@ -999,49 +1249,56 @@ function resetZoom() {
 </style>
 
 <style>
-/* —— 图层菜单（el-popover 内层，不能 scoped；与 deploy/factory/map 同源） —— */
+/* —— 图层菜单（el-popover 内层，不能 scoped） —— */
+.el-popover.el-popper.map-layer-popover {
+  padding: 10px 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
+}
+
 .layer-visibility-menu {
   list-style: none;
   margin: 0;
-  padding: 6px 0;
-  min-width: 200px;
+  padding: 0;
+  min-width: 198px;
 }
 
 .layer-visibility-menu__item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 14px;
+  gap: 12px;
+  min-height: 38px;
+  padding: 9px 16px;
   cursor: pointer;
   user-select: none;
-  font-size: 13px;
-  transition: background 0.15s ease;
+  font-size: 14px;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
 }
 
 .layer-visibility-menu__item:hover {
-  background: #f5f7fa;
+  background: #f4f8ff;
 }
 
 .layer-visibility-menu__icon {
-  font-size: 16px;
+  font-size: 20px;
   flex-shrink: 0;
 }
 
 .layer-visibility-menu__item:not(.is-off) .layer-visibility-menu__icon,
 .layer-visibility-menu__item:not(.is-off) .layer-visibility-menu__text {
-  color: #3388ff;
+  color: #1677ff;
 }
 
 .layer-visibility-menu__item.is-off .layer-visibility-menu__icon,
 .layer-visibility-menu__item.is-off .layer-visibility-menu__text {
-  color: #a0a0a0;
-}
-
-.layer-visibility-menu__item.is-off .layer-visibility-menu__text {
-  text-decoration: line-through;
+  color: #9aa9bd;
 }
 
 .layer-visibility-menu__text {
-  line-height: 1.35;
+  line-height: 20px;
+  white-space: nowrap;
 }
 </style>

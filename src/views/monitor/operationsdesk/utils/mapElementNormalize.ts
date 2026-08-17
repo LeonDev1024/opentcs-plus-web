@@ -288,10 +288,10 @@ export function normalizePaths(paths: any[]): any[] {
         pathType
       },
       editorProps: {
+        ...(p.editorProps ?? {}),
         ...(editorPropsFromProps && typeof editorPropsFromProps === 'object'
           ? editorPropsFromProps
-          : {}),
-        ...(p.editorProps ?? {})
+          : {})
       }
     };
   });

@@ -1,100 +1,26 @@
 import request from '@/utils/request'
 
-// 仿真相关API
-const simulationApi = {
-  // 启动仿真
-  start: () => {
-    return request({
-      url: '/api/simulation/start',
-      method: 'post'
-    })
-  },
-  // 暂停仿真
-  pause: () => {
-    return request({
-      url: '/api/simulation/pause',
-      method: 'post'
-    })
-  },
-  // 继续仿真
-  resume: () => {
-    return request({
-      url: '/api/simulation/resume',
-      method: 'post'
-    })
-  },
-  // 停止仿真
-  stop: () => {
-    return request({
-      url: '/api/simulation/stop',
-      method: 'post'
-    })
-  },
-  // 获取仿真状态
-  getStatus: () => {
-    return request({
-      url: '/api/simulation/status',
-      method: 'get'
-    })
-  },
-  // 创建仿真场景
-  createScene: (data: any) => {
-    return request({
-      url: '/api/simulation/scene/create',
-      method: 'post',
-      data
-    })
-  },
-  // 获取所有场景
-  getScenes: () => {
-    return request({
-      url: '/api/simulation/scenes',
-      method: 'get'
-    })
-  },
-  // 设置当前场景
-  setCurrentScene: (sceneId: string) => {
-    return request({
-      url: `/api/simulation/scene/set-current/${sceneId}`,
-      method: 'post'
-    })
-  },
-  // 添加模拟车辆
-  addVehicle: (data: any) => {
-    return request({
-      url: '/api/simulation/vehicle/add',
-      method: 'post',
-      data
-    })
-  },
-  // 获取所有模拟车辆
-  getVehicles: () => {
-    return request({
-      url: '/api/simulation/vehicles',
-      method: 'get'
-    })
-  },
-  // 获取所有模拟订单
-  getOrders: () => {
-    return request({
-      url: '/api/simulation/orders',
-      method: 'get'
-    })
-  }
-}
-
-export { simulationApi }
-
 // ========== 监控大屏 API ==========
 
 import { AxiosPromise } from 'axios';
 
-/** 车辆状态枚举 */
-export type VehicleState = 'IDLE' | 'WORKING' | 'CHARGING' | 'ERROR' | 'UNKNOWN' | 'UNAVAILABLE';
+/** 车辆状态枚举（运行态含 EXECUTING；WORKING 为历史兼容别名） */
+export type VehicleState =
+  | 'IDLE'
+  | 'WORKING'
+  | 'EXECUTING'
+  | 'CHARGING'
+  | 'ERROR'
+  | 'UNKNOWN'
+  | 'UNAVAILABLE'
+  | 'OFFLINE'
+  | 'PAUSED'
+  | 'WAITING';
 
 /** 位置信息 */
 export interface Position {
   pointId?: string;
+  mapId?: string;
   x: number;
   y: number;
   orientation: number;
@@ -157,6 +83,61 @@ export interface RobotCardVO {
   taskDescription?: string;
 }
 
+/** 资源锁 */
+export interface ResourceLockVO {
+  lockId: string;
+  resourceId: string;
+  resourceType: string;
+  vehicleId: string;
+  orderId: string;
+  status: string;
+  createdAt?: string;
+  expiresAt?: string;
+}
+
+/** 资源锁审计 */
+export interface ResourceLockAuditVO {
+  lockId: string;
+  resourceType: string;
+  resourceId: string;
+  vehicleId?: string;
+  orderId?: string;
+  eventReason: string;
+  status: string;
+  operatorName?: string;
+  detail?: string;
+  eventTime?: string;
+}
+
+/** 监控告警 */
+export interface MonitorAlarmVO {
+  alarmId: string;
+  severity: string;
+  category: string;
+  title: string;
+  message: string;
+  vehicleName?: string;
+  resourceId?: string;
+  resourceType?: string;
+  acked?: boolean;
+  createdAt?: string;
+}
+
+/** 监控大屏聚合快照 */
+export type MonitorChannelType = 'snapshot' | 'delta' | 'heartbeat' | 'pong';
+
+export interface MonitorSnapshotVO {
+  type?: MonitorChannelType | string;
+  factoryId?: number;
+  generatedAt?: number;
+  seq?: number;
+  fingerprint?: string;
+  vehicles?: VehicleRuntimeVO[];
+  amrStats?: AmrStats;
+  taskStats?: TaskStats;
+  alarmCount?: number;
+}
+
 const monitorApi = {
   /** 获取 AMR 运行时状态列表 */
   listVehicleRuntime: (factoryId?: number): AxiosPromise<VehicleRuntimeVO[]> => {
@@ -177,7 +158,35 @@ const monitorApi = {
   /** 获取单个车辆运行时状态 */
   getVehicleRuntime: (vehicleId: string): AxiosPromise<VehicleRuntimeVO> => {
     return request({ url: '/vehicle/runtime/status/' + vehicleId, method: 'get' });
+  },
+  /** 监控大屏聚合快照（首屏 / HTTP 降级） */
+  getSnapshot: (factoryId?: number): AxiosPromise<MonitorSnapshotVO> => {
+    return request({ url: '/ops/monitor/snapshot', method: 'get', params: { factoryId } });
   }
+};
+
+export const listResourceLocks = (): AxiosPromise<ResourceLockVO[]> => {
+  return request({ url: '/ops/monitor/locks', method: 'get' });
+};
+
+export const listResourceLockAudits = (limit = 100): AxiosPromise<ResourceLockAuditVO[]> => {
+  return request({ url: '/ops/monitor/locks/audit', method: 'get', params: { limit } });
+};
+
+export const forceReleaseLock = (resourceType: string, resourceId: string): AxiosPromise<boolean> => {
+  return request({
+    url: '/ops/monitor/locks/release',
+    method: 'post',
+    params: { resourceType, resourceId }
+  });
+};
+
+export const listMonitorAlarms = (): AxiosPromise<MonitorAlarmVO[]> => {
+  return request({ url: '/ops/monitor/alarms', method: 'get' });
+};
+
+export const ackMonitorAlarm = (alarmId: string): AxiosPromise<boolean> => {
+  return request({ url: `/ops/monitor/alarms/${alarmId}/ack`, method: 'post' });
 };
 
 export { monitorApi };

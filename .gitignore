@@ -106,3 +106,6 @@ dist/
 dist-*/
 dist/**
 maps/
+
+# Claude / IDE local
+.claude/

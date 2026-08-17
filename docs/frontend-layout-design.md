@@ -134,7 +134,6 @@ export default {
 │                                                                      │
 │  ▼ 任务调度                                                         │
 │      ├── 任务订单           /opentcs/order                          │
-│      └── 仿真调度           /opentcs/simulation                    │
 │                                                                      │
 │  ▼ 设备运维                                                         │
 │      ├── 车辆控制           /opentcs/agv/control                    │
@@ -156,7 +155,6 @@ export default {
 | 菜单 | 路由 | 功能说明 |
 |-----|------|---------|
 | 任务订单 | `/opentcs/order` | 运输任务列表 |
-| 仿真调度 | `/opentcs/simulation` | 仿真模拟 |
 
 #### 设备运维
 
@@ -215,7 +213,6 @@ export default {
     │   │
     │   ├── 任务调度
     │   │   ├── 任务订单 (/opentcs/order)
-    │   │   └── 仿真调度 (/opentcs/simulation)
     │   │
     │   └── 设备运维
     │       ├── 车辆控制 (/opentcs/agv/control)
@@ -269,7 +266,6 @@ export default {
 | **运维管理** | 监控中心 | 监控大屏 | `/opentcs/monitor` |
 | | | 车辆监控 | `/opentcs/vehicle/monitor` |
 | | 任务调度 | 任务订单 | `/opentcs/order` |
-| | | 仿真调度 | `/opentcs/simulation` |
 | | 设备运维 | 车辆控制 | `/opentcs/agv/control` |
 | | | 任务下发 | `/opentcs/agv/task` |
 | | | 资源锁定 | `/opentcs/agv/lock` |
@@ -343,7 +339,6 @@ export default {
 │
 ├── 任务调度 (202)
 │   ├── 任务订单 (2021) - /opentcs/order
-│   └── 仿真调度 (2022) - /opentcs/simulation
 │
 └── 设备运维 (203)
     ├── 车辆控制 (2031) - /opentcs/agv/control

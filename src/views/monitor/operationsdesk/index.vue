@@ -11,32 +11,52 @@
  * - KPI 卡承担「指标展示 + 筛选触发器」双重职责；左侧机器人面板按 KPI 选中态过滤。
  * - 订单 / 告警是独立页面，本页只承担「空间态势感知 + 跳转」。
  */
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useFullscreen } from '@vueuse/core';
 import { Bell, DArrowLeft, DArrowRight, FullScreen } from '@element-plus/icons-vue';
 import { useMonitorStats } from './composables/useMonitorStats';
-import { useRealtimeData } from './composables/useRealtimeData';
+import { useMonitorLiveChannel } from './composables/useMonitorLiveChannel';
 import MonitorCanvas from './components/MonitorCanvas.vue';
 import AmrStatsBar from './components/AmrStatsBar.vue';
 import RobotPanel from './components/RobotPanel.vue';
+import VehicleDetailPanel from './components/VehicleDetailPanel.vue';
 import type { AmrFilterKey } from './components/AmrStatsBar.vue';
-import type { RobotCardVO } from '@/api/ops/monitor';
+import type { RobotCardVO, VehicleRuntimeVO } from '@/api/ops/monitor';
+
+const router = useRouter();
 
 const {
   vehicles,
   amrStats,
   factoryList,
   loading,
+  alarmCount,
   fetchStats,
+  applySnapshot,
   init,
   currentFactoryId
 } = useMonitorStats();
 
-const { lastUpdated, isActive, start: startPolling, updateFactoryId } =
-  useRealtimeData();
+const {
+  lastUpdated,
+  start: startLive,
+  stop: stopLive,
+  updateFactoryId,
+  connectionState,
+  mode: liveMode
+} = useMonitorLiveChannel({
+  onMessage: applySnapshot,
+  fallbackIntervalMs: 3000
+});
 
 // 当前选中的车辆
 const activeVehicleId = ref<string | undefined>(undefined);
+const detailVisible = ref(false);
+
+const selectedVehicle = computed<VehicleRuntimeVO | undefined>(() =>
+  vehicles.value.find((vehicle) => vehicle.vehicleId === activeVehicleId.value)
+);
 
 // KPI 联动的筛选 key（顶栏 KPI ↔ 右侧机器人列表）
 const robotFilter = ref<AmrFilterKey>('all');
@@ -65,16 +85,12 @@ const robotCards = computed<RobotCardVO[]>(() =>
 );
 
 /** 连接状态 */
-const connectionState = computed<'live' | 'stale' | 'offline'>(() => {
-  if (!isActive.value) return 'offline';
-  if (!lastUpdated.value) return 'stale';
-  return 'live';
-});
+const liveState = computed<'live' | 'stale' | 'offline'>(() => connectionState());
 
 const connectionLabel = computed(() => {
-  switch (connectionState.value) {
+  switch (liveState.value) {
     case 'live':
-      return '已连接';
+      return liveMode.value === 'http' ? '轮询中' : '已连接';
     case 'stale':
       return '数据延迟';
     case 'offline':
@@ -83,13 +99,12 @@ const connectionLabel = computed(() => {
   }
 });
 
-/** 顶栏「告警」角标 */
-const alarmCount = computed(() => amrStats.value.errorVehicles ?? 0);
-
 // 工厂切换
 function handleFactoryChange(id: number) {
   if (!id) return;
   robotFilter.value = 'all'; // 切工厂时重置筛选
+  activeVehicleId.value = undefined;
+  detailVisible.value = false;
   updateFactoryId(id);
   fetchStats(id);
 }
@@ -97,30 +112,37 @@ function handleFactoryChange(id: number) {
 // 机器人面板点击 → 画布定位
 function handleRobotClick(robot: RobotCardVO) {
   activeVehicleId.value = robot.vehicleId;
+  detailVisible.value = true;
 }
 
 // 画布机器人点击 → 高亮机器人面板
 function handleVehicleClick(vehicle: any) {
   activeVehicleId.value = vehicle.vehicleId;
+  detailVisible.value = true;
 }
 
 // 手动刷新
 async function handleRefresh() {
   if (!currentFactoryId.value) return;
-  await fetchStats(currentFactoryId.value);
+  await fetchStats(currentFactoryId.value, true);
   lastUpdated.value = Date.now();
 }
 
-// 告警角标点击：PR2 接告警中心路由
+// 告警角标点击：跳转告警中心
 function handleAlarmClick() {
-  // TODO(PR2): router.push({ path: '/ops/alarm', query: { factoryId } })
-  console.info('[operationsdesk] 跳转告警中心（PR2 接入）');
+  router.push({ path: '/monitoring/alarm' });
 }
 
 // 初始化
 onMounted(async () => {
   await init();
-  startPolling(fetchStats, currentFactoryId.value);
+  if (currentFactoryId.value) {
+    await startLive(currentFactoryId.value);
+  }
+});
+
+onUnmounted(() => {
+  stopLive();
 });
 </script>
 
@@ -132,7 +154,7 @@ onMounted(async () => {
       <div class="top-bar">
         <div class="top-bar-left">
           <!-- 工厂下拉选择，默认第一个 -->
-          <span class="factory-label">地图监控：</span>
+          <span class="factory-label">场景监控：</span>
           <el-select
             v-model="currentFactoryId"
             placeholder="请选择工厂"
@@ -159,7 +181,7 @@ onMounted(async () => {
         <div class="top-bar-right">
           <div
             class="conn-indicator"
-            :class="`conn-${connectionState}`"
+            :class="`conn-${liveState}`"
             title="点击刷新数据"
             @click="handleRefresh"
           >
@@ -221,6 +243,12 @@ onMounted(async () => {
             :vehicles="vehicles"
             :active-vehicle-id="activeVehicleId"
             @vehicle-click="handleVehicleClick"
+          />
+          <VehicleDetailPanel
+            v-if="detailVisible && selectedVehicle"
+            :vehicle="selectedVehicle"
+            :last-updated="lastUpdated"
+            @close="detailVisible = false"
           />
         </div>
       </div>

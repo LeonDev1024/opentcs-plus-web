@@ -10,7 +10,6 @@ import type {
   MapPoint,
   MapPath,
   MapLocation,
-  MapBlock,
   ToolMode,
   CanvasState,
   SelectionState,
@@ -19,6 +18,7 @@ import type {
 } from '@/types/mapEditor';
 import { ToolMode as ToolModeEnum, LayerType } from '@/types/mapEditor';
 import { CommandManager } from '@/utils/mapEditor/command';
+import { PATH_RIBBON_DEFAULT_STROKE } from '@/utils/mapEditor/mapVisualTokens';
 import { loadMapEditorData, saveMapEditorData, saveMap as saveMapApi } from '@/api/deploy/map-editor';
 import type { MapEditorResponse, VisualLayoutData } from '@/api/deploy/map-editor/types';
 import { parseMapOriginFields } from '@/utils/mapEditor/navigationMapOrigin';
@@ -69,9 +69,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
   const points = ref<MapPoint[]>([]);
   const paths = ref<MapPath[]>([]);
   const locations = ref<MapLocation[]>([]);
-
-  // Block（资源互斥规则）数据
-  const blocks = ref<MapBlock[]>([]);
   
   // 选择状态 - 使用 ref 包装 Set 以确保响应式
   const selectedIds = ref(new Set<string>());
@@ -273,6 +270,11 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       : {};
     const x = pickCoordinate(p, 'x') ?? pickCoordinate(parsedLayout, 'x') ?? pickCoordinate(parsedPointProps, 'x') ?? 0;
     const y = pickCoordinate(p, 'y') ?? pickCoordinate(parsedLayout, 'y') ?? pickCoordinate(parsedPointProps, 'y') ?? 0;
+    const orientationRaw =
+      toFiniteNumber(p?.vehicleOrientationAngle) ??
+      toFiniteNumber(p?.vehicleOrientation) ??
+      toFiniteNumber(parsedPointProps?.vehicleOrientationAngle) ??
+      toFiniteNumber(parsedPointProps?.vehicleOrientation);
     return {
       ...parsedPointProps,
       ...p,
@@ -284,11 +286,13 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       y,
       z: p?.z ?? (p?.zPosition != null ? Number(p.zPosition) : undefined),
       status: p?.status ?? 'active',
+      locked: p?.locked ?? parsedPointProps?.locked ?? false,
+      vehicleOrientationAngle: orientationRaw,
       editorProps: {
-        radius: parsedEditorProps?.radius ?? parsedLayoutEditorProps?.radius ?? p?.editorProps?.radius ?? p?.radius ?? 20,
-        color: parsedEditorProps?.color ?? parsedLayoutEditorProps?.color ?? p?.editorProps?.color ?? '#4CAF50',
+        radius: parsedEditorProps?.radius ?? parsedLayoutEditorProps?.radius ?? p?.editorProps?.radius ?? p?.radius ?? 12,
+        color: parsedEditorProps?.color ?? parsedLayoutEditorProps?.color ?? p?.editorProps?.color ?? '#8c8c8c',
         strokeColor: parsedEditorProps?.strokeColor ?? parsedLayoutEditorProps?.strokeColor ?? p?.editorProps?.strokeColor,
-        textColor: parsedEditorProps?.textColor ?? parsedLayoutEditorProps?.textColor ?? p?.editorProps?.textColor,
+        textColor: parsedEditorProps?.textColor ?? parsedLayoutEditorProps?.textColor ?? p?.editorProps?.textColor ?? '#595959',
         icon: parsedEditorProps?.icon ?? parsedLayoutEditorProps?.icon ?? p?.editorProps?.icon,
         label: parsedEditorProps?.label ?? parsedLayoutEditorProps?.label ?? p?.editorProps?.label ?? p?.label,
         labelVisible: parsedEditorProps?.labelVisible ?? parsedLayoutEditorProps?.labelVisible ?? p?.editorProps?.labelVisible ?? p?.labelVisible ?? true,
@@ -342,7 +346,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         }))
         .filter((cp: any) => Number.isFinite(cp.x) && Number.isFinite(cp.y));
 
-      // 若后端未给出可直接匹配的点位 id，则用“最近点”反推起终点 id
+      // 用控制点反推起终点（修复 source/dest 全写成同一点的脏数据）
       if (geometry.controlPoints.length >= 2) {
         const pointsSource = allPoints || mapData.value?.elements?.points || [];
         if (Array.isArray(pointsSource) && pointsSource.length >= 2) {
@@ -366,9 +370,44 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           };
           const ns = nearestBy({ x: a.x, y: a.y });
           const ne = nearestBy({ x: b.x, y: b.y });
-          if (ns?.id != null) startPointId = ns.id;
-          if (ne?.id != null) endPointId = ne.id;
+          const needRebind =
+            startPointId == null
+            || endPointId == null
+            || String(startPointId) === String(endPointId)
+            || !pointsSource.some((pt: any) => String(pt.id) === String(startPointId) || String(pt.pointId) === String(startPointId))
+            || !pointsSource.some((pt: any) => String(pt.id) === String(endPointId) || String(pt.pointId) === String(endPointId));
+          if (needRebind) {
+            if (ns?.id != null) startPointId = ns.id;
+            if (ne?.id != null) endPointId = ne.id;
+          }
         }
+      }
+    }
+
+    // 1b) 已有几何控制点但端点脏（如全是 P1）：同样按最近点纠正
+    if (geometry.controlPoints.length >= 2 && (startPointId == null || endPointId == null || String(startPointId) === String(endPointId))) {
+      const pointsSource = allPoints || mapData.value?.elements?.points || [];
+      if (Array.isArray(pointsSource) && pointsSource.length >= 2) {
+        const a = geometry.controlPoints[0];
+        const b = geometry.controlPoints[geometry.controlPoints.length - 1];
+        const nearestBy = (target: { x: number; y: number }) => {
+          let best: any = null;
+          let bestDist = Number.POSITIVE_INFINITY;
+          for (const pt of pointsSource) {
+            const px = Number(pt?.x ?? pt?.xPosition ?? 0);
+            const py = Number(pt?.y ?? pt?.yPosition ?? 0);
+            const d = (px - target.x) ** 2 + (py - target.y) ** 2;
+            if (Number.isFinite(d) && d < bestDist) {
+              bestDist = d;
+              best = pt;
+            }
+          }
+          return best;
+        };
+        const ns = nearestBy({ x: Number(a.x), y: Number(a.y) });
+        const ne = nearestBy({ x: Number(b.x), y: Number(b.y) });
+        if (ns?.id != null) startPointId = ns.id;
+        if (ne?.id != null) endPointId = ne.id;
       }
     }
 
@@ -455,13 +494,19 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       startPointId,
       endPointId,
       status: p?.status ?? 'active',
+      locked: p?.locked ?? false,
+      maxVelocity: toFiniteNumber(p?.maxVelocity) ?? 0,
+      maxReverseVelocity: toFiniteNumber(p?.maxReverseVelocity) ?? 0,
       geometry: {
         ...geometry,
         pathType: p?.geometry?.pathType || parsedLayout?.pathType || 'line'
       },
       editorProps: {
-        strokeColor: parsedEditorProps?.strokeColor ?? p?.editorProps?.strokeColor ?? '#2196F3',
-        strokeWidth: parsedEditorProps?.strokeWidth ?? p?.editorProps?.strokeWidth ?? 2,
+        strokeColor:
+          parsedEditorProps?.strokeColor ??
+          p?.editorProps?.strokeColor ??
+          PATH_RIBBON_DEFAULT_STROKE,
+        strokeWidth: parsedEditorProps?.strokeWidth ?? p?.editorProps?.strokeWidth ?? 18,
         lineStyle: parsedEditorProps?.lineStyle ?? p?.editorProps?.lineStyle ?? 'solid',
         arrowVisible: parsedEditorProps?.arrowVisible ?? p?.editorProps?.arrowVisible ?? true,
         laneMode: parsedEditorProps?.laneMode ?? p?.editorProps?.laneMode ?? 'one-way',
@@ -470,6 +515,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       }
     };
   };
+
 
   /** 将后端位置转为前端 MapLocation（xPosition/yPosition->x/y，id 转 string，补 geometry/editorProps） */
   const normalizeLocation = (l: Record<string, any>, defaultLayerId: string): MapLocation => {
@@ -725,6 +771,7 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
           const defaultPathLayerId = normalizedLayers.find((l) => l.type === LayerType.PATH)?.id ?? normalizedLayers[0]?.id ?? '';
           const rawPoints = Array.isArray(apiData.points) ? apiData.points : (apiData.points ? Array.from(apiData.points) : []);
           const rawPaths = Array.isArray(apiData.paths) ? apiData.paths : (apiData.paths ? Array.from(apiData.paths) : []);
+          const normalizedPoints = rawPoints.map((p: Record<string, any>) => normalizePoint(p, defaultPointLayerId));
 
           const miOrigin = parseMapOriginFields({
             mapOrigin: mi?.mapOrigin,
@@ -765,11 +812,10 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
             layerGroups: normalizedGroups,
             layers: normalizedLayers,
             elements: {
-              points: rawPoints.map((p: Record<string, any>) => normalizePoint(p, defaultPointLayerId)),
-              paths: rawPaths.map((p: Record<string, any>) => normalizePath(p, defaultPathLayerId, rawPoints)),
+              points: normalizedPoints,
+              paths: rawPaths.map((p: Record<string, any>) => normalizePath(p, defaultPathLayerId, normalizedPoints)),
               locations: []
             },
-            blocks: [],
             metadata: {
               createdAt: flatHeader.createTime || new Date().toISOString(),
               updatedAt: flatHeader.updateTime || new Date().toISOString()
@@ -832,7 +878,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               paths: rpath.map((p: Record<string, any>) => normalizePath(p, dpathId, rp)),
               locations: []
             },
-            blocks: [],
             metadata: {
               createdAt: apiData.mapInfo.createTime || new Date().toISOString(),
               updatedAt: apiData.mapInfo.updateTime || new Date().toISOString()
@@ -885,7 +930,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       paths.value = data.elements.paths || [];
       locations.value = [];
       console.log('[MapEditor] store points 数量:', points.value.length, 'store paths:', paths.value.length);
-      blocks.value = [];
 
       syncPointNameCounter();
       
@@ -956,22 +1000,18 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     if (!currentMapId.value) {
       throw new Error('没有可保存的地图 mapId');
     }
-    
+
     try {
       loading.value = true;
-      
-      // 如果没有地图数据，抛出错误（默认图层应该由后端创建）
+
       if (!mapData.value) {
         throw new Error('地图数据不存在，请先加载地图数据');
       }
-      
-      // 更新地图数据
-      mapData.value.layerGroups = layerGroups.value;
-      mapData.value.layers = layers.value;
+
+      // 同步内存中的点/路径与画布状态（图层仅前端渲染用，不参与保存）
       mapData.value.elements.points = points.value;
       mapData.value.elements.paths = paths.value;
       mapData.value.elements.locations = [];
-      mapData.value.blocks = [];
       mapData.value.mapInfo.scale = canvasState.scale;
       mapData.value.mapInfo.offsetX = canvasState.offsetX;
       mapData.value.mapInfo.offsetY = canvasState.offsetY;
@@ -979,21 +1019,13 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
       mapData.value.mapInfo.height = canvasState.height;
       mapData.value.metadata.updatedAt = new Date().toISOString();
 
-      // 验证数据
       if (!mapData.value.mapInfo.name) {
         mapData.value.mapInfo.name = `地图_${currentMapId.value}`;
       }
 
-      // 使用 toRaw 获取原始数据，避免循环引用
       const rawData = toRaw(mapData.value);
-
-      const toLongOrNull = (v: unknown): number | null => {
-        if (v == null) return null;
-        const s = typeof v === 'number' ? String(v) : String(v).trim();
-        if (!/^-?\d+$/.test(s)) return null;
-        const n = Number(s);
-        return Number.isFinite(n) ? n : null;
-      };
+      const pointsToSave = rawData.elements?.points || [];
+      const pathsToSave = rawData.elements?.paths || [];
 
       const toNumberOrNull = (v: unknown): number | null => {
         if (v == null) return null;
@@ -1001,111 +1033,139 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
         return Number.isFinite(n) ? n : null;
       };
 
-      const buildStableNumericIdMap = (items: any[]): Map<string, number> => {
-        const result = new Map<string, number>();
-        let tempId = -1;
-        for (const item of items || []) {
-          const rawId = item?.id;
-          if (rawId == null) continue;
-          const key = String(rawId);
-          const numeric = toLongOrNull(rawId);
-          if (numeric != null) {
-            result.set(key, numeric);
-          } else if (!result.has(key)) {
-            result.set(key, tempId);
-            tempId -= 1;
+      /** 业务点位编号：优先名称（P1），避免用数据库主键 */
+      const toBusinessPointId = (pt: any) => {
+        const name = String(pt?.name ?? '').trim();
+        if (name) return name;
+        const pointId = String(pt?.pointId ?? '').trim();
+        if (pointId && !/^\d+$/.test(pointId)) return pointId;
+        return String(pt?.pointId ?? pt?.id ?? '').trim();
+      };
+
+      const resolvePointRef = (ref: any) => {
+        const key = String(ref ?? '').trim();
+        if (!key) return '';
+        const pt = pointsToSave.find((p: any) =>
+          String(p?.id) === key || String(p?.pointId) === key || String(p?.name) === key
+        );
+        return pt ? toBusinessPointId(pt) : key;
+      };
+
+      const nearestBusinessPointId = (x: number, y: number) => {
+        let bestId = '';
+        let bestDist = Number.POSITIVE_INFINITY;
+        for (const pt of pointsToSave) {
+          const px = toNumberOrNull(pt?.x) ?? toNumberOrNull(pt?.xPosition) ?? 0;
+          const py = toNumberOrNull(pt?.y) ?? toNumberOrNull(pt?.yPosition) ?? 0;
+          const d = (px - x) * (px - x) + (py - y) * (py - y);
+          if (d < bestDist) {
+            bestDist = d;
+            bestId = toBusinessPointId(pt);
           }
         }
-        return result;
+        return bestId;
       };
 
-      const layerGroupIdMap = buildStableNumericIdMap(rawData.layerGroups || []);
-      const layerIdMap = buildStableNumericIdMap(rawData.layers || []);
-
-      const serializePoints = (pointsToSave: any[]) => {
-        return (pointsToSave || []).map((p) => {
-          const pointId = p?.id != null ? String(p.id) : undefined;
+      const serializePoints = () =>
+        pointsToSave.map((p: any) => {
+          const pointId = toBusinessPointId(p) || `P_${Date.now()}`;
+          const orientation =
+            toNumberOrNull(p?.vehicleOrientationAngle) ?? toNumberOrNull(p?.vehicleOrientation) ?? 0;
+          const x = toNumberOrNull(p?.x) ?? toNumberOrNull(p?.xPosition) ?? 0;
+          const y = toNumberOrNull(p?.y) ?? toNumberOrNull(p?.yPosition) ?? 0;
+          const z = toNumberOrNull(p?.z) ?? toNumberOrNull(p?.zPosition) ?? 0;
+          const editorProps = p?.editorProps ?? {};
           return {
-            // 后端会在 service 层强制 setId(null)，这里先保证反序列化阶段不失败
-            id: null,
-            // point_id 在库里是 NOT NULL
-            pointId: pointId || `point_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
-            layerId: (p?.layerId != null ? (layerIdMap.get(String(p.layerId)) ?? toLongOrNull(p.layerId)) : null),
-            name: p?.name ?? pointId,
-            xPosition: toNumberOrNull(p?.x) ?? toNumberOrNull(p?.xPosition) ?? 0,
-            yPosition: toNumberOrNull(p?.y) ?? toNumberOrNull(p?.yPosition) ?? 0,
-            zPosition: toNumberOrNull(p?.z) ?? toNumberOrNull(p?.zPosition) ?? 0,
+            pointId,
+            name: String(p?.name ?? pointId),
+            xPosition: x,
+            yPosition: y,
+            zPosition: z,
             type: p?.type ?? 'HALT_POSITION',
-            radius: toNumberOrNull(p?.editorProps?.radius) ?? toNumberOrNull(p?.radius) ?? 0,
-            locked: p?.locked ?? null,
-            label: p?.editorProps?.label ?? p?.label ?? null,
-            layout: JSON.stringify({
-              x: toNumberOrNull(p?.x) ?? toNumberOrNull(p?.xPosition) ?? 0,
-              y: toNumberOrNull(p?.y) ?? toNumberOrNull(p?.yPosition) ?? 0,
-              z: toNumberOrNull(p?.z) ?? toNumberOrNull(p?.zPosition) ?? 0,
-              editorProps: p?.editorProps ?? {}
-            }),
-            // 额外信息存到 properties，避免丢失前端配置
+            radius: toNumberOrNull(editorProps?.radius) ?? toNumberOrNull(p?.radius) ?? 0,
+            vehicleOrientation: orientation,
+            locked: Boolean(p?.locked),
+            label: editorProps?.label ?? p?.label ?? null,
+            layout: JSON.stringify({ x, y, z, editorProps }),
             properties: JSON.stringify({
               status: p?.status,
-              editorProps: p?.editorProps
+              editorProps
             })
           };
         });
-      };
 
-      const serializePaths = (pathsToSave: any[]) => {
-        const estimateLength = (geometry: any) => {
-          const cps: any[] = geometry?.controlPoints || [];
-          if (!Array.isArray(cps) || cps.length < 2) return null;
-          let sum = 0;
-          for (let i = 1; i < cps.length; i += 1) {
-            const a = cps[i - 1];
-            const b = cps[i];
-            const ax = toNumberOrNull(a?.x) ?? 0;
-            const ay = toNumberOrNull(a?.y) ?? 0;
-            const bx = toNumberOrNull(b?.x) ?? 0;
-            const by = toNumberOrNull(b?.y) ?? 0;
-            sum += Math.hypot(ax - bx, ay - by);
+      const serializePaths = () =>
+        pathsToSave.map((path: any, index: number) => {
+          let sourcePointId = resolvePointRef(path?.startPointId ?? path?.sourcePointId);
+          let destPointId = resolvePointRef(path?.endPointId ?? path?.destPointId);
+          const cps: any[] = path?.geometry?.controlPoints || [];
+          if (cps.length >= 2 && (!sourcePointId || !destPointId || sourcePointId === destPointId)) {
+            const a = cps[0];
+            const b = cps[cps.length - 1];
+            const sx = toNumberOrNull(a?.x);
+            const sy = toNumberOrNull(a?.y);
+            const ex = toNumberOrNull(b?.x);
+            const ey = toNumberOrNull(b?.y);
+            if (sx != null && sy != null && ex != null && ey != null) {
+              sourcePointId = nearestBusinessPointId(sx, sy) || sourcePointId;
+              destPointId = nearestBusinessPointId(ex, ey) || destPointId;
+            }
           }
-          return sum;
-        };
 
-        return (pathsToSave || []).map((path) => {
-          const backendId = path?.id != null ? String(path.id) : undefined;
+          let length = 0;
+          const controlPoints = cps
+            .map((cp: any) => ({
+              x: toNumberOrNull(cp?.x),
+              y: toNumberOrNull(cp?.y)
+            }))
+            .filter((cp: any) => cp.x != null && cp.y != null);
+          for (let i = 1; i < controlPoints.length; i += 1) {
+            const a = controlPoints[i - 1];
+            const b = controlPoints[i];
+            length += Math.hypot(a.x - b.x, a.y - b.y);
+          }
+
           const laneMode = path?.editorProps?.laneMode;
-          const pathId = backendId
-            ? backendId
-            : (path?.pathId != null ? String(path.pathId) : `path_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`);
-          const sourcePointId = String(path?.startPointId ?? path?.sourcePointId ?? '');
-          const destPointId = String(path?.endPointId ?? path?.destPointId ?? '');
-          return {
-            id: null,
+          const routingType =
+            laneMode === 'two-way'
+              ? 'BIDIRECTIONAL'
+              : laneMode === 'one-way'
+                ? 'ONE_WAY'
+                : String(path?.routingType || 'ONE_WAY').toUpperCase() === 'BIDIRECTIONAL'
+                  ? 'BIDIRECTIONAL'
+                  : 'ONE_WAY';
+          const connectionType = path?.type ?? 'DIRECT';
+          const pathId =
+            (sourcePointId && destPointId ? `${sourcePointId}_${destPointId}_${index + 1}` : '')
+            || String(path?.pathId ?? path?.name ?? `path_${index + 1}`);
+
+          const editorProps = path?.editorProps ?? {};
+          const payload: Record<string, any> = {
             pathId,
-            layerId: (path?.layerId != null ? (layerIdMap.get(String(path.layerId)) ?? toLongOrNull(path.layerId)) : null),
-            name: path?.name ?? pathId,
+            name: path?.name ?? `Path ${sourcePointId} --- ${destPointId}`,
             sourcePointId,
             destPointId,
-            locked: path?.locked ?? null,
-            // path.length 在库里是 NOT NULL
-            length: estimateLength(path?.geometry) ?? 0,
-            // 几何连接类型：DIRECT / ELBOW / BEZIER
-            connectionType: path?.type ?? 'DIRECT',
+            length,
+            routingType,
+            locked: Boolean(path?.locked),
+            maxVelocity: toNumberOrNull(path?.maxVelocity) ?? 0,
+            maxReverseVelocity: toNumberOrNull(path?.maxReverseVelocity) ?? 0,
+            connectionType,
             properties: JSON.stringify({
               status: path?.status,
-              editorProps: path?.editorProps
+              routingType,
+              editorProps
             }),
             layout: JSON.stringify({
-              connectionType: path?.type ?? 'DIRECT',
-              controlPoints: (path?.geometry?.controlPoints || []).map((cp: any) => ({
-                x: toNumberOrNull(cp?.x),
-                y: toNumberOrNull(cp?.y)
-              }))
+              connectionType,
+              controlPoints
             })
           };
-        });
-      };
+          return payload;
 
+        });
+
+      // 极简保存：仅 mapInfo + points + paths
       const saveData = {
         mapInfo: {
           mapId: currentMapId.value,
@@ -1121,41 +1181,15 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
               offsetY: canvasState.offsetY,
               width: canvasState.width,
               height: canvasState.height
-            },
-            layerGroups: rawData.layerGroups || [],
-            layers: rawData.layers || []
+            }
           })
         },
-        layerGroups: (rawData.layerGroups || []).map((g: any, index: number) => ({
-          id: g?.id != null ? String(layerGroupIdMap.get(String(g.id)) ?? g.id) : undefined,
-          name: g?.name ?? `LayerGroup-${index + 1}`,
-          visible: g?.visible !== false,
-          ordinal: g?.ordinal ?? index + 1,
-          properties: g?.description ? JSON.stringify({ description: g.description }) : null
-        })),
-        layers: (rawData.layers || []).map((l: any, index: number) => ({
-          id: l?.id != null ? String(layerIdMap.get(String(l.id)) ?? l.id) : undefined,
-          layerGroupId: l?.layerGroupId != null ? String(layerGroupIdMap.get(String(l.layerGroupId)) ?? l.layerGroupId) : null,
-          name: l?.name ?? `Layer-${index + 1}`,
-          visible: l?.visible !== false,
-          ordinal: l?.zIndex ?? l?.ordinal ?? index + 1,
-          properties: JSON.stringify({
-            type: l?.type,
-            locked: l?.locked ?? false,
-            opacity: l?.opacity ?? 1
-          })
-        })),
-        points: serializePoints(rawData.elements?.points || []),
-        paths: serializePaths(rawData.elements?.paths || [])
+        points: serializePoints(),
+        paths: serializePaths()
       };
 
-      // 保存到后端（语义数据）
       await saveMapApi(saveData);
 
-      // 保存成功后不更新前端版本号，避免循环引用问题
-      // 用户可以手动刷新页面查看新版本，或者重新加载地图
-
-      // 清空 undo/redo 历史：保存后不应再能撤销到保存前的状态
       commandManager.clear();
       isDirty.value = false;
 
@@ -1939,46 +1973,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     versionHistory.value = [];
   };
 
-  // ==================== Block Actions ====================
-
-  /**
-   * 添加 Block
-   */
-  const addBlock = (partial: Omit<MapBlock, 'id'>): MapBlock => {
-    const block: MapBlock = {
-      ...partial,
-      id: `block_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
-    };
-    blocks.value = [...blocks.value, block];
-    isDirty.value = true;
-    return block;
-  };
-
-  /**
-   * 更新 Block（不可变替换）
-   */
-  const updateBlock = (id: string, updates: Partial<MapBlock>): void => {
-    blocks.value = blocks.value.map((b) =>
-      b.id === id ? { ...b, ...updates } : b
-    );
-    isDirty.value = true;
-  };
-
-  /**
-   * 删除 Block
-   */
-  const deleteBlock = (id: string): void => {
-    blocks.value = blocks.value.filter((b) => b.id !== id);
-    isDirty.value = true;
-  };
-
-  /**
-   * 获取包含指定元素（按 name）的所有 Blocks
-   */
-  const getBlocksForElement = (elementName: string): MapBlock[] => {
-    return blocks.value.filter((b) => b.members.includes(elementName));
-  };
-
   /**
    * 重置编辑器
    */
@@ -1991,7 +1985,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     points.value = [];
     paths.value = [];
     locations.value = [];
-    blocks.value = [];
     activeLayerId.value = null;
     clearSelection();
     commandManager.clear();
@@ -2034,7 +2027,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     points,
     paths,
     locations,
-    blocks,
     selection,
     selectedIds,
     selectedType,
@@ -2100,10 +2092,6 @@ export const useMapEditorStore = defineStore('mapEditor', () => {
     reset,
     setRasterBackground,
     clearRasterBackground,
-    initEditorState,
-    addBlock,
-    updateBlock,
-    deleteBlock,
-    getBlocksForElement
+    initEditorState
   };
 });

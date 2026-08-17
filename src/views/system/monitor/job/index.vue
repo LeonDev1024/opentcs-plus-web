@@ -1,92 +1,67 @@
 <template>
-  <div class="p-4">
-    <!-- 搜索区域 -->
-    <div v-show="showSearch" class="mb-3">
-      <el-card shadow="hover">
-        <el-form ref="queryFormRef" :model="queryParams" :inline="true">
-          <el-form-item label="任务名称" prop="jobName">
-            <el-input v-model="queryParams.jobName" placeholder="请输入任务名称" clearable @keyup.enter="handleQuery" />
-          </el-form-item>
-          <el-form-item label="任务组名" prop="jobGroup">
-            <el-select v-model="queryParams.jobGroup" placeholder="请选择任务组" clearable style="width: 140px">
-              <el-option label="DEFAULT" value="DEFAULT" />
-              <el-option label="SYSTEM" value="SYSTEM" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="任务状态" prop="status">
-            <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="width: 120px">
-              <el-option label="正常" value="0" />
-              <el-option label="暂停" value="1" />
-            </el-select>
-          </el-form-item>
-          <el-form-item>
-            <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
-            <el-button icon="Refresh" @click="resetQuery">重置</el-button>
-          </el-form-item>
-        </el-form>
-      </el-card>
-    </div>
+  <div class="p-2">
+    <transition :enter-active-class="proxy?.animate.searchAnimate.enter" :leave-active-class="proxy?.animate.searchAnimate.leave">
+      <div v-show="showSearch" class="job-filter-panel">
+        <div class="query-toolbar">
+          <el-input
+            v-model="queryParams.jobName"
+            placeholder="任务名称"
+            clearable
+            size="default"
+            @keyup.enter="handleQuery"
+          >
+            <template #prefix>
+              <el-icon><Search /></el-icon>
+            </template>
+          </el-input>
+          <el-select v-model="queryParams.jobGroup" placeholder="全部任务组" clearable size="default">
+            <el-option label="DEFAULT" value="DEFAULT" />
+            <el-option label="SYSTEM" value="SYSTEM" />
+          </el-select>
+          <el-select v-model="queryParams.status" placeholder="全部状态" clearable size="default">
+            <el-option label="正常" value="0" />
+            <el-option label="暂停" value="1" />
+          </el-select>
+          <el-button type="primary" :icon="Search" @click="handleQuery">查询</el-button>
+          <el-button :icon="Refresh" @click="resetQuery">重置</el-button>
+        </div>
+      </div>
+    </transition>
 
-    <el-card shadow="hover">
+    <el-card shadow="never">
       <template #header>
-        <div class="toolbar">
-          <div class="toolbar-left">
-            <el-button type="primary" :icon="Plus" @click="handleAdd">新增</el-button>
-            <el-button
-              type="danger"
-              plain
-              :icon="Delete"
-              :disabled="selectedIds.length === 0"
-              @click="handleBatchDelete"
-            >删除</el-button>
-            <el-button
-              type="warning"
-              plain
-              :icon="VideoPause"
-              :disabled="selectedIds.length === 0"
-              @click="handleBatchPause"
-            >暂停</el-button>
-            <el-button
-              type="success"
-              plain
-              :icon="VideoPlay"
-              :disabled="selectedIds.length === 0"
-              @click="handleBatchResume"
-            >恢复</el-button>
-            <el-button plain :icon="List" @click="toJobLog">日志</el-button>
-          </div>
-          <div class="toolbar-right">
-            <el-tooltip :content="showSearch ? '隐藏搜索' : '显示搜索'" placement="top">
-              <el-button :icon="Search" circle @click="showSearch = !showSearch" />
-            </el-tooltip>
-            <el-tooltip content="刷新" placement="top">
-              <el-button :icon="Refresh" circle @click="handleRefresh" />
-            </el-tooltip>
-          </div>
+        <div class="action-toolbar">
+          <el-button type="primary" :icon="Plus" @click="handleAdd">新增</el-button>
+          <el-button type="danger" plain :icon="Delete" :disabled="multiple" @click="handleBatchDelete">删除</el-button>
+          <el-button type="warning" plain :icon="VideoPause" :disabled="multiple" @click="handleBatchPause">暂停</el-button>
+          <el-button type="success" plain :icon="VideoPlay" :disabled="multiple" @click="handleBatchResume">恢复</el-button>
+          <el-button plain :icon="List" @click="toJobLog">日志</el-button>
+          <right-toolbar v-model:show-search="showSearch" @query-table="getList" />
         </div>
       </template>
 
       <el-table
-        ref="tableRef"
         v-loading="loading"
         :data="tableData"
-        stripe
         border
+        class="job-table"
         @selection-change="handleSelectionChange"
       >
-        <el-table-column type="selection" width="50" align="center" />
-        <el-table-column prop="jobId" label="任务编号" width="80" align="center" />
-        <el-table-column prop="jobName" label="任务名称" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="jobGroup" label="任务组" width="100" align="center">
+        <el-table-column type="selection" width="55" align="center" />
+        <el-table-column prop="jobId" label="任务编号" width="90" align="center" />
+        <el-table-column prop="jobName" label="任务名称" min-width="140" align="center" show-overflow-tooltip />
+        <el-table-column prop="jobGroup" label="任务组" width="110" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="row.jobGroup === 'DEFAULT' ? undefined : 'warning'">{{ row.jobGroup }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="invokeTarget" label="调用目标" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="cronExpression" label="Cron 表达式" width="150" />
-        <el-table-column prop="concurrent" label="并发" width="70" align="center">
+        <el-table-column prop="invokeTarget" label="调用目标" min-width="200" align="center" show-overflow-tooltip />
+        <el-table-column prop="cronExpression" label="Cron 表达式" width="150" align="center" show-overflow-tooltip />
+        <el-table-column prop="concurrent" label="并发" width="80" align="center">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.concurrent === '0' ? 'success' : 'info'">{{ row.concurrent === '0' ? '允许' : '禁止' }}</el-tag>
+            <el-tag size="small" :type="row.concurrent === '0' ? 'success' : 'info'">
+              {{ row.concurrent === '0' ? '允许' : '禁止' }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态" width="90" align="center">
@@ -116,21 +91,15 @@
         </el-table-column>
       </el-table>
 
-      <!-- 分页 -->
-      <div class="pagination-wrap">
-        <el-pagination
-          v-model:current-page="queryParams.pageNum"
-          v-model:page-size="queryParams.pageSize"
-          :page-sizes="[10, 20, 50, 100]"
-          layout="total, sizes, prev, pager, next, jumper"
-          :total="total"
-          @size-change="getList"
-          @current-change="getList"
-        />
-      </div>
+      <pagination
+        v-show="total > 0"
+        v-model:page="queryParams.pageNum"
+        v-model:limit="queryParams.pageSize"
+        :total="total"
+        @pagination="getList"
+      />
     </el-card>
 
-    <!-- 新增/修改对话框 -->
     <el-dialog
       v-model="dialog.visible"
       :title="dialog.title"
@@ -139,7 +108,7 @@
       width="680px"
     >
       <el-form ref="jobFormRef" :model="form" :rules="rules" label-width="110px">
-        <el-row>
+        <el-row :gutter="20">
           <el-col :span="24">
             <el-form-item label="任务名称" prop="jobName">
               <el-input v-model="form.jobName" placeholder="请输入任务名称" />
@@ -186,7 +155,6 @@
                   <el-button :loading="cronChecking" @click="handleCheckCron">验证</el-button>
                 </template>
               </el-input>
-              <!-- 验证结果 -->
               <transition name="el-fade-in">
                 <div v-if="cronValid !== null" class="cron-result">
                   <template v-if="cronValid">
@@ -217,27 +185,32 @@
         </el-row>
       </el-form>
       <template #footer>
-        <el-button type="primary" @click="submitForm">确 定</el-button>
-        <el-button @click="cancel">取 消</el-button>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="submitForm">确 定</el-button>
+          <el-button @click="cancel">取 消</el-button>
+        </div>
       </template>
     </el-dialog>
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+<script setup lang="ts" name="Job">
+import { ref, reactive, onMounted, getCurrentInstance, type ComponentInternalInstance } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
-import { Plus, Delete, Edit, Search, Refresh, List, CaretRight, VideoPause, VideoPlay, QuestionFilled, CircleCheck, CircleClose } from '@element-plus/icons-vue'
+import {
+  Plus, Delete, Edit, Search, Refresh, List, CaretRight,
+  VideoPause, VideoPlay, QuestionFilled, CircleCheck, CircleClose
+} from '@element-plus/icons-vue'
 import {
   listJob, getJob, addJob, updateJob, delJob,
   changeJobStatus, runJob, checkCron,
   type Job
 } from '@/api/monitor/job'
 
+const { proxy } = getCurrentInstance() as ComponentInternalInstance
 const router = useRouter()
-const queryFormRef = ref<FormInstance>()
 const jobFormRef = ref<FormInstance>()
 
 const loading = ref(false)
@@ -245,7 +218,7 @@ const showSearch = ref(true)
 const total = ref(0)
 const tableData = ref<(Job & { _toggling?: boolean })[]>([])
 const selectedIds = ref<number[]>([])
-const selectedRows = ref<Job[]>([])
+const multiple = ref(true)
 
 const dialog = reactive({ visible: false, title: '' })
 
@@ -280,7 +253,6 @@ const getList = async () => {
   loading.value = true
   try {
     const res = await listJob(queryParams)
-    // Backend returns R<List<SysJob>>; res.data is the plain array
     const list: Job[] = Array.isArray(res.data) ? res.data : []
     tableData.value = list.map((r) => ({ ...r, _toggling: false }))
     total.value = list.length
@@ -295,17 +267,15 @@ const handleQuery = () => {
 }
 
 const resetQuery = () => {
-  queryFormRef.value?.resetFields()
+  queryParams.jobName = undefined
+  queryParams.jobGroup = undefined
+  queryParams.status = undefined
   handleQuery()
 }
 
-const handleRefresh = () => {
-  resetQuery()
-}
-
 const handleSelectionChange = (rows: Job[]) => {
-  selectedRows.value = rows
   selectedIds.value = rows.map((r) => r.jobId as number).filter(Boolean)
+  multiple.value = !rows.length
 }
 
 const resetCronValidation = () => {
@@ -358,7 +328,6 @@ const handleToggle = async (row: Job & { _toggling?: boolean }, enabled: boolean
     row.status = enabled ? '0' : '1'
     ElMessage.success(enabled ? '任务已启用' : '任务已暂停')
   } catch {
-    // revert on error — reload from server
     getList()
   } finally {
     row._toggling = false
@@ -406,7 +375,6 @@ const handleBatchResume = async () => {
   getList()
 }
 
-// ── Cron 验证 ─────────────────────────────────────────────
 const cronChecking = ref(false)
 const cronValid = ref<boolean | null>(null)
 
@@ -435,27 +403,7 @@ const toJobLogWithFilter = (row: Job) =>
 onMounted(() => getList())
 </script>
 
-<style scoped>
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.toolbar-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.pagination-wrap {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
-}
+<style scoped lang="scss">
 .cron-result {
   display: flex;
   align-items: center;

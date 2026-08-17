@@ -23,6 +23,7 @@ export interface ModeSwitchRequest {
   targetMode: 'AUTOMATIC' | 'MANUAL';
   executePolicy: 'REJECT_IF_BUSY' | 'PAUSE_THEN_SWITCH';
   reason?: string;
+  requestId?: string;
 }
 
 export interface MapSwitchRequest {
@@ -30,6 +31,7 @@ export interface MapSwitchRequest {
   targetMapVersion?: string;
   initPosition?: string;
   fallbackMapId?: string;
+  requestId?: string;
 }
 
 export interface GoChargeRequest {
@@ -37,6 +39,7 @@ export interface GoChargeRequest {
   stationId?: string;
   interruptPolicy: 'WAIT_CURRENT_TASK' | 'INTERRUPT_NOW';
   minSocThreshold?: number;
+  requestId?: string;
 }
 
 export interface MoveRequest {
@@ -47,14 +50,20 @@ export interface MoveRequest {
   y?: number;
   theta?: number;
   confirmRisk?: boolean;
+  requestId?: string;
 }
 
 export interface OpsActionRecord {
   actionId: string;
+  requestId?: string;
   traceId: string;
   vehicleName: string;
   actionCategory: string;
   actionType: string;
   executeStatus: string;
+  reasonCode?: string;
+  reasonMessage?: string;
+  operatorName?: string;
   operatedAt: string;
+  finishedAt?: string;
 }

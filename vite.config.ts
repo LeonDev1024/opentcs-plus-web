@@ -23,6 +23,13 @@ export default defineConfig(({ mode, command }) => {
       port: Number(env.VITE_APP_PORT),
       open: true,
       proxy: {
+        // 监控大屏 WS 单独代理，避免和 HTTP rewrite 抢升级头
+        [`${env.VITE_APP_BASE_API}/resource/ws`]: {
+          target: 'http://127.0.0.1:8080',
+          changeOrigin: true,
+          ws: true,
+          rewrite: (path) => path.replace(new RegExp('^' + env.VITE_APP_BASE_API), '')
+        },
         [env.VITE_APP_BASE_API]: {
           target: 'http://127.0.0.1:8080',
           changeOrigin: true,

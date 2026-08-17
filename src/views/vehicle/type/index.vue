@@ -664,8 +664,6 @@ const getBrandList = async () => {
 </script>
 
 <style scoped lang="scss">
-@import '@/assets/styles/device-toolbar.scss';
-
 .form-tip {
   font-size: 12px;
   color: #909399;

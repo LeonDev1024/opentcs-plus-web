@@ -104,7 +104,7 @@ function computePointVisualMeta(point: MapPoint): PointVisualMeta {
     typeConfig?.radius ||
     DEFAULT_POINT_OUTER_RADIUS;
   const radius = Number.isFinite(Number(rawRadius))
-    ? Math.max(1, Number(rawRadius))
+    ? Math.max(DEFAULT_POINT_OUTER_RADIUS, Number(rawRadius))
     : DEFAULT_POINT_OUTER_RADIUS;
 
   return {

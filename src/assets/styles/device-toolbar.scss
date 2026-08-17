@@ -3,7 +3,10 @@
 .order-filter-panel,
 .vehicle-filter-panel,
 .brand-filter-panel,
-.type-filter-panel {
+.type-filter-panel,
+.template-filter-panel,
+.job-filter-panel,
+.online-filter-panel {
   margin-bottom: 12px;
   padding: 14px 16px;
   background: var(--el-bg-color);
@@ -21,15 +24,15 @@
 }
 
 .query-toolbar {
-  :deep(.el-input) {
+  .el-input {
     width: 240px;
   }
 
-  :deep(.el-select) {
+  .el-select {
     width: 160px;
   }
 
-  :deep(.el-input__wrapper) {
+  .el-input__wrapper {
     height: 32px;
     min-height: 32px;
     padding-top: 0;
@@ -37,7 +40,7 @@
     box-sizing: border-box;
   }
 
-  :deep(.el-select__wrapper) {
+  .el-select__wrapper {
     height: 32px !important;
     min-height: 32px !important;
     padding-top: 0;
@@ -45,12 +48,12 @@
     box-sizing: border-box;
   }
 
-  :deep(.el-select__selection) {
+  .el-select__selection {
     min-height: 30px;
     line-height: 30px;
   }
 
-  :deep(.el-input__inner) {
+  .el-input__inner {
     height: 32px;
     line-height: 32px;
   }
@@ -58,7 +61,7 @@
 
 .query-toolbar,
 .action-toolbar {
-  :deep(.el-button) {
+  .el-button {
     height: 32px !important;
     min-height: 32px !important;
     line-height: 32px !important;
@@ -66,17 +69,17 @@
     box-sizing: border-box;
   }
 
-  :deep(.el-button + .el-button) {
+  .el-button + .el-button {
     margin-left: 0 !important;
   }
 }
 
 .action-toolbar {
-  :deep(.top-right-btn) {
+  .top-right-btn {
     margin-left: auto;
   }
 
-  :deep(.top-right-btn .el-button.is-circle) {
+  .top-right-btn .el-button.is-circle {
     width: 32px !important;
     height: 32px !important;
     min-height: 32px !important;
@@ -86,8 +89,8 @@
 
 @media (max-width: 900px) {
   .query-toolbar {
-    :deep(.el-input),
-    :deep(.el-select) {
+    .el-input,
+    .el-select {
       width: 100%;
     }
   }

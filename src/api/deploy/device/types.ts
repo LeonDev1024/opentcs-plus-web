@@ -30,7 +30,12 @@ export interface VehicleVO {
   state: string;
 
   /**
-   * 当前位置ID
+   * 当前位置点位 ID
+   */
+  currentPosition?: string;
+
+  /**
+   * 当前位置ID（兼容旧字段）
    */
   currentLocationId?: string | number;
 
@@ -38,6 +43,16 @@ export interface VehicleVO {
    * 当前位置名称
    */
   currentLocationName?: string;
+
+  /**
+   * 驱动类型：LOOPBACK / VDA5050
+   */
+  driverType?: string;
+
+  /**
+   * 驱动是否已连接
+   */
+  driverConnected?: boolean;
 
   /**
    * 描述
@@ -97,6 +112,16 @@ export interface VehicleForm extends BaseEntity {
    * 车辆状态：UNKNOWN, UNAVAILABLE, IDLE, CHARGING, WORKING, ERROR
    */
   state?: string;
+
+  /**
+   * 驱动类型：LOOPBACK / VDA5050
+   */
+  driverType?: string;
+
+  /**
+   * 当前位置点位 ID
+   */
+  currentPosition?: string;
 
   /**
    * 当前位置ID

@@ -16,6 +16,7 @@
  * - 无 energyLevel → 隐藏电量条
  */
 import { computed } from 'vue';
+import { Location, Van } from '@element-plus/icons-vue';
 import type { RobotCardVO } from '@/api/ops/monitor';
 
 const props = defineProps<{
@@ -31,9 +32,13 @@ const emit = defineEmits<{
 const stateConfig = computed(() => {
   const map: Record<string, { label: string; color: string }> = {
     IDLE:        { label: '空闲',   color: '#67C23A' },
-    WORKING:     { label: '运行',   color: '#409EFF' },
+    WORKING:     { label: '执行中', color: '#1677FF' },
+    EXECUTING:   { label: '执行中', color: '#1677FF' },
     CHARGING:    { label: '充电',   color: '#E6A23C' },
     ERROR:       { label: '异常',   color: '#F56C6C' },
+    WAITING:     { label: '等待中', color: '#E6A23C' },
+    PAUSED:      { label: '已暂停', color: '#E6A23C' },
+    OFFLINE:     { label: '离线',   color: '#909399' },
     UNKNOWN:     { label: '离线',   color: '#909399' },
     UNAVAILABLE: { label: '不可用', color: '#909399' }
   };
@@ -79,22 +84,7 @@ const energyColor = computed(() => {
   return '#67C23A';
 });
 
-/** 底部行：充电时是 ETA，其他状态是速度；都没有就隐藏 */
-const bottomLine = computed<{ label: string; value: string } | null>(() => {
-  if (isCharging.value && props.robot.estimatedFinishMinutes != null) {
-    return {
-      label: '预计完成',
-      value: `${Math.max(0, Math.round(props.robot.estimatedFinishMinutes))}min`
-    };
-  }
-  if (props.robot.velocity != null && Number.isFinite(props.robot.velocity)) {
-    return {
-      label: '速度',
-      value: `${props.robot.velocity.toFixed(1)} m/s`
-    };
-  }
-  return null;
-});
+const pointName = computed(() => props.robot.position?.pointId || '未知站点');
 </script>
 
 <template>
@@ -104,40 +94,37 @@ const bottomLine = computed<{ label: string; value: string } | null>(() => {
     :style="{ '--state-color': stateConfig.color }"
     @click="emit('click')"
   >
-    <div class="card-indicator"></div>
+    <div class="robot-icon">
+      <el-icon><Van /></el-icon>
+    </div>
     <div class="card-body">
-      <!-- 第 1 行：名称 + 状态药丸 -->
       <div class="row-name">
         <span class="robot-name" :title="robot.name">{{ robot.name }}</span>
-        <span class="state-pill">{{ stateConfig.label }}</span>
+        <span class="state-text">
+          <i class="state-dot"></i>{{ stateConfig.label }}
+        </span>
       </div>
 
-      <!-- 第 2 行：任务 -->
       <div class="row-task">
         <span class="task-label">任务</span>
         <span class="task-value" :class="{ empty: taskIsEmpty }" :title="taskText">
           {{ taskText }}
         </span>
-      </div>
-
-      <!-- 第 3 行：电量 -->
-      <div v-if="energyPercent !== null" class="row-energy">
-        <span class="energy-label">电量</span>
-        <div class="energy-bar">
-          <div
-            class="energy-fill"
-            :style="{ width: energyPercent + '%', background: energyColor }"
-          ></div>
-        </div>
-        <span class="energy-text" :style="{ color: energyColor }">
+        <span v-if="energyPercent !== null" class="battery" :style="{ color: energyColor }">
+          <i class="battery-shell">
+            <i class="battery-level" :style="{ width: energyPercent + '%', background: energyColor }"></i>
+          </i>
           {{ energyPercent }}%
         </span>
       </div>
 
-      <!-- 第 4 行：速度 / 预计完成 -->
-      <div v-if="bottomLine" class="row-bottom">
-        <span class="bottom-label">{{ bottomLine.label }}</span>
-        <span class="bottom-value">{{ bottomLine.value }}</span>
+      <div class="row-position">
+        <span class="position-value" :title="pointName">
+          <el-icon><Location /></el-icon>{{ pointName }}
+        </span>
+        <span v-if="robot.velocity != null" class="velocity">
+          {{ robot.velocity.toFixed(1) }} m/s
+        </span>
       </div>
     </div>
   </div>
@@ -146,42 +133,54 @@ const bottomLine = computed<{ label: string; value: string } | null>(() => {
 <style scoped>
 .robot-card {
   display: flex;
-  align-items: stretch;
-  border: 1px solid var(--el-border-color);
-  border-radius: 8px;
-  overflow: hidden;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 7px;
   cursor: pointer;
-  transition: all 0.2s;
-  background: var(--el-fill-color-lighter);
+  transition: all 0.18s ease;
+  background: #fff;
 }
 
 .robot-card:hover {
-  border-color: var(--state-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-color: #91bfff;
+  box-shadow: 0 4px 12px rgba(22, 119, 255, 0.1);
 }
 
 .robot-card.active {
-  border-color: var(--state-color);
-  background: var(--el-fill-color-light);
-  box-shadow: 0 0 0 2px var(--state-color);
+  border-color: #69a6ff;
+  background: #f5f9ff;
+  box-shadow: 0 0 0 1px rgba(22, 119, 255, 0.12);
 }
 
-.card-indicator {
-  width: 4px;
-  background: var(--state-color);
+.robot-icon {
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #8da0b8;
+  border-radius: 5px;
+  color: #71849c;
+  font-size: 19px;
+}
+
+.robot-card.active .robot-icon {
+  border-color: #1677ff;
+  color: #1677ff;
+  background: #fff;
 }
 
 .card-body {
   flex: 1;
-  padding: 10px 12px;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
-/* —— 行 1：名称 + 状态 —— */
 .row-name {
   display: flex;
   align-items: center;
@@ -189,44 +188,51 @@ const bottomLine = computed<{ label: string; value: string } | null>(() => {
 }
 
 .robot-name {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
-  color: var(--state-color);
+  color: #1f2937;
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  letter-spacing: 0.3px;
 }
 
-.state-pill {
+.state-text {
   flex-shrink: 0;
-  font-size: 11px;
-  line-height: 1;
-  padding: 3px 8px;
-  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
   color: var(--state-color);
-  background: color-mix(in srgb, var(--state-color) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--state-color) 35%, transparent);
   font-weight: 500;
 }
 
-/* —— 行 2：任务 —— */
+.state-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
 .row-task {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 12px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
   min-width: 0;
 }
 
 .task-label {
-  color: var(--el-text-color-secondary);
+  color: #6d7fff;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #f0f3ff;
   flex-shrink: 0;
 }
 
 .task-value {
-  color: var(--el-text-color-primary);
+  color: #94a3b8;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -234,63 +240,65 @@ const bottomLine = computed<{ label: string; value: string } | null>(() => {
   flex: 1;
 }
 
-.task-value.empty {
-  color: var(--el-text-color-placeholder);
+.battery {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
-/* —— 行 3：电量 —— */
-.row-energy {
+.battery-shell {
+  position: relative;
+  width: 15px;
+  height: 7px;
+  padding: 1px;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+}
+
+.battery-shell::after {
+  content: '';
+  position: absolute;
+  right: -3px;
+  top: 2px;
+  width: 2px;
+  height: 3px;
+  border-radius: 0 1px 1px 0;
+  background: currentColor;
+}
+
+.battery-level {
+  display: block;
+  height: 100%;
+}
+
+.row-position {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-}
-
-.energy-label {
-  color: var(--el-text-color-secondary);
-  flex-shrink: 0;
-}
-
-.energy-bar {
-  flex: 1;
-  height: 6px;
-  background: var(--el-fill-color);
-  border-radius: 3px;
-  overflow: hidden;
+  justify-content: space-between;
+  gap: 8px;
   min-width: 0;
+  font-size: 10px;
+  color: #94a3b8;
 }
 
-.energy-fill {
-  height: 100%;
-  border-radius: 3px;
-  transition: width 0.3s ease, background 0.3s ease;
+.position-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.energy-text {
-  font-size: 11px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+.position-value .el-icon {
+  color: #f56c6c;
+}
+
+.velocity {
   flex-shrink: 0;
-  width: 36px;
-  text-align: right;
-}
-
-/* —— 行 4：底部信息 —— */
-.row-bottom {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 12px;
-}
-
-.bottom-label {
-  color: var(--el-text-color-secondary);
-  flex-shrink: 0;
-}
-
-.bottom-value {
-  color: var(--el-text-color-primary);
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
 }
 </style>

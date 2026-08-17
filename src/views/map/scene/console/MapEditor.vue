@@ -315,7 +315,7 @@
         :class="{ resizing: isRightResizing }"
       ></div>
 
-      <!-- 右侧面板（常驻，含属性/图元/图层三个 tab） -->
+      <!-- 右侧面板（属性/图元/图层） -->
       <div
         v-if="!isRightPanelCollapsed"
         class="right-panel"
@@ -877,6 +877,7 @@
         </li>
       </ul>
     </div>
+
   </div>
 </template>
 
@@ -1027,6 +1028,7 @@ const handleDeletePathFromMenu = () => {
   }
   closePathContextMenu();
 };
+
 
 // 点编辑对话框
 const showPointEditDialog = ref(false);
@@ -1950,7 +1952,7 @@ const handleSave = async () => {
   }
   try {
     await mapEditorStore.saveMap();
-    ElMessage.success("保存成功");
+    ElMessage.success("保存成功，地图已生效");
     // 通知父组件地图已更新
     const mapName =
       mapEditorStore.mapData?.mapInfo?.name || props.mapName || "未命名";
@@ -2125,9 +2127,7 @@ const handleImportMap = () => {
         mapEditorStore.points = importData.elements?.points || [];
         mapEditorStore.paths = importData.elements?.paths || [];
         mapEditorStore.locations = [];
-        mapEditorStore.blocks = [];
         mapEditorStore.mapData.elements.locations = [];
-        mapEditorStore.mapData.blocks = [];
 
         // 更新画布状态
         if (importData.mapInfo) {
