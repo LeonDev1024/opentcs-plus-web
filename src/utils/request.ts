@@ -56,7 +56,7 @@ service.interceptors.request.use(
       config.url = url;
     }
 
-    if (!isRepeatSubmit && (config.method === 'post' || config.method === 'put')) {
+    if (!isRepeatSubmit && (config.method === 'post' || config.method === 'put') && !(config.data instanceof FormData)) {
       const requestObj = {
         url: config.url,
         data: typeof config.data === 'object' ? JSON.stringify(config.data) : config.data,
